@@ -11,35 +11,58 @@ Mojentic provides a clean abstraction over multiple LLM providers with tool
 support, structured output generation, streaming, an event-driven agent system,
 and realtime voice — all built natively on Swift Concurrency.
 
-> **Status: Phase 6 — Anthropic gateway shipped.** Adds `AnthropicGateway`
-> (gated by the `anthropic` package trait), `AnthropicMessageAdapter`,
-> and `AnthropicModelRegistry` on top of the Phase 1–5 LLM + tracer +
-> tool + agent + realtime foundation. Only docs polish (Phase 7) remains —
-> see `SWIFT.md` in the `mojentic-unify` monorepo for the full plan.
+> **Status: 1.4.0 — release candidate.** All four layers (LLM, Tracer,
+> Agents, Realtime Voice) ship at cross-port parity. See `SWIFT.md` in
+> the `mojentic-unify` monorepo for the original plan and parity notes.
 
-## Planned Features
+## Quick Start
 
-- **🔌 Multi-Provider Support**: Ollama, OpenAI, and Anthropic gateways
-- **⚡ Async-First**: Swift Concurrency end to end (`async/await`,
-  `AsyncSequence`, actors, structured tasks)
-- **🛠️ Tool System**: Extensible tool calling with automatic recursive
-  execution, serial (default) or parallel runners
-- **📊 Structured Output**: Type-safe `Codable`-based structured data
-- **🌊 Streaming**: `AsyncThrowingStream` with full recursive tool execution
-- **🔍 Tracer System**: Complete observability for debugging and monitoring,
-  with correlation IDs threaded through nested broker/tool calls
-- **🤖 Agent System**: Event-driven multi-agent coordination with the ReAct
-  pattern and shared working memory
-- **🎙️ Realtime Voice**: OpenAI Realtime API over `URLSessionWebSocketTask`
-  with server/manual VAD and barge-in
-- **🧩 Provider Trait Gating**: Swift Package Traits let consumers opt into
-  only the providers they need
+```swift
+import Mojentic
+
+let broker = LLMBroker(gateway: OllamaGateway())
+let response = try await broker.complete(
+    model: "llama3.2",
+    messages: [
+        .system("You are a concise assistant."),
+        .user("Name one fact about the moon."),
+    ]
+)
+print(response.content)
+```
+
+For a multi-turn conversation use `ChatSession`; for an agent flow use
+`AsyncDispatcher`; for voice use `RealtimeVoiceBroker`. The DocC site
+has full walkthroughs for each.
+
+## Features
+
+- **Multi-Provider Support**: Ollama, OpenAI, and Anthropic gateways.
+- **Async-First**: Swift Concurrency end to end (`async/await`,
+  `AsyncSequence`, actors, structured tasks).
+- **Tool System**: Extensible tool calling with automatic recursive
+  execution, serial (default) or parallel runners.
+- **Structured Output**: Type-safe `Codable`-based decoding with
+  provider-aware schema routing.
+- **Streaming**: `AsyncThrowingStream` with full recursive tool
+  execution and per-event broker context.
+- **Tracer System**: `EventStore`-backed correlation tracking that
+  follows broker calls, tool dispatches, agent lifecycle, and parallel
+  tool batches.
+- **Agent System**: `Router` + `AsyncDispatcher` with `AsyncLLMAgent`,
+  `AsyncAggregatorAgent`, `IterativeProblemSolver`, `SimpleRecursiveAgent`,
+  `ReActAgent`, and `SharedWorkingMemory`.
+- **Realtime Voice**: OpenAI Realtime API over `URLSessionWebSocketTask`
+  with server/manual VAD, barge-in via cooperative task cancellation,
+  and parallel tool dispatch inside voice turns.
+- **Provider Trait Gating**: Swift Package Traits let consumers opt
+  into only the providers they need.
 
 ## Requirements
 
 - **Swift 6.1+** (Package Traits + strict concurrency)
-- Platforms: macOS 13+, iOS 16+, tvOS 16+, watchOS 9+, visionOS 1+, Linux
-  (current stable Swift toolchain)
+- Platforms: macOS 13+, iOS 16+, tvOS 16+, watchOS 9+, visionOS 1+,
+  Linux (current stable Swift toolchain)
 
 ## Installation
 
@@ -47,7 +70,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/svetzal/mojentic-sw.git", from: "0.1.0")
+    .package(url: "https://github.com/svetzal/mojentic-sw.git", from: "1.4.0")
 ]
 ```
 
@@ -57,14 +80,25 @@ providers via traits:
 ```swift
 .package(
     url: "https://github.com/svetzal/mojentic-sw.git",
-    from: "0.1.0",
-    traits: ["openai", "ollama"]
+    from: "1.4.0",
+    traits: ["openai", "ollama", "anthropic"]
 )
 ```
 
 ## Documentation
 
-DocC documentation will be published to GitHub Pages on every tagged release.
+- **DocC site**: <https://svetzal.github.io/mojentic-sw/> (published on
+  every `v*` tag).
+- Use Cases: Building Chatbots, Structured Output, Building Agents,
+  Image Analysis.
+- Tool Examples: File Tools, Task Management, Web Search.
+- Core API reference auto-generated from public symbol doc comments.
+
+Build the docs locally:
+
+```bash
+swift package --disable-sandbox preview-documentation --target Mojentic
+```
 
 ## License
 
