@@ -12,6 +12,36 @@ move independently.
 
 ### Added
 
+- Phase 4: agent system. `Event` protocol with `correlationId` + `parentId`,
+  concrete events (`TextEvent`, `LLMRequestEvent`, `LLMResponseEvent`,
+  `ErrorEvent`, `CompositeEvent`). `Router` actor with subscribe / unsubscribe
+  / route by concrete event type. `AsyncDispatcher` actor with start / stop /
+  dispatch / wait, fan-out via `TaskGroup`, automatic `agentLifecycle` tracer
+  events (started / finished / failed) and ErrorEvent re-dispatch on
+  handler failure.
+- `BaseAgent` protocol (single async `handle(_:)` method); `BaseAsyncAgent`
+  ships as a typealias per SWIFT.md §4 Layer 3 "async-first subsumption".
+  `AsyncLLMAgent` actor (broker-backed; threads inbound event's
+  `correlationId` into the broker's `TracerContext`). `AsyncAggregatorAgent`
+  actor (fires `CompositeEvent` once expected count reached per correlation;
+  ignores stragglers).
+- `SharedWorkingMemory` actor with global + per-correlation scopes (get / set
+  / delete / snapshot, all value-type copies).
+- Higher-order agents: `IterativeProblemSolver` (DONE / FAIL / max-iterations
+  loop with optional `SharedWorkingMemory`), `SimpleRecursiveAgent` (closure-
+  driven refinement bounded by depth cap; throws
+  `MojenticError.recursionDepthExceeded`), `ReActAgent` (Thought→Action→
+  Observation loop powered by the broker's native tool-call recursion).
+- Seven new executable examples: `AsyncLLM`, `AsyncDispatcherExample`,
+  `IterativeSolver`, `RecursiveAgent`, `SolverChatSession`, `ReAct`,
+  `WorkingMemory`.
+- New test suites covering Router subscribe/route/unsubscribe,
+  AsyncDispatcher drain + tracer lifecycle + error fan-out, AsyncLLMAgent
+  correlation propagation, AsyncAggregatorAgent firing semantics,
+  SharedWorkingMemory namespacing, and higher-order agent behaviour
+  (iterative cap + DONE detection, recursive depth cap + completion,
+  ReAct final-answer extraction + non-convergence).
+- `MojenticError.recursionDepthExceeded(limit:)` case.
 - Phase 3: full tracer system. `TracerEvent` enum (llmCall, llmResponse,
   toolCall, toolResult, toolBatch, agentLifecycle) with correlationId +
   parentId nesting, timestamp, and Duration on paired events.

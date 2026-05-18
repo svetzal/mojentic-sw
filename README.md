@@ -11,13 +11,13 @@ Mojentic provides a clean abstraction over multiple LLM providers with tool
 support, structured output generation, streaming, an event-driven agent system,
 and realtime voice — all built natively on Swift Concurrency.
 
-> **Status: Phase 3 — full tracer, parallel tools, and provided tool set shipped.**
-> The package now provides `LLMBroker`, `OllamaGateway`, `OpenAIGateway`,
-> `ChatSession`, multimodal messages, embeddings, the full `TracerEvent` +
-> `EventStore` correlation system, `ParallelToolRunner`, and a reference
-> tool set (file tools, ephemeral task manager, Ask/TellUser, web search,
-> `ToolWrapper`). Agents, realtime voice, and Anthropic land in later
-> phases — see `SWIFT.md` in the `mojentic-unify` monorepo for the full plan.
+> **Status: Phase 4 — agent system shipped.** Adds `BaseAgent`,
+> `AsyncLLMAgent`, `AsyncAggregatorAgent`, `Router`, `AsyncDispatcher`,
+> `SharedWorkingMemory`, and the higher-order agents
+> (`IterativeProblemSolver`, `SimpleRecursiveAgent`, `ReActAgent`) on top of
+> the Phase 1–3 LLM + tracer + tool foundation. Realtime voice and
+> Anthropic land in later phases — see `SWIFT.md` in the `mojentic-unify`
+> monorepo for the full plan.
 
 ## Planned Features
 

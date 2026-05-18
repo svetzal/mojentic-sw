@@ -26,6 +26,9 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
     /// The broker's recursive tool-call loop exceeded `maxToolIterations`.
     case toolDepthExceeded(limit: Int)
 
+    /// An agent's self-recursion exceeded its configured depth cap.
+    case recursionDepthExceeded(limit: Int)
+
     /// The structured-output response could not be decoded into the requested type.
     case structuredDecoding(typeName: String, message: String)
 
@@ -52,6 +55,8 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
             return "Tool '\(name)' failed: \(message)"
         case .toolDepthExceeded(let limit):
             return "Tool-call recursion exceeded limit (\(limit))"
+        case .recursionDepthExceeded(let limit):
+            return "Agent recursion exceeded depth limit (\(limit))"
         case .structuredDecoding(let typeName, let message):
             return "Failed to decode structured output as \(typeName): \(message)"
         case .cancelled:

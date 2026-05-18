@@ -36,6 +36,16 @@ let package = Package(
         .executable(name: "AskUser", targets: ["AskUser"]),
         .executable(name: "WebSearch", targets: ["WebSearch"]),
         .executable(name: "TracerDemo", targets: ["TracerDemo"]),
+        .executable(name: "AsyncLLM", targets: ["AsyncLLM"]),
+        .executable(
+            name: "AsyncDispatcherExample",
+            targets: ["AsyncDispatcherExample"]
+        ),
+        .executable(name: "IterativeSolver", targets: ["IterativeSolver"]),
+        .executable(name: "RecursiveAgent", targets: ["RecursiveAgent"]),
+        .executable(name: "SolverChatSession", targets: ["SolverChatSession"]),
+        .executable(name: "ReAct", targets: ["ReAct"]),
+        .executable(name: "WorkingMemory", targets: ["WorkingMemory"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -153,6 +163,41 @@ let package = Package(
             name: "TracerDemo",
             dependencies: ["Mojentic"],
             path: "Examples/TracerDemo"
+        ),
+        .executableTarget(
+            name: "AsyncLLM",
+            dependencies: ["Mojentic"],
+            path: "Examples/AsyncLLM"
+        ),
+        .executableTarget(
+            name: "AsyncDispatcherExample",
+            dependencies: ["Mojentic"],
+            path: "Examples/AsyncDispatcher"
+        ),
+        .executableTarget(
+            name: "IterativeSolver",
+            dependencies: ["Mojentic"],
+            path: "Examples/IterativeSolver"
+        ),
+        .executableTarget(
+            name: "RecursiveAgent",
+            dependencies: ["Mojentic"],
+            path: "Examples/RecursiveAgent"
+        ),
+        .executableTarget(
+            name: "SolverChatSession",
+            dependencies: ["Mojentic"],
+            path: "Examples/SolverChatSession"
+        ),
+        .executableTarget(
+            name: "ReAct",
+            dependencies: ["Mojentic"],
+            path: "Examples/ReAct"
+        ),
+        .executableTarget(
+            name: "WorkingMemory",
+            dependencies: ["Mojentic"],
+            path: "Examples/WorkingMemory"
         ),
     ],
     swiftLanguageModes: [.v6]
