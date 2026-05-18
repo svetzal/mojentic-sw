@@ -166,13 +166,13 @@ import Logging
             return AsyncThrowingStream { continuation in
                 let task = Task {
                     do {
-                        let bytes = try await client.streamLines(
+                        let lines = try await client.streamLines(
                             url: url,
                             body: body,
                             headers: headers
                         )
                         var accumulator = AnthropicStreamAccumulator()
-                        for try await line in bytes.lines {
+                        for try await line in lines {
                             try Task.checkCancellation()
                             // Anthropic SSE emits "event: ..." and "data: ..."
                             // lines plus blank separators. Skip everything but

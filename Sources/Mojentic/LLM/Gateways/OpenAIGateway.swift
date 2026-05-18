@@ -156,7 +156,7 @@ public struct OpenAIGateway: LLMGateway {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let bytes = try await client.streamLines(
+                    let lines = try await client.streamLines(
                         url: url,
                         body: body,
                         headers: headers
@@ -164,7 +164,7 @@ public struct OpenAIGateway: LLMGateway {
                     var accumulator = OpenAIToolCallAccumulator()
                     var finishReason: FinishReason?
                     var usage: Usage?
-                    for try await line in bytes.lines {
+                    for try await line in lines {
                         try Task.checkCancellation()
                         // OpenAI emits SSE `data: ...` lines plus heartbeats.
                         guard let payload = Self.payload(from: line) else { continue }

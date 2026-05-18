@@ -77,12 +77,18 @@ public struct HTTPClient: Sendable {
         }
     }
 
-    /// Stream bytes from a JSON POST as an `AsyncSequence` of lines.
+    /// Stream lines from a JSON POST as an `AsyncThrowingStream<String, Error>`.
+    ///
+    /// Apple platforms get real progressive streaming via
+    /// `URLSession.bytes(for:)`. Linux (swift-corelibs-foundation) lacks
+    /// `URLSession.AsyncBytes`, so this falls back to buffering the full
+    /// response and yielding lines from it. The line-iterating contract is
+    /// identical; only the back-pressure characteristics differ.
     public func streamLines(
         url: URL,
         body: some Encodable,
         headers: [String: String] = [:]
-    ) async throws -> URLSession.AsyncBytes {
+    ) async throws -> AsyncThrowingStream<String, Error> {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -96,10 +102,51 @@ public struct HTTPClient: Sendable {
                 message: "Failed to encode streaming body: \(error.localizedDescription)"
             )
         }
-        let (bytes, response) = try await session.bytes(for: request)
-        try assertSuccess(response: response, sampleBody: Data())
-        return bytes
+        #if canImport(FoundationNetworking)
+            let (data, response) = try await session.data(for: request)
+            try assertSuccess(response: response, sampleBody: data)
+            return Self.linesStream(from: data)
+        #else
+            let (bytes, response) = try await session.bytes(for: request)
+            try assertSuccess(response: response, sampleBody: Data())
+            return AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        for try await line in bytes.lines {
+                            try Task.checkCancellation()
+                            continuation.yield(line)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        #endif
     }
+
+    #if canImport(FoundationNetworking)
+        /// Yield buffered bytes line by line.
+        ///
+        /// Used only on Linux where `URLSession.bytes(for:)` is unavailable.
+        private static func linesStream(from data: Data) -> AsyncThrowingStream<String, Error> {
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    let text = String(bytes: data, encoding: .utf8) ?? ""
+                    for line in text.split(
+                        omittingEmptySubsequences: false,
+                        whereSeparator: { $0.isNewline }
+                    ) {
+                        if Task.isCancelled { break }
+                        continuation.yield(String(line))
+                    }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        }
+    #endif
 
     private func execute(request: URLRequest) async throws -> Data {
         do {

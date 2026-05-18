@@ -136,12 +136,12 @@ public struct OllamaGateway: LLMGateway {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let bytes = try await client.streamLines(
+                    let lines = try await client.streamLines(
                         url: url,
                         body: body,
                         headers: headers
                     )
-                    for try await line in bytes.lines {
+                    for try await line in lines {
                         try Task.checkCancellation()
                         guard let data = line.data(using: .utf8) else { continue }
                         let chunk: OllamaStreamChunk
