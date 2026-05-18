@@ -1,0 +1,14 @@
+version: 1
+builder:
+  configs:
+    - documentation_targets:
+        - Mojentic
+      platform: macos-spm
+metadata:
+  authors: Stacey Vetzal
+  short_description: >-
+    Swift LLM integration framework — Ollama, OpenAI, and Anthropic
+    gateways with tool calling, structured output, streaming, a tracer
+    system, an event-driven agent system, and OpenAI Realtime voice.
+external_links:
+  documentation: https://svetzal.github.io/mojentic-sw/
