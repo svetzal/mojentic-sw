@@ -8,10 +8,12 @@ Major and minor versions are synchronised with the other Mojentic ports
 (`mojentic-py`, `mojentic-ts`, `mojentic-ex`, `mojentic-ru`); patch versions
 move independently.
 
-## [1.4.0] - 2026-05-18
+## [2.0.0] - 2026-05-18
 
 First production release. Reaches cross-port parity with the Python,
-TypeScript, Elixir, and Rust implementations across all four layers.
+TypeScript, Elixir, and Rust implementations across all four layers,
+including Layer 4 Realtime Voice — which moves Mojentic to the 2.0 line
+across all ports.
 
 ### Added
 
