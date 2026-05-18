@@ -26,7 +26,7 @@ struct OpenAIRealtimeEventMapperTests {
             "response_id": "resp_1",
             "delta": "hello ",
         ]
-        guard case .textDelta(let turnId, let delta) = OpenAIRealtimeEventMapper.map(event) ?? nil
+        guard case .textDelta(let turnId, let delta) = OpenAIRealtimeEventMapper.map(event)
         else {
             Issue.record("expected textDelta")
             return
@@ -48,7 +48,7 @@ struct OpenAIRealtimeEventMapperTests {
         ]
         guard
             case .toolCallStarted(let turnId, let callId, let name) =
-                OpenAIRealtimeEventMapper.map(event) ?? nil
+                OpenAIRealtimeEventMapper.map(event)
         else {
             Issue.record("expected toolCallStarted")
             return
@@ -67,7 +67,7 @@ struct OpenAIRealtimeEventMapperTests {
             "response_id": "resp_1",
             "delta": .string(encoded),
         ]
-        guard case .audioDelta(_, let frame) = OpenAIRealtimeEventMapper.map(event) ?? nil else {
+        guard case .audioDelta(_, let frame) = OpenAIRealtimeEventMapper.map(event) else {
             Issue.record("expected audioDelta")
             return
         }
@@ -87,7 +87,7 @@ struct OpenAIRealtimeEventMapperTests {
                 ],
             ],
         ]
-        guard case .responseDone(let turnId, let usage) = OpenAIRealtimeEventMapper.map(event) ?? nil
+        guard case .responseDone(let turnId, let usage) = OpenAIRealtimeEventMapper.map(event)
         else {
             Issue.record("expected responseDone")
             return
@@ -109,7 +109,7 @@ struct OpenAIRealtimeEventMapperTests {
             "type": "error",
             "error": ["message": "rate limited"],
         ]
-        guard case .errorOccurred(let message) = OpenAIRealtimeEventMapper.map(event) ?? nil else {
+        guard case .errorOccurred(let message) = OpenAIRealtimeEventMapper.map(event) else {
             Issue.record("expected errorOccurred")
             return
         }

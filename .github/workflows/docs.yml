@@ -25,8 +25,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode (Swift 6.1+)
-        run: sudo xcode-select -s /Applications/Xcode_16.app || true
+      - name: Show Swift version
+        run: swift --version
 
       - name: Resolve packages
         run: swift package resolve

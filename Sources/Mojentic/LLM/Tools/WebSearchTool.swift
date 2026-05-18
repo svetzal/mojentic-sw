@@ -59,7 +59,7 @@ public struct WebSearchTool: LLMTool {
         guard let query = arguments.objectValue?["query"]?.stringValue else {
             throw MojenticError.invalidArgument(message: "web_search requires 'query'")
         }
-        let body = SerperRequest(q: query)
+        let body = SerperRequest(query: query)
         let response = try await client.postJSON(
             url: endpoint,
             body: body,
@@ -84,7 +84,11 @@ public struct WebSearchTool: LLMTool {
 }
 
 private struct SerperRequest: Encodable {
-    let q: String
+    let query: String
+
+    enum CodingKeys: String, CodingKey {
+        case query = "q"
+    }
 }
 
 private struct SerperResponse: Decodable {

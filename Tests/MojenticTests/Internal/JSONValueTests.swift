@@ -23,7 +23,7 @@ struct JSONValueTests {
 
     @Test("decodes embedded floats as numbers")
     func decodeFloat() throws {
-        let data = "{\"x\": 1.25}".data(using: .utf8) ?? Data()
+        let data = Data("{\"x\": 1.25}".utf8)
         let decoded = try JSONDecoder().decode(JSONValue.self, from: data)
         if case .object(let dict) = decoded, case .number(let value) = dict["x"] ?? .null {
             #expect(value == 1.25)

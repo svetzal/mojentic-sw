@@ -68,10 +68,10 @@ struct ParallelToolRunnerTests {
             SleepyTool(id: "two", duration: .milliseconds(80)),
             SleepyTool(id: "three", duration: .milliseconds(80)),
         ]
-        let calls = (0..<3).map { i in
+        let calls = (0..<3).map { index in
             ToolCallExecution(
-                id: "\(i)",
-                name: "sleep_\(["one", "two", "three"][i])",
+                id: "\(index)",
+                name: "sleep_\(["one", "two", "three"][index])",
                 arguments: .object([:])
             )
         }

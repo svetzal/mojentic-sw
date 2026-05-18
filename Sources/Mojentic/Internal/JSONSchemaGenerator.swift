@@ -129,7 +129,7 @@ public enum JSONSchemaGenerator {
         // properties are all optional or have synthesised default Codable
         // behaviour with sentinel values. This is intentionally limited;
         // anything more complex should conform to JSONSchemaProviding.
-        let emptyObject = "{}".data(using: .utf8) ?? Data()
+        let emptyObject = Data("{}".utf8)
         return try JSONDecoder().decode(type, from: emptyObject)
     }
 }

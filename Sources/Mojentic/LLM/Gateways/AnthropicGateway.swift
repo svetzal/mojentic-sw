@@ -374,7 +374,7 @@ import Logging
 
     // MARK: - SSE accumulator
 
-    /// Accumulates Anthropic streaming events into `GatewayStreamEvent`s.
+    /// Accumulates Anthropic SSE deltas into normalised gateway stream events.
     ///
     /// Anthropic streams content via `content_block_start`,
     /// `content_block_delta`, `content_block_stop`, `message_delta`, and

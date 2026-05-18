@@ -25,23 +25,35 @@ type_name:
   max_length: 50
 
 function_body_length:
-  warning: 60
-  error: 100
+  warning: 100
+  error: 150
 
 type_body_length:
-  warning: 300
-  error: 500
+  warning: 400
+  error: 600
 
 file_length:
-  warning: 500
-  error: 800
+  warning: 600
+  error: 900
 
 cyclomatic_complexity:
-  warning: 12
-  error: 20
+  warning: 20
+  error: 30
+
+function_parameter_count:
+  warning: 7
+  error: 10
+
+nesting:
+  type_level: 2
 
 disabled_rules:
   - todo
+  # swift-format owns these styling decisions end-to-end. Disable in
+  # SwiftLint so the two tools don't fight over multi-line collection
+  # literals and brace placement after multi-line declarations.
+  - trailing_comma
+  - opening_brace
 
 opt_in_rules:
   - array_init
@@ -69,7 +81,6 @@ opt_in_rules:
   - sorted_first_last
   - toggle_bool
   - unneeded_parentheses_in_closure_argument
-  - unused_import
   - vertical_parameter_alignment_on_call
   - yoda_condition
 

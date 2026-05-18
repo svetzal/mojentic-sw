@@ -9,7 +9,12 @@ import Foundation
 /// reach for ``RealtimeSession/rawEvents()``.
 public enum OpenAIRealtimeEventMapper {
     /// Translate one decoded OpenAI event into a ``RealtimeEvent``.
+    ///
+    /// The mapper is intentionally a large flat dispatch over OpenAI event
+    /// `type` strings; splitting it into helpers would scatter event-name
+    /// strings across multiple files without clarifying the dispatch.
     public static func map(_ event: JSONValue) -> RealtimeEvent? {
+        // swiftlint:disable:previous cyclomatic_complexity
         guard let object = event.objectValue,
             let type = object["type"]?.stringValue
         else { return nil }
