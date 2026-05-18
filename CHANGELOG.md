@@ -12,6 +12,32 @@ move independently.
 
 ### Added
 
+- Phase 5: realtime voice (OpenAI Realtime API). `AudioFrame` value type
+  (mono little-endian 16-bit PCM, 24 kHz default) with `AudioCodec`
+  base64 round-trip helpers. `RealtimeTransport` protocol plus
+  `URLSessionWebSocketTransport` (actor-isolated `URLSessionWebSocketTask`
+  wrapper). Vendor-neutral `RealtimeEvent` enum covering session
+  lifecycle, user audio, assistant text/audio/transcript, tool-call
+  lifecycle, batch submission, interruption, and errors.
+- `OpenAIRealtimeEventMapper` (pure function) translating OpenAI realtime
+  events into the neutral union. `OpenAIRealtimeGateway` wires
+  `wss://api.openai.com/v1/realtime` with the `OpenAI-Beta: realtime=v1`
+  header and pushes the initial `session.update` payload.
+- `RealtimeSession` actor exposing `events()` (neutral), `rawEvents()`
+  (escape hatch), `send(audio:)`, `send(text:)`, `commit()` (manual VAD),
+  `interrupt()` (barge-in, cancels in-flight tool batch), and `close()`.
+  Runs parallel function-call batches via the injected tool runner and
+  submits `function_call_output` items back upstream.
+- `RealtimeVoiceBroker` actor — sibling to `LLMBroker` — defaults to
+  `ParallelToolRunner` so concurrent function calls in a single response
+  turn dispatch in parallel.
+- `VADMode` (`.server` / `.manual`) for turn-detection control.
+- Four new executable examples: `RealtimeBasic`, `RealtimeManualVAD`,
+  `RealtimeBargeIn`, `RealtimeToolCall`.
+- Test coverage: `AudioCodec` round-trip + invalid input, table-driven
+  `OpenAIRealtimeEventMapper` translation, `RealtimeSession` manual
+  commit / interrupt-cancels-batch / audio send via a `FakeTransport`,
+  and `RealtimeVoiceBroker` runner/tracer wiring.
 - Phase 4: agent system. `Event` protocol with `correlationId` + `parentId`,
   concrete events (`TextEvent`, `LLMRequestEvent`, `LLMResponseEvent`,
   `ErrorEvent`, `CompositeEvent`). `Router` actor with subscribe / unsubscribe

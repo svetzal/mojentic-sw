@@ -46,6 +46,10 @@ let package = Package(
         .executable(name: "SolverChatSession", targets: ["SolverChatSession"]),
         .executable(name: "ReAct", targets: ["ReAct"]),
         .executable(name: "WorkingMemory", targets: ["WorkingMemory"]),
+        .executable(name: "RealtimeBasic", targets: ["RealtimeBasic"]),
+        .executable(name: "RealtimeManualVAD", targets: ["RealtimeManualVAD"]),
+        .executable(name: "RealtimeBargeIn", targets: ["RealtimeBargeIn"]),
+        .executable(name: "RealtimeToolCall", targets: ["RealtimeToolCall"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -198,6 +202,26 @@ let package = Package(
             name: "WorkingMemory",
             dependencies: ["Mojentic"],
             path: "Examples/WorkingMemory"
+        ),
+        .executableTarget(
+            name: "RealtimeBasic",
+            dependencies: ["Mojentic"],
+            path: "Examples/RealtimeBasic"
+        ),
+        .executableTarget(
+            name: "RealtimeManualVAD",
+            dependencies: ["Mojentic"],
+            path: "Examples/RealtimeManualVAD"
+        ),
+        .executableTarget(
+            name: "RealtimeBargeIn",
+            dependencies: ["Mojentic"],
+            path: "Examples/RealtimeBargeIn"
+        ),
+        .executableTarget(
+            name: "RealtimeToolCall",
+            dependencies: ["Mojentic"],
+            path: "Examples/RealtimeToolCall"
         ),
     ],
     swiftLanguageModes: [.v6]
