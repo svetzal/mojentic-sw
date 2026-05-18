@@ -1,68 +1,62 @@
 import Foundation
 
-/// Minimal tracer surface the broker calls into during Phase 1.
+/// Observability sink for broker, tool runner, and (Phase 4) agent events.
 ///
-/// > Note: Phase 3 will expand this into a full `TracerEvent` union backed
-/// > by an `EventStore` actor with correlation tracking and `Duration`
-/// > metrics, per `SWIFT.md` §4 Layer 2. The signatures below give us just
-/// > enough so the broker's public API doesn't churn when Phase 3 ships:
-/// > we already accept a `tracer:` parameter today.
+/// Every method has a default no-op implementation so consumers can adopt
+/// the protocol incrementally. ``NullTracer`` relies on these defaults;
+/// ``EventStoreTracer`` records to an in-memory ``EventStore``.
+///
+/// All recording is `async` so backends are free to do I/O (write to a
+/// log file, ship to an OTLP collector) without blocking callers on a
+/// synchronous boundary.
 public protocol Tracer: Sendable {
-    /// Called immediately before the broker dispatches a gateway request.
-    func recordLLMCall(
-        model: String,
-        messages: [LLMMessage],
-        tools: [String]?
-    ) async
+    /// Record that the broker is about to dispatch an LLM call.
+    func recordLLMCall(_ payload: LLMCallPayload) async
 
-    /// Called once the gateway returns.
-    ///
-    /// `duration` is wall-clock from call to response.
-    func recordLLMResponse(
-        model: String,
-        response: LLMGatewayResponse,
-        duration: Duration
-    ) async
+    /// Record that the broker received a response from the gateway.
+    func recordLLMResponse(_ payload: LLMResponsePayload) async
 
-    /// Called once per dispatched tool call.
-    func recordToolCall(
-        name: String,
-        arguments: JSONValue,
-        duration: Duration
-    ) async
+    /// Record a single tool dispatch.
+    func recordToolCall(_ payload: ToolCallPayload) async
 
-    /// Called once per resolved tool outcome.
-    func recordToolResult(
-        outcome: ToolCallOutcome,
-        duration: Duration
-    ) async
+    /// Record the outcome of a single tool dispatch.
+    func recordToolResult(_ payload: ToolResultPayload) async
+
+    /// Record a parallel-runner batch summary.
+    func recordToolBatch(_ payload: ToolBatchPayload) async
+
+    /// Record an agent lifecycle phase.
+    func recordAgentLifecycle(_ payload: AgentLifecyclePayload) async
 }
 
 extension Tracer {
     /// Default no-op implementation.
-    public func recordLLMCall(
-        model _: String,
-        messages _: [LLMMessage],
-        tools _: [String]?
-    ) async {}
+    public func recordLLMCall(_ payload: LLMCallPayload) async {
+        _ = payload
+    }
 
     /// Default no-op implementation.
-    public func recordLLMResponse(
-        model _: String,
-        response _: LLMGatewayResponse,
-        duration _: Duration
-    ) async {}
+    public func recordLLMResponse(_ payload: LLMResponsePayload) async {
+        _ = payload
+    }
 
     /// Default no-op implementation.
-    public func recordToolCall(
-        name _: String,
-        arguments _: JSONValue,
-        duration _: Duration
-    ) async {}
+    public func recordToolCall(_ payload: ToolCallPayload) async {
+        _ = payload
+    }
 
     /// Default no-op implementation.
-    public func recordToolResult(
-        outcome _: ToolCallOutcome,
-        duration _: Duration
-    ) async {}
+    public func recordToolResult(_ payload: ToolResultPayload) async {
+        _ = payload
+    }
+
+    /// Default no-op implementation.
+    public func recordToolBatch(_ payload: ToolBatchPayload) async {
+        _ = payload
+    }
+
+    /// Default no-op implementation.
+    public func recordAgentLifecycle(_ payload: AgentLifecyclePayload) async {
+        _ = payload
+    }
 }
