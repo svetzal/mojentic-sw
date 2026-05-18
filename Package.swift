@@ -20,6 +20,11 @@ let package = Package(
         .executable(name: "SimpleStructured", targets: ["SimpleStructured"]),
         .executable(name: "SimpleTool", targets: ["SimpleTool"]),
         .executable(name: "Streaming", targets: ["Streaming"]),
+        .executable(name: "BrokerExamples", targets: ["BrokerExamples"]),
+        .executable(name: "ChatSessionExample", targets: ["ChatSessionExample"]),
+        .executable(name: "ChatSessionWithTool", targets: ["ChatSessionWithTool"]),
+        .executable(name: "ImageAnalysis", targets: ["ImageAnalysis"]),
+        .executable(name: "Embeddings", targets: ["Embeddings"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -72,6 +77,31 @@ let package = Package(
             name: "Streaming",
             dependencies: ["Mojentic"],
             path: "Examples/Streaming"
+        ),
+        .executableTarget(
+            name: "BrokerExamples",
+            dependencies: ["Mojentic"],
+            path: "Examples/BrokerExamples"
+        ),
+        .executableTarget(
+            name: "ChatSessionExample",
+            dependencies: ["Mojentic"],
+            path: "Examples/ChatSessionExample"
+        ),
+        .executableTarget(
+            name: "ChatSessionWithTool",
+            dependencies: ["Mojentic"],
+            path: "Examples/ChatSessionWithTool"
+        ),
+        .executableTarget(
+            name: "ImageAnalysis",
+            dependencies: ["Mojentic"],
+            path: "Examples/ImageAnalysis"
+        ),
+        .executableTarget(
+            name: "Embeddings",
+            dependencies: ["Mojentic"],
+            path: "Examples/Embeddings"
         ),
     ],
     swiftLanguageModes: [.v6]

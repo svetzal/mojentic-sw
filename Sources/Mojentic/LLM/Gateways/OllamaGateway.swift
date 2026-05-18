@@ -263,11 +263,13 @@ private struct OllamaMessage: Encodable {
     let role: String
     let content: String
     let toolCalls: [OllamaToolCallEnvelope]?
+    let images: [String]?
 
     enum CodingKeys: String, CodingKey {
         case role
         case content
         case toolCalls = "tool_calls"
+        case images
     }
 
     init(from message: LLMMessage) {
@@ -276,21 +278,42 @@ private struct OllamaMessage: Encodable {
             self.role = "system"
             self.content = message.content ?? ""
             self.toolCalls = nil
+            self.images = nil
         case .user:
             self.role = "user"
             self.content = message.content ?? ""
             self.toolCalls = nil
+            self.images = OllamaMessage.encodeImages(message.images)
         case .assistant:
             self.role = "assistant"
             self.content = message.content ?? ""
             self.toolCalls = message.toolCalls.map { calls in
                 calls.map(OllamaToolCallEnvelope.init(call:))
             }
+            self.images = nil
         case .tool:
             self.role = "tool"
             self.content = message.content ?? ""
             self.toolCalls = nil
+            self.images = nil
         }
+    }
+
+    private static func encodeImages(_ images: [ImageContent]?) -> [String]? {
+        guard let images, !images.isEmpty else { return nil }
+        var encoded: [String] = []
+        for image in images {
+            switch image.source {
+            case .data(let base64, _):
+                encoded.append(base64)
+            case .url:
+                // Ollama only accepts inline base64; remote URL images are
+                // not supported by the chat endpoint, so we skip them and
+                // expect the caller to download/encode first.
+                continue
+            }
+        }
+        return encoded.isEmpty ? nil : encoded
     }
 }
 

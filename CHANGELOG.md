@@ -12,6 +12,30 @@ move independently.
 
 ### Added
 
+- Phase 2: `OpenAIGateway` over `/v1/chat/completions` with `OpenAIMessageAdapter`
+  (multimodal user content, tool calls, tool messages with `tool_call_id`),
+  `OpenAIModelRegistry` (per-model token-parameter routing, reasoning effort
+  + temperature gating, JSON-schema vs JSON-object response format), SSE
+  streaming with per-chunk tool-call accumulation, and `availableModels()`.
+- `ChatSession` actor with `send`, multimodal `send(text:images:)`, `stream`
+  (auto-history), `messages()` snapshot accessor, `clear()` reset, and error
+  rollback (failed sends do not leave a dangling user turn).
+- `ContextWindowManager` protocol + `TokenBudgetContextWindowManager` that
+  evicts oldest non-system turns while pinning the system prompt and the most
+  recent user turn.
+- `TokenizerGateway` protocol + `ApproximateTokenizerGateway` default
+  (`chars / 4` heuristic with configurable per-message overhead).
+- `ImageContent` value type (URL or inline base64) plus
+  `LLMMessage.user(text:images:)` composer. `OllamaGateway` forwards inline
+  images via the `images` array; `OpenAIGateway` forwards them via
+  `content` parts with `image_url`.
+- `EmbeddingsGateway` protocol with `OllamaEmbeddingsGateway` (`/api/embed`)
+  and `OpenAIEmbeddingsGateway` (`/v1/embeddings`) implementations.
+- Five new executable examples: `BrokerExamples`, `ChatSessionExample`,
+  `ChatSessionWithTool`, `ImageAnalysis`, `Embeddings`.
+- New Swift Testing suites: multimodal messages, approximate tokenizer,
+  context-window manager eviction, chat session history + rollback +
+  streaming commit, OpenAI message adapter, OpenAI model registry.
 - Phase 1: core LLM layer shipping `LLMBroker` (non-streaming completion,
   structured output via `Codable`-derived JSON Schema, streaming completion
   with recursive tool dispatch), `LLMGateway` protocol with `OllamaGateway`
