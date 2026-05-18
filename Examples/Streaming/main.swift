@@ -14,8 +14,10 @@ struct Streaming {
             for try await event in stream {
                 switch event {
                 case .textDelta(let chunk):
-                    print(chunk, terminator: "")
-                    fflush(stdout)
+                    // Write deltas via FileHandle to avoid the C-global `stdout`
+                    // (not Sendable on Linux). Trades on-the-fly flushing for
+                    // portability — fine for an example.
+                    try? FileHandle.standardOutput.write(contentsOf: Data(chunk.utf8))
                 case .done:
                     print("")
                 default:

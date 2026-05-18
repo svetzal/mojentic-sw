@@ -114,7 +114,7 @@ public struct OllamaGateway: LLMGateway {
         return response.models.map(\.name).sorted()
     }
 
-    /// Streams a chat completion as normalised `GatewayStreamEvent`s parsed from NDJSON.
+    /// Streams a chat completion as normalised gateway stream events parsed from NDJSON.
     public func stream(
         model: String,
         messages: [LLMMessage],
