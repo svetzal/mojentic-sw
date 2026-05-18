@@ -50,6 +50,7 @@ let package = Package(
         .executable(name: "RealtimeManualVAD", targets: ["RealtimeManualVAD"]),
         .executable(name: "RealtimeBargeIn", targets: ["RealtimeBargeIn"]),
         .executable(name: "RealtimeToolCall", targets: ["RealtimeToolCall"]),
+        .executable(name: "AnthropicSimple", targets: ["AnthropicSimple"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -222,6 +223,11 @@ let package = Package(
             name: "RealtimeToolCall",
             dependencies: ["Mojentic"],
             path: "Examples/RealtimeToolCall"
+        ),
+        .executableTarget(
+            name: "AnthropicSimple",
+            dependencies: ["Mojentic"],
+            path: "Examples/AnthropicSimple"
         ),
     ],
     swiftLanguageModes: [.v6]

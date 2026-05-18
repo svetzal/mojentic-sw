@@ -11,14 +11,11 @@ Mojentic provides a clean abstraction over multiple LLM providers with tool
 support, structured output generation, streaming, an event-driven agent system,
 and realtime voice — all built natively on Swift Concurrency.
 
-> **Status: Phase 5 — realtime voice shipped.** Adds `RealtimeVoiceBroker`,
-> `OpenAIRealtimeGateway`, `RealtimeSession` (vendor-neutral
-> `RealtimeEvent` stream plus a raw-events escape hatch), `AudioFrame` +
-> `AudioCodec`, server- and manual-VAD modes, barge-in via cooperative
-> task cancellation, and parallel tool-call dispatch inside voice turns —
-> on top of the Phase 1–4 LLM + tracer + tool + agent foundation.
-> Anthropic (text only) and docs polish remain — see `SWIFT.md` in the
-> `mojentic-unify` monorepo for the full plan.
+> **Status: Phase 6 — Anthropic gateway shipped.** Adds `AnthropicGateway`
+> (gated by the `anthropic` package trait), `AnthropicMessageAdapter`,
+> and `AnthropicModelRegistry` on top of the Phase 1–5 LLM + tracer +
+> tool + agent + realtime foundation. Only docs polish (Phase 7) remains —
+> see `SWIFT.md` in the `mojentic-unify` monorepo for the full plan.
 
 ## Planned Features
 

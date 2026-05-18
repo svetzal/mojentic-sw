@@ -12,6 +12,28 @@ move independently.
 
 ### Added
 
+- Phase 6: Anthropic gateway. `AnthropicGateway` (gated behind the
+  `anthropic` package trait via `#if anthropic`) targets the Messages API
+  at `https://api.anthropic.com/v1/messages`: complete, streaming via
+  Anthropic's SSE named-event format with text + thinking + tool-call
+  delta accumulation, structured output by instructing the model to emit
+  JSON matching the schema, and a static `availableModels()` backed by
+  `AnthropicModelRegistry`. Extended thinking is enabled automatically
+  when `CompletionConfig.reasoning` is set on a supporting model.
+- `AnthropicMessageAdapter` (pure value-level translator, always compiled):
+  extracts system messages into the top-level `system` field, encodes
+  multimodal user content as `text` + `image` content blocks, encodes
+  assistant tool calls as `tool_use` blocks, and rewrites Mojentic tool
+  result messages into `role: "user"` messages with `tool_result` blocks.
+- `AnthropicModelRegistry` (always compiled) ships capability flags for
+  the Claude 3.x, 3.5, 3.7, Haiku 4.5, Sonnet 4.5, and Opus 4.7 model
+  families, with coarse pattern matching for unknown variants.
+- `AnthropicSimple` executable example — single completion against
+  Claude, opted in via `traits: ["anthropic"]`. Skips gracefully without
+  `ANTHROPIC_API_KEY`.
+- Test suites for the message adapter (system extraction, multimodal,
+  tool-use blocks, tool-result rewriting) and the model registry
+  (registered lookups, pattern fallback, list stability).
 - Phase 5: realtime voice (OpenAI Realtime API). `AudioFrame` value type
   (mono little-endian 16-bit PCM, 24 kHz default) with `AudioCodec`
   base64 round-trip helpers. `RealtimeTransport` protocol plus
