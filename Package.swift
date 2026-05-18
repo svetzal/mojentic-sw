@@ -15,6 +15,11 @@ let package = Package(
     ],
     products: [
         .library(name: "Mojentic", targets: ["Mojentic"]),
+        .executable(name: "SimpleLLM", targets: ["SimpleLLM"]),
+        .executable(name: "ListModels", targets: ["ListModels"]),
+        .executable(name: "SimpleStructured", targets: ["SimpleStructured"]),
+        .executable(name: "SimpleTool", targets: ["SimpleTool"]),
+        .executable(name: "Streaming", targets: ["Streaming"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -26,9 +31,15 @@ let package = Package(
             enabledTraits: ["ollama", "openai", "anthropic"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
+    ],
     targets: [
         .target(
             name: "Mojentic",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny"),
             ]
@@ -36,6 +47,31 @@ let package = Package(
         .testTarget(
             name: "MojenticTests",
             dependencies: ["Mojentic"]
+        ),
+        .executableTarget(
+            name: "SimpleLLM",
+            dependencies: ["Mojentic"],
+            path: "Examples/SimpleLLM"
+        ),
+        .executableTarget(
+            name: "ListModels",
+            dependencies: ["Mojentic"],
+            path: "Examples/ListModels"
+        ),
+        .executableTarget(
+            name: "SimpleStructured",
+            dependencies: ["Mojentic"],
+            path: "Examples/SimpleStructured"
+        ),
+        .executableTarget(
+            name: "SimpleTool",
+            dependencies: ["Mojentic"],
+            path: "Examples/SimpleTool"
+        ),
+        .executableTarget(
+            name: "Streaming",
+            dependencies: ["Mojentic"],
+            path: "Examples/Streaming"
         ),
     ],
     swiftLanguageModes: [.v6]
