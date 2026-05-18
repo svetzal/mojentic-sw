@@ -25,6 +25,17 @@ let package = Package(
         .executable(name: "ChatSessionWithTool", targets: ["ChatSessionWithTool"]),
         .executable(name: "ImageAnalysis", targets: ["ImageAnalysis"]),
         .executable(name: "Embeddings", targets: ["Embeddings"]),
+        .executable(name: "FileTool", targets: ["FileTool"]),
+        .executable(name: "CodingFileTool", targets: ["CodingFileTool"]),
+        .executable(name: "BrokerAsTool", targets: ["BrokerAsTool"]),
+        .executable(
+            name: "EphemeralTaskManagerExample",
+            targets: ["EphemeralTaskManagerExample"]
+        ),
+        .executable(name: "TellUser", targets: ["TellUser"]),
+        .executable(name: "AskUser", targets: ["AskUser"]),
+        .executable(name: "WebSearch", targets: ["WebSearch"]),
+        .executable(name: "TracerDemo", targets: ["TracerDemo"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -102,6 +113,46 @@ let package = Package(
             name: "Embeddings",
             dependencies: ["Mojentic"],
             path: "Examples/Embeddings"
+        ),
+        .executableTarget(
+            name: "FileTool",
+            dependencies: ["Mojentic"],
+            path: "Examples/FileTool"
+        ),
+        .executableTarget(
+            name: "CodingFileTool",
+            dependencies: ["Mojentic"],
+            path: "Examples/CodingFileTool"
+        ),
+        .executableTarget(
+            name: "BrokerAsTool",
+            dependencies: ["Mojentic"],
+            path: "Examples/BrokerAsTool"
+        ),
+        .executableTarget(
+            name: "EphemeralTaskManagerExample",
+            dependencies: ["Mojentic"],
+            path: "Examples/EphemeralTaskManagerExample"
+        ),
+        .executableTarget(
+            name: "TellUser",
+            dependencies: ["Mojentic"],
+            path: "Examples/TellUser"
+        ),
+        .executableTarget(
+            name: "AskUser",
+            dependencies: ["Mojentic"],
+            path: "Examples/AskUser"
+        ),
+        .executableTarget(
+            name: "WebSearch",
+            dependencies: ["Mojentic"],
+            path: "Examples/WebSearch"
+        ),
+        .executableTarget(
+            name: "TracerDemo",
+            dependencies: ["Mojentic"],
+            path: "Examples/TracerDemo"
         ),
     ],
     swiftLanguageModes: [.v6]

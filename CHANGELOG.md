@@ -12,6 +12,35 @@ move independently.
 
 ### Added
 
+- Phase 3: full tracer system. `TracerEvent` enum (llmCall, llmResponse,
+  toolCall, toolResult, toolBatch, agentLifecycle) with correlationId +
+  parentId nesting, timestamp, and Duration on paired events.
+  `TracerContext` with `child(parent:)` derivation; `EventStore` actor with
+  `events(correlatedTo:)` resolving the full nested correlation tree;
+  `EventStoreTracer` recording into a backing store. The broker now wires
+  correlationId + parentId through every gateway/tool dispatch and accepts
+  an injected `TracerContext` so agents and `ToolWrapper` can nest calls
+  under the parent tree.
+- `ParallelToolRunner` (actor) using `ThrowingTaskGroup` with bounded
+  fan-out. Preserves input ordering, isolates per-tool failures into
+  `ToolCallOutcome.failure`, emits a `toolBatch` tracer event with total
+  duration. `TracerContextAwareTool` opt-in protocol lets tools (notably
+  `ToolWrapper`) thread the parent context to nested broker calls.
+- Provided tools: `FilesystemGateway` + eight sandbox-rooted file tools
+  (`ListFilesTool`, `ListAllFilesTool`, `ReadFileTool`, `WriteFileTool`,
+  `DeleteFileTool`, `MoveFileTool`, `CreateDirectoryTool`, `FileExistsTool`)
+  plus `FileTools.bundle(for:)` convenience. `EphemeralTaskManager` actor
+  with five companion tools (`AppendTaskTool`, `ListTasksTool`,
+  `CompleteTaskTool`, `RemoveTaskTool`, `ClearTasksTool`). `IOGateway`
+  protocol with `StdIOGateway` default and `ScriptedIOGateway` for tests;
+  `AskUserTool` + `TellUserTool` build on it. `WebSearchTool` against
+  Serper.dev (API key injected at init). `ToolWrapper` adapts an
+  `LLMBroker` invocation into an `LLMTool` and nests its tracer events
+  under the calling context via `TracerContextAwareTool`.
+- Eight new executable examples: `FileTool`, `CodingFileTool`,
+  `BrokerAsTool`, `EphemeralTaskManagerExample`, `TellUser`, `AskUser`,
+  `WebSearch` (skips gracefully without SERPER_API_KEY), `TracerDemo`
+  (prints the recorded event tree for an Ollama broker call).
 - Phase 2: `OpenAIGateway` over `/v1/chat/completions` with `OpenAIMessageAdapter`
   (multimodal user content, tool calls, tool messages with `tool_call_id`),
   `OpenAIModelRegistry` (per-model token-parameter routing, reasoning effort
