@@ -19,6 +19,28 @@ move independently.
   support, and pattern matching for `gpt-5.3`/`gpt-5.4`/`gpt-5.5`
   variants is checked ahead of the bare `gpt-5` pattern so unknown
   snapshots still resolve to a reasoning profile.
+- **Layer 1 — LLM**: `OpenAIModelCapabilities` reaches structural parity
+  with the other Mojentic ports' `ModelCapabilities`. New fields:
+  `maxContextTokens` and `maxOutputTokens` (per-model token limits),
+  `supportedTemperatures` (`nil` = unrestricted, empty = parameter not
+  accepted, populated = only those exact values), and the three per-API
+  support flags `supportsChatApi` / `supportsCompletionsApi` /
+  `supportsResponsesApi`. A new `supportsTemperature(_:)` helper checks a
+  specific temperature value; `supportsTemperatureControl` is now a
+  computed property derived from `supportedTemperatures` and keeps its
+  prior semantics. `OpenAIModelType` gains a `moderation` case.
+- **Layer 1 — LLM**: `OpenAIModelRegistry` catalog reaches parity with
+  the cross-port reference — backfilled the o1/o3/o4 reasoning models
+  (including dated snapshots, `deep-research`, `pro`, and `codex`
+  variants), the bare `gpt-5` / `5.1` / `5.2` families, the full GPT-4 /
+  GPT-4.1 / GPT-4o chat catalog (audio and search-preview variants
+  included), the GPT-3.5 series, and the legacy `babbage-002` /
+  `davinci-002` completions-only models. Every entry — including the
+  GPT-5.4/5.5 families — now carries context-window, output-token, and
+  per-API support data. Pattern matching gains `gpt-5.1` / `gpt-5.2` /
+  `chatgpt` / `text-moderation` mappings and now logs a warning (via
+  `swift-log`) when it infers a profile for an unknown model. New
+  `isReasoningModel(_:)` and `registeredModels` accessors.
 
 ## [2.0.0] - 2026-05-18
 
