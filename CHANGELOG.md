@@ -8,6 +8,18 @@ Major and minor versions are synchronised with the other Mojentic ports
 (`mojentic-py`, `mojentic-ts`, `mojentic-ex`, `mojentic-ru`); patch versions
 move independently.
 
+## [Unreleased]
+
+### Added
+
+- **Layer 1 — LLM**: `OpenAIModelRegistry` now recognises the OpenAI
+  GPT-5.4 and GPT-5.5 reasoning families (`gpt-5.4`, `gpt-5.4-mini`,
+  `gpt-5.4-nano`, `gpt-5.5`, `gpt-5.5-pro`, plus their dated snapshots).
+  These are registered explicitly as reasoning models with image-input
+  support, and pattern matching for `gpt-5.3`/`gpt-5.4`/`gpt-5.5`
+  variants is checked ahead of the bare `gpt-5` pattern so unknown
+  snapshots still resolve to a reasoning profile.
+
 ## [2.0.0] - 2026-05-18
 
 First production release. Reaches cross-port parity with the Python,

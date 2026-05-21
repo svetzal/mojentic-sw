@@ -84,6 +84,28 @@ public struct OpenAIModelRegistry: Sendable {
             )
         }
 
+        // GPT-5.4 / GPT-5.5 reasoning families. These accept image input,
+        // so they are registered explicitly rather than folded into the
+        // vision-less reasoning loop above.
+        let reasoningVision = [
+            "gpt-5.4", "gpt-5.4-2026-03-05",
+            "gpt-5.4-mini", "gpt-5.4-mini-2026-03-17",
+            "gpt-5.4-nano", "gpt-5.4-nano-2026-03-17",
+            "gpt-5.5", "gpt-5.5-2026-04-23",
+            "gpt-5.5-pro", "gpt-5.5-pro-2026-04-23",
+        ]
+        for name in reasoningVision {
+            registry[name] = OpenAIModelCapabilities(
+                modelType: .reasoning,
+                supportsTools: true,
+                supportsStreaming: true,
+                supportsVision: true,
+                supportsJSONSchema: true,
+                supportsTemperatureControl: false,
+                supportsReasoningEffort: true
+            )
+        }
+
         let chatVision = [
             "gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
         ]
@@ -128,6 +150,9 @@ public struct OpenAIModelRegistry: Sendable {
 
         self.entries = registry
         self.patterns = [
+            ("gpt-5.5", .reasoning),
+            ("gpt-5.4", .reasoning),
+            ("gpt-5.3", .reasoning),
             ("gpt-5", .reasoning),
             ("o4", .reasoning),
             ("o3", .reasoning),

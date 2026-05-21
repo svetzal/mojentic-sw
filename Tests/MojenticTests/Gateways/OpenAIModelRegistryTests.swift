@@ -31,4 +31,34 @@ struct OpenAIModelRegistryTests {
         let reasoning = OpenAIModelRegistry.shared.capabilities(for: "o1-future-variant")
         #expect(reasoning.modelType == .reasoning)
     }
+
+    @Test(
+        "gpt-5.4 / gpt-5.5 families register as reasoning+vision models",
+        arguments: [
+            "gpt-5.4", "gpt-5.4-2026-03-05",
+            "gpt-5.4-mini", "gpt-5.4-mini-2026-03-17",
+            "gpt-5.4-nano", "gpt-5.4-nano-2026-03-17",
+            "gpt-5.5", "gpt-5.5-2026-04-23",
+            "gpt-5.5-pro", "gpt-5.5-pro-2026-04-23",
+        ]
+    )
+    func gpt54And55Families(model: String) {
+        let capabilities = OpenAIModelRegistry.shared.capabilities(for: model)
+        #expect(capabilities.modelType == .reasoning)
+        #expect(capabilities.supportsTools)
+        #expect(capabilities.supportsStreaming)
+        #expect(capabilities.supportsVision)
+        #expect(capabilities.supportsJSONSchema)
+        #expect(!capabilities.supportsTemperatureControl)
+        #expect(capabilities.supportsReasoningEffort)
+        #expect(capabilities.tokenLimitParameter == "max_completion_tokens")
+    }
+
+    @Test("unknown gpt-5.3/5.4/5.5 variants resolve to reasoning via pattern matching")
+    func gpt5xPatternFallback() {
+        for model in ["gpt-5.3-experimental", "gpt-5.4-2099-01-01", "gpt-5.5-future"] {
+            let capabilities = OpenAIModelRegistry.shared.capabilities(for: model)
+            #expect(capabilities.modelType == .reasoning)
+        }
+    }
 }
