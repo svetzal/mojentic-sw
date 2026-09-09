@@ -76,17 +76,26 @@ public actor LLMBroker {
         )
     }
 
-    private func completeRecursive(
+    /// Return one native response without executing tools or changing caller history.
+    public func generateResponse(
+        model: String,
+        messages: [LLMMessage],
+        tools: [any LLMTool] = [],
+        config: CompletionConfig = CompletionConfig(),
+        context: TracerContext = TracerContext()
+    ) async throws -> LLMGatewayResponse {
+        try await requestResponse(
+            model: model, messages: messages, tools: tools, config: config, context: context
+        ).0
+    }
+
+    private func requestResponse(
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool],
         config: CompletionConfig,
-        remaining: Int,
         context: TracerContext
-    ) async throws -> LLMResponse {
-        guard remaining > 0 else {
-            throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations)
-        }
+    ) async throws -> (LLMGatewayResponse, TracerContext) {
         try Task.checkCancellation()
         let callPayload = LLMCallPayload(
             correlationId: context.correlationId,
@@ -114,8 +123,24 @@ public actor LLMBroker {
         )
         await tracer.recordLLMResponse(responsePayload)
 
-        if !response.toolCalls.isEmpty && !tools.isEmpty {
-            let toolContext = context.child(parent: responsePayload.id)
+        return (response, context.child(parent: responsePayload.id))
+    }
+
+    private func completeRecursive(
+        model: String,
+        messages: [LLMMessage],
+        tools: [any LLMTool],
+        config: CompletionConfig,
+        remaining: Int?,
+        context: TracerContext
+    ) async throws -> LLMResponse {
+        if let remaining, remaining <= 0 {
+            throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
+        }
+        let (response, toolContext) = try await requestResponse(
+            model: model, messages: messages, tools: tools, config: config, context: context)
+
+        if !response.toolCalls.isEmpty {
             let dispatched = try await dispatch(
                 toolCalls: response.toolCalls,
                 tools: tools,
@@ -130,7 +155,7 @@ public actor LLMBroker {
                 messages: nextMessages,
                 tools: tools,
                 config: config,
-                remaining: remaining - 1,
+                remaining: remaining.map { $0 - 1 },
                 context: context
             )
         }
@@ -244,12 +269,12 @@ public actor LLMBroker {
         messages: [LLMMessage],
         tools: [any LLMTool],
         config: CompletionConfig,
-        remaining: Int,
+        remaining: Int?,
         context: TracerContext,
         continuation: AsyncThrowingStream<StreamEvent, any Error>.Continuation
     ) async throws {
-        guard remaining > 0 else {
-            throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations)
+        if let remaining, remaining <= 0 {
+            throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
         }
         try Task.checkCancellation()
         let callPayload = LLMCallPayload(
@@ -307,7 +332,7 @@ public actor LLMBroker {
         )
         await tracer.recordLLMResponse(responsePayload)
 
-        if !accumulatedCalls.isEmpty && !tools.isEmpty {
+        if !accumulatedCalls.isEmpty {
             let toolContext = context.child(parent: responsePayload.id)
             let dispatched = try await dispatch(
                 toolCalls: accumulatedCalls,
@@ -330,7 +355,7 @@ public actor LLMBroker {
                 messages: nextMessages,
                 tools: tools,
                 config: config,
-                remaining: remaining - 1,
+                remaining: remaining.map { $0 - 1 },
                 context: context,
                 continuation: continuation
             )
@@ -356,13 +381,6 @@ public actor LLMBroker {
         var executions: [ToolCallExecution] = []
         var dispatched: [LLMToolCall] = []
         for (index, call) in toolCalls.enumerated() {
-            guard tools.contains(where: { $0.matches(call.name) }) else {
-                logger.warning(
-                    "Tool not found",
-                    metadata: ["name": .string(call.name)]
-                )
-                continue
-            }
             let id = call.id ?? "call-\(index)"
             dispatched.append(call)
             executions.append(

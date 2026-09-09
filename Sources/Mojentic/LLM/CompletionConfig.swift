@@ -36,8 +36,8 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
     public var extraOptions: [String: JSONValue]
 
     /// Maximum number of recursive tool-call iterations the broker will
-    /// dispatch before surfacing `MojenticError.toolDepthExceeded`.
-    public var maxToolIterations: Int
+    /// dispatch before surfacing `MojenticError.toolDepthExceeded`; nil is unlimited.
+    public var maxToolIterations: Int?
 
     /// Create a `CompletionConfig` with the documented defaults.
     public init(
@@ -47,7 +47,7 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
         reasoning: ReasoningEffort? = nil,
         numCtx: Int? = 32_768,
         extraOptions: [String: JSONValue] = [:],
-        maxToolIterations: Int = 25
+        maxToolIterations: Int? = 25
     ) {
         self.temperature = temperature
         self.maxTokens = maxTokens

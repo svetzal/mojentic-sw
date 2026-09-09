@@ -10,6 +10,10 @@ move independently.
 
 ## [Unreleased]
 
+- Add a single-response broker API for caller-owned context and native tool requests.
+- Support explicit unlimited tool rounds while retaining finite defaults.
+- Unknown tools produce error exchanges in both ordinary and streaming broker calls.
+
 ### Added
 
 - **Layer 1 — LLM**: `OpenAIModelRegistry` now recognises the OpenAI
@@ -56,7 +60,7 @@ across all ports.
   `OpenAIGateway` (Chat Completions + SSE + model registry),
   `AnthropicGateway` (gated behind the `anthropic` package trait,
   Messages API + named-event SSE), `ChatSession` actor with auto history
-  + streaming send, multimodal `ImageContent`,
+  - streaming send, multimodal `ImageContent`,
   `TokenBudgetContextWindowManager`, `ApproximateTokenizerGateway`,
   Ollama + OpenAI embeddings gateways.
 - **Layer 1 — Tools**: `LLMTool` protocol, `SerialToolRunner`,
@@ -97,7 +101,7 @@ across all ports.
   (recursive tool loop, depth cap, structured output decode, streaming
   with tools), file-tool sandboxing, ephemeral task manager round-trip,
   ScriptedIOGateway, ToolWrapper tracer linkage, tracer event store
-  + correlation tree, router fan-out + dispatcher drain + lifecycle
+  - correlation tree, router fan-out + dispatcher drain + lifecycle
   tracing, AsyncLLMAgent correlation propagation, higher-order agent
   behaviour, OpenAI + Anthropic message adapters and model registries,
   context-window manager eviction, ApproximateTokenizerGateway

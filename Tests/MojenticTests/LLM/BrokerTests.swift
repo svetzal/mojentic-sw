@@ -129,6 +129,31 @@ private struct ExtractedPerson: Codable, Sendable, Equatable, JSONSchemaProvidin
 
 @Suite("LLMBroker")
 struct BrokerTests {
+    @Test("returns one native response without dispatching tool calls")
+    func nativeResponse() async throws {
+        let call = LLMToolCall(id: "native", name: "missing", arguments: [:])
+        let gateway = FakeGateway(responses: [LLMGatewayResponse(content: "", toolCalls: [call])])
+        let response = try await LLMBroker(gateway: gateway).generateResponse(
+            model: "offline", messages: [.user("inspect")])
+        #expect(response.toolCalls == [call])
+        #expect(await gateway.state.recordedInvocations().count == 1)
+    }
+
+    @Test("unlimited execution retains unknown-tool error exchanges")
+    func unlimitedExecution() async throws {
+        let responses =
+            (0..<27).map { index in
+                LLMGatewayResponse(
+                    content: "",
+                    toolCalls: [LLMToolCall(id: "call-\(index)", name: "missing", arguments: [:])])
+            } + [LLMGatewayResponse(content: "done")]
+        let gateway = FakeGateway(responses: responses)
+        let response = try await LLMBroker(gateway: gateway).complete(
+            model: "offline", messages: [.user("inspect")], config: CompletionConfig(maxToolIterations: nil))
+        #expect(response.content == "done")
+        #expect(await gateway.state.recordedInvocations().count == 28)
+    }
+
     @Test("returns content directly when no tool calls are requested")
     func plainCompletion() async throws {
         let gateway = FakeGateway(responses: [
