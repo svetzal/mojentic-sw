@@ -53,6 +53,14 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
     /// Never estimated: `nil` means the provider did not report usage.
     public let usage: Usage?
 
+    /// Finish reason exactly as the provider reported it (for example
+    /// OpenAI `finish_reason`, Ollama `done_reason`, Anthropic `stop_reason`),
+    /// when reported.
+    ///
+    /// ``finishReason`` is the typed mapping and collapses unknown values to
+    /// ``FinishReason/other``; this keeps the provider's own string.
+    public let providerFinishReason: String?
+
     /// Model name the provider reported serving the request, when reported.
     ///
     /// May differ from the requested model (for example a dated snapshot).
@@ -70,6 +78,7 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
         thinking: String? = nil,
         finishReason: FinishReason? = nil,
         usage: Usage? = nil,
+        providerFinishReason: String? = nil,
         providerModel: String? = nil,
         metadata: [String: JSONValue]? = nil
     ) {
@@ -78,6 +87,7 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
         self.thinking = thinking
         self.finishReason = finishReason
         self.usage = usage
+        self.providerFinishReason = providerFinishReason
         self.providerModel = providerModel
         self.metadata = metadata
     }

@@ -428,6 +428,7 @@ struct OpenAIChatResponse: Decodable {
             thinking: nil,
             finishReason: finishReason,
             usage: usage?.toUsage(),
+            providerFinishReason: choice?.finishReason,
             providerModel: model,
             metadata: envelope.metadata
         )

@@ -77,6 +77,7 @@ private let evidence = LLMGatewayResponse(
     content: "{\"answer\":\"42\"}",
     finishReason: .stop,
     usage: reportedUsage,
+    providerFinishReason: "stop",
     providerModel: "gpt-4o-2024-08-06",
     metadata: reportedMetadata
 )
@@ -93,7 +94,7 @@ struct ResponseEvidenceTracerTests {
         #expect(payload.model == "gpt-4o")
         #expect(payload.usage == reportedUsage)
         #expect(payload.providerModel == "gpt-4o-2024-08-06")
-        #expect(payload.finishReason == .stop)
+        #expect(payload.finishReason == "stop")
         #expect(payload.metadata == reportedMetadata)
     }
 
@@ -114,8 +115,21 @@ struct ResponseEvidenceTracerTests {
         #expect(payload.response.content == "{\"answer\":\"42\"}")
         #expect(payload.usage == reportedUsage)
         #expect(payload.providerModel == "gpt-4o-2024-08-06")
-        #expect(payload.finishReason == .stop)
+        #expect(payload.finishReason == "stop")
         #expect(payload.metadata == reportedMetadata)
+    }
+
+    @Test("an unknown provider finish reason survives into the trace unchanged")
+    func unknownFinishReason() async throws {
+        let (broker, store) = evidenceBroker(
+            LLMGatewayResponse(content: "", finishReason: .other, providerFinishReason: "load")
+        )
+        let context = TracerContext()
+        _ = try await broker.complete(model: "m", messages: [.user("hi")], context: context)
+
+        let payload = try #require(await responsePayloads(in: store, context).first)
+        #expect(payload.finishReason == "load")
+        #expect(payload.response.finishReason == .other)
     }
 
     @Test("a gateway that reports no usage produces a response event with nil usage")

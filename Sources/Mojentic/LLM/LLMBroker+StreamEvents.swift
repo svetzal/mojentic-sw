@@ -125,6 +125,7 @@ extension LLMBroker {
             content: content,
             finishReason: evidence?.finishReason.map { FinishReason(rawValue: $0) ?? .other },
             usage: evidence?.usage,
+            providerFinishReason: evidence?.finishReason,
             providerModel: evidence?.providerModel,
             metadata: evidence?.metadata
         )

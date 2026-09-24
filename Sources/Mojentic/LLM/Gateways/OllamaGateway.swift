@@ -495,6 +495,7 @@ struct OllamaChatResponse: Decodable {
             thinking: message.thinking,
             finishReason: mapFinishReason(doneReason, hasToolCalls: !calls.isEmpty),
             usage: evidence.usage,
+            providerFinishReason: doneReason,
             providerModel: evidence.model,
             metadata: evidence.metadata
         )

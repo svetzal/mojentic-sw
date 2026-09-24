@@ -258,7 +258,7 @@ struct BrokerStreamEventsTests {
         #expect(response.response.content == "Hello")
         #expect(response.usage == stopEvidence.usage)
         #expect(response.providerModel == "qwen3:8b")
-        #expect(response.finishReason == .stop)
+        #expect(response.finishReason == "stop")
         #expect(response.metadata == ["total_duration": .integer(100)])
     }
 
@@ -278,9 +278,27 @@ struct BrokerStreamEventsTests {
         }
         let response = try #require(responses.first)
         #expect(response.response.content == "Partial")
-        #expect(response.finishReason == .length)
+        #expect(response.finishReason == "length")
         #expect(response.usage == lengthEvidence.usage)
         #expect(response.metadata == ["eval_duration": .integer(30)])
+    }
+
+    @Test("an unknown provider finish reason survives into the stream trace unchanged")
+    func tracesUnknownFinishReason() async throws {
+        let evidence = CompletionEvidence(finishReason: "load", providerModel: "qwen3:8b")
+        let gateway = ScriptedEventsGateway(script: [.error(.incompleteCompletion(evidence))])
+        let (broker, store) = tracedBroker(gateway)
+        let context = TracerContext()
+        _ = await collect(
+            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context)
+        )
+
+        let responses = await store.events(correlatedTo: context.correlationId).compactMap { event in
+            if case .llmResponse(let payload) = event { return payload }
+            return nil
+        }
+        let response = try #require(responses.first)
+        #expect(response.finishReason == "load")
     }
 
     @Test("the tracer records partial evidence for an incomplete stream")

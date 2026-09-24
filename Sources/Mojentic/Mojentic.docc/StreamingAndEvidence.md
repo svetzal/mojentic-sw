@@ -37,12 +37,14 @@ response. ``LLMResponsePayload`` exposes four optional fields:
 | ----- | ------ | ----------- |
 | ``LLMResponsePayload/usage`` | usage exactly as the gateway reported it | `nil` |
 | ``LLMResponsePayload/providerModel`` | model name the provider reported | `nil` |
-| ``LLMResponsePayload/finishReason`` | provider finish reason | `nil` |
+| ``LLMResponsePayload/finishReason`` | provider finish reason, the raw string as reported | `nil` |
 | ``LLMResponsePayload/metadata`` | provider response fields such as ids, timestamps and durations | `nil` |
 
 ``LLMResponsePayload/model`` stays the model you requested. The fields come
 from ``LLMGatewayResponse``, which gains ``LLMGatewayResponse/providerModel``
-and ``LLMGatewayResponse/metadata``. The broker fills them for ordinary
+and ``LLMGatewayResponse/metadata``; the raw finish reason comes from
+``LLMGatewayResponse/providerFinishReason``, and the typed mapping stays at
+``LLMGatewayResponse/finishReason``. The broker fills them for ordinary
 calls, structured calls (through
 ``LLMGateway/completeStructured(model:messages:schema:config:)``), and the
 single-turn event stream described below, where `metadata` is the provider

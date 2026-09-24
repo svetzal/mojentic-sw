@@ -144,8 +144,11 @@ public struct LLMResponsePayload: Sendable, Hashable, Codable {
     /// Model name the provider reported; ``model`` stays the requested model.
     public var providerModel: String? { response.providerModel }
 
-    /// Finish reason the provider reported, when reported.
-    public var finishReason: FinishReason? { response.finishReason }
+    /// Finish reason exactly as the provider reported it, when reported.
+    ///
+    /// Unknown values such as Ollama's `load` survive unchanged. The typed
+    /// mapping remains available as `response.finishReason`.
+    public var finishReason: String? { response.providerFinishReason }
 
     /// Provider response metadata as the gateway reported it.
     public var metadata: [String: JSONValue]? { response.metadata }

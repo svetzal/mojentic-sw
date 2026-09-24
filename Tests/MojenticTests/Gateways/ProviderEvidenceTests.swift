@@ -21,6 +21,7 @@ struct OpenAIProviderEvidenceTests {
         #expect(response.providerModel == "gpt-4o-2024-08-06")
         #expect(response.usage == Usage(promptTokens: 3, completionTokens: 1, totalTokens: 4))
         #expect(response.metadata == ["id": "chatcmpl-1", "created": .integer(1_700_000_001)])
+        #expect(response.providerFinishReason == "stop")
     }
 
     @Test("a response without usage leaves usage and metadata nil")
@@ -59,6 +60,17 @@ struct OllamaProviderEvidenceTests {
         #expect(response.providerModel == "qwen3:8b")
         #expect(response.usage == Usage(promptTokens: 5, completionTokens: 3, totalTokens: 8))
         #expect(response.metadata == Self.expectedMetadata)
+    }
+
+    @Test("an unknown done_reason is kept as reported")
+    func unknownDoneReason() throws {
+        let wire = try decode(
+            OllamaChatResponse.self,
+            #"{"message":{"role":"assistant","content":""},"done":true,"done_reason":"load"}"#
+        )
+        let response = wire.toGatewayResponse()
+        #expect(response.providerFinishReason == "load")
+        #expect(response.finishReason == .other)
     }
 
     @Test("a response without counts leaves usage nil")

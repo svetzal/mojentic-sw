@@ -25,7 +25,11 @@ move independently.
 - **Layer 3 — Tracer**: `LLMResponsePayload` exposes `usage`,
   `providerModel`, `finishReason` and `metadata` exactly as the gateway
   reported them (`nil` when unreported, never estimated); `model` stays the
-  requested model. `LLMGatewayResponse` gains `providerModel` and `metadata`,
+  requested model. The trace's `finishReason` is the provider's raw string
+  (`String?`), so unknown values such as Ollama's `load` survive unchanged;
+  the typed `FinishReason` stays on `LLMGatewayResponse.finishReason` and
+  `LLMResponse`. `LLMGatewayResponse` gains `providerFinishReason`,
+  `providerModel` and `metadata`,
   filled by the OpenAI, Ollama and Anthropic gateways. Structured calls now
   trace the provider response through the new
   `LLMGateway.completeStructured(model:messages:schema:config:)` (default

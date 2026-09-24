@@ -343,6 +343,7 @@ import Logging
                 thinking: thinking,
                 finishReason: Self.mapStopReason(stopReason, hasToolCalls: !calls.isEmpty),
                 usage: usage?.toUsage(),
+                providerFinishReason: stopReason,
                 providerModel: model,
                 metadata: id.map { ["id": .string($0)] }
             )
