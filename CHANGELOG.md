@@ -22,6 +22,15 @@ move independently.
   `format`, in both ordinary and streaming requests. `nil` leaves the request
   unchanged. The field records what was requested; callers still validate the
   content.
+- **Layer 3 — Tracer**: `LLMResponsePayload` exposes `usage`,
+  `providerModel`, `finishReason` and `metadata` exactly as the gateway
+  reported them (`nil` when unreported, never estimated); `model` stays the
+  requested model. `LLMGatewayResponse` gains `providerModel` and `metadata`,
+  filled by the OpenAI, Ollama and Anthropic gateways. Structured calls now
+  trace the provider response through the new
+  `LLMGateway.completeStructured(model:messages:schema:config:)` (default
+  implementation wraps `completeJSON`, so custom gateways keep compiling).
+  The legacy `LLMBroker.stream` keeps its existing tracing.
 - **Layer 1 — LLM**: `OpenAIModelRegistry` now recognises the OpenAI
   GPT-5.4 and GPT-5.5 reasoning families (`gpt-5.4`, `gpt-5.4-mini`,
   `gpt-5.4-nano`, `gpt-5.5`, `gpt-5.5-pro`, plus their dated snapshots).

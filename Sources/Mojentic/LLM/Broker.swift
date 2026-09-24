@@ -192,7 +192,7 @@ public actor LLMBroker {
         await tracer.recordLLMCall(callPayload)
         let clock = ContinuousClock()
         let start = clock.now
-        let raw = try await gateway.completeJSON(
+        let structured = try await gateway.completeStructured(
             model: model,
             messages: messages,
             schema: schema,
@@ -205,9 +205,10 @@ public actor LLMBroker {
                 parentId: callPayload.id,
                 duration: duration,
                 model: model,
-                response: LLMGatewayResponse(content: "")
+                response: structured.response
             )
         )
+        let raw = structured.value
         let data: Data
         do {
             data = try JSONEncoder().encode(raw)

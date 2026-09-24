@@ -68,6 +68,7 @@ for building your own.
 - ``ResponseFormat``
 - ``LLMResponse``
 - ``LLMGatewayResponse``
+- ``StructuredGatewayResponse``
 - ``ImageContent``
 - ``StreamEvent``
 - ``GatewayStreamEvent``

@@ -95,6 +95,22 @@ import Logging
             schema: JSONValue,
             config: CompletionConfig
         ) async throws -> JSONValue {
+            try await completeStructured(
+                model: model,
+                messages: messages,
+                schema: schema,
+                config: config
+            ).value
+        }
+
+        /// Run a structured-output completion, keeping the provider's usage,
+        /// model, finish reason and metadata.
+        public func completeStructured(
+            model: String,
+            messages: [LLMMessage],
+            schema: JSONValue,
+            config: CompletionConfig
+        ) async throws -> StructuredGatewayResponse {
             let serialisedSchema: String
             if let data = try? JSONEncoder().encode(schema),
                 let text = String(data: data, encoding: .utf8)
@@ -124,13 +140,9 @@ import Logging
             )
             let text = response.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
             let payload = Self.extractJSONPayload(from: text)
-            guard let data = payload.data(using: .utf8) else {
-                throw MojenticError.decoding(
-                    message: "Empty JSON content from Anthropic"
-                )
-            }
             do {
-                return try JSONDecoder().decode(JSONValue.self, from: data)
+                let value = try JSONDecoder().decode(JSONValue.self, from: Data(payload.utf8))
+                return StructuredGatewayResponse(value: value, response: response.toGatewayResponse())
             } catch {
                 throw MojenticError.decoding(
                     message: "Anthropic returned non-JSON content for structured output: \(text)"
@@ -288,11 +300,15 @@ import Logging
     // MARK: - Wire decoding
 
     private struct AnthropicMessageResponse: Decodable {
+        let id: String?
+        let model: String?
         let content: [AnthropicContentBlock]
         let stopReason: String?
         let usage: AnthropicUsage?
 
         enum CodingKeys: String, CodingKey {
+            case id
+            case model
             case content
             case stopReason = "stop_reason"
             case usage
@@ -326,7 +342,9 @@ import Logging
                 toolCalls: calls,
                 thinking: thinking,
                 finishReason: Self.mapStopReason(stopReason, hasToolCalls: !calls.isEmpty),
-                usage: usage?.toUsage()
+                usage: usage?.toUsage(),
+                providerModel: model,
+                metadata: id.map { ["id": .string($0)] }
             )
         }
 

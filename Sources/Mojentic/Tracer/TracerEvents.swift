@@ -131,10 +131,24 @@ public struct LLMResponsePayload: Sendable, Hashable, Codable {
     public let timestamp: Date
     /// Wall-clock duration of the gateway call.
     public let duration: Duration
-    /// Model identifier the broker called.
+    /// Model identifier the broker requested (the configured model).
     public let model: String
     /// Raw gateway response payload.
     public let response: LLMGatewayResponse
+
+    /// Token usage exactly as the gateway reported it.
+    ///
+    /// `nil` when unreported; never estimated.
+    public var usage: Usage? { response.usage }
+
+    /// Model name the provider reported; ``model`` stays the requested model.
+    public var providerModel: String? { response.providerModel }
+
+    /// Finish reason the provider reported, when reported.
+    public var finishReason: FinishReason? { response.finishReason }
+
+    /// Provider response metadata as the gateway reported it.
+    public var metadata: [String: JSONValue]? { response.metadata }
 
     /// Construct a response payload.
     public init(

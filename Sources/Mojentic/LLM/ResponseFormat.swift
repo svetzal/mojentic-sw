@@ -49,7 +49,19 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
     public let finishReason: FinishReason?
 
     /// Token usage as reported by the provider, when reported.
+    ///
+    /// Never estimated: `nil` means the provider did not report usage.
     public let usage: Usage?
+
+    /// Model name the provider reported serving the request, when reported.
+    ///
+    /// May differ from the requested model (for example a dated snapshot).
+    public let providerModel: String?
+
+    /// Provider-reported response fields with no typed home (response ids,
+    /// timestamps, fingerprints, durations), kept as reported. `nil` when
+    /// the provider reported none.
+    public let metadata: [String: JSONValue]?
 
     /// Create a raw gateway response payload.
     public init(
@@ -57,13 +69,34 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
         toolCalls: [LLMToolCall] = [],
         thinking: String? = nil,
         finishReason: FinishReason? = nil,
-        usage: Usage? = nil
+        usage: Usage? = nil,
+        providerModel: String? = nil,
+        metadata: [String: JSONValue]? = nil
     ) {
         self.content = content
         self.toolCalls = toolCalls
         self.thinking = thinking
         self.finishReason = finishReason
         self.usage = usage
+        self.providerModel = providerModel
+        self.metadata = metadata
+    }
+}
+
+/// A structured-output gateway response: the decoded JSON value plus the
+/// gateway response that carried it, with its provider evidence.
+public struct StructuredGatewayResponse: Sendable, Hashable {
+    /// JSON value decoded from the provider's content.
+    public let value: JSONValue
+
+    /// The gateway response, including raw content, usage, provider model,
+    /// finish reason and metadata as reported.
+    public let response: LLMGatewayResponse
+
+    /// Create a structured gateway response.
+    public init(value: JSONValue, response: LLMGatewayResponse) {
+        self.value = value
+        self.response = response
     }
 }
 

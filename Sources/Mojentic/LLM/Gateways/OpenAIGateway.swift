@@ -99,6 +99,22 @@ public struct OpenAIGateway: LLMGateway {
         schema: JSONValue,
         config: CompletionConfig
     ) async throws -> JSONValue {
+        try await completeStructured(
+            model: model,
+            messages: messages,
+            schema: schema,
+            config: config
+        ).value
+    }
+
+    /// Run a structured-output completion using `response_format`, keeping
+    /// the provider's usage, model, finish reason and metadata.
+    public func completeStructured(
+        model: String,
+        messages: [LLMMessage],
+        schema: JSONValue,
+        config: CompletionConfig
+    ) async throws -> StructuredGatewayResponse {
         let capabilities = registry.capabilities(for: model)
         let responseFormat: JSONValue
         if capabilities.supportsJSONSchema {
@@ -122,18 +138,17 @@ public struct OpenAIGateway: LLMGateway {
             responseFormat: responseFormat
         )
         let url = baseURL.appendingPathComponent("chat/completions")
-        let response = try await client.postJSON(
+        let wire = try await client.postJSON(
             url: url,
             body: body,
             headers: authHeaders(),
             responseType: OpenAIChatResponse.self
         )
-        let content = response.firstChoiceContent ?? ""
-        guard let data = content.data(using: .utf8) else {
-            throw MojenticError.decoding(message: "Empty JSON content from OpenAI")
-        }
+        let response = wire.toGatewayResponse()
+        let content = response.content
         do {
-            return try JSONDecoder().decode(JSONValue.self, from: data)
+            let value = try JSONDecoder().decode(JSONValue.self, from: Data(content.utf8))
+            return StructuredGatewayResponse(value: value, response: response)
         } catch {
             throw MojenticError.decoding(
                 message: "OpenAI returned non-JSON content for structured output: \(content)"
@@ -303,9 +318,51 @@ public struct OpenAIGateway: LLMGateway {
 
 // MARK: - Wire decoding
 
-private struct OpenAIChatResponse: Decodable {
+/// Response-level fields OpenAI reports alongside every completion and
+/// stream chunk, kept as provider metadata.
+struct OpenAIResponseEnvelope: Decodable {
+    let id: String?
+    let created: Int?
+    let systemFingerprint: String?
+    let serviceTier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case created
+        case systemFingerprint = "system_fingerprint"
+        case serviceTier = "service_tier"
+    }
+
+    /// Reported fields as a metadata map; `nil` when none were reported.
+    var metadata: [String: JSONValue]? {
+        var fields: [String: JSONValue] = [:]
+        if let id { fields["id"] = .string(id) }
+        if let created { fields["created"] = .integer(created) }
+        if let systemFingerprint { fields["system_fingerprint"] = .string(systemFingerprint) }
+        if let serviceTier { fields["service_tier"] = .string(serviceTier) }
+        return fields.isEmpty ? nil : fields
+    }
+}
+
+struct OpenAIChatResponse: Decodable {
     let choices: [Choice]
     let usage: OpenAIUsage?
+    let model: String?
+    let envelope: OpenAIResponseEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case choices
+        case usage
+        case model
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        choices = try container.decode([Choice].self, forKey: .choices)
+        usage = try container.decodeIfPresent(OpenAIUsage.self, forKey: .usage)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        envelope = try OpenAIResponseEnvelope(from: decoder)
+    }
 
     struct Choice: Decodable {
         let message: Message
@@ -327,10 +384,6 @@ private struct OpenAIChatResponse: Decodable {
         }
     }
 
-    var firstChoiceContent: String? {
-        choices.first?.message.content
-    }
-
     func toGatewayResponse() -> LLMGatewayResponse {
         let choice = choices.first
         let calls = (choice?.message.toolCalls ?? []).compactMap { raw -> LLMToolCall? in
@@ -343,12 +396,14 @@ private struct OpenAIChatResponse: Decodable {
             toolCalls: calls,
             thinking: nil,
             finishReason: finishReason,
-            usage: usage?.toUsage()
+            usage: usage?.toUsage(),
+            providerModel: model,
+            metadata: envelope.metadata
         )
     }
 }
 
-private struct OpenAIToolCall: Decodable {
+struct OpenAIToolCall: Decodable {
     let id: String?
     let function: Function
 
@@ -367,7 +422,7 @@ private struct OpenAIToolCall: Decodable {
     }
 }
 
-private struct OpenAIUsage: Decodable {
+struct OpenAIUsage: Decodable {
     let promptTokens: Int?
     let completionTokens: Int?
     let totalTokens: Int?

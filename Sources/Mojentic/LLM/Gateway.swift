@@ -1,3 +1,5 @@
+import Foundation
+
 /// Streaming event surfaced by `LLMGateway.stream`.
 ///
 /// Gateways emit a normalised stream of these so the broker can run its
@@ -43,6 +45,20 @@ public protocol LLMGateway: Sendable {
         config: CompletionConfig
     ) async throws -> JSONValue
 
+    /// Issue a structured-output completion and return the decoded JSON
+    /// together with the gateway response that carried it.
+    ///
+    /// The broker uses this so structured calls trace the provider's usage,
+    /// model, finish reason and metadata. The default implementation calls
+    /// ``completeJSON(model:messages:schema:config:)`` and reports no
+    /// provider evidence.
+    func completeStructured(
+        model: String,
+        messages: [LLMMessage],
+        schema: JSONValue,
+        config: CompletionConfig
+    ) async throws -> StructuredGatewayResponse
+
     /// List models available on the provider.
     func availableModels() async throws -> [String]
 
@@ -55,4 +71,26 @@ public protocol LLMGateway: Sendable {
         tools: [any LLMTool]?,
         config: CompletionConfig
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error>
+}
+
+extension LLMGateway {
+    /// Default implementation that reports no provider evidence.
+    ///
+    /// Delegates to ``completeJSON(model:messages:schema:config:)`` and
+    /// uses the re-encoded JSON value as the response content.
+    public func completeStructured(
+        model: String,
+        messages: [LLMMessage],
+        schema: JSONValue,
+        config: CompletionConfig
+    ) async throws -> StructuredGatewayResponse {
+        let value = try await completeJSON(
+            model: model,
+            messages: messages,
+            schema: schema,
+            config: config
+        )
+        let content = (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        return StructuredGatewayResponse(value: value, response: LLMGatewayResponse(content: content))
+    }
 }
