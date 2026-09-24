@@ -4,12 +4,27 @@ import Foundation
     import FoundationNetworking
 #endif
 
+/// Boundary for line-oriented streaming HTTP requests.
+///
+/// Gateways reach the network for streaming through this seam so tests can
+/// substitute a scripted transport. ``HTTPClient`` is the production
+/// conformance. Terminating the returned stream (the consumer stops
+/// iterating or its task is cancelled) must cancel the underlying request.
+protocol LineStreamingTransport: Sendable {
+    /// POST `body` as JSON and stream the response line by line.
+    func streamLines(
+        url: URL,
+        body: some Encodable,
+        headers: [String: String]
+    ) async throws -> AsyncThrowingStream<String, any Error>
+}
+
 /// Thin `URLSession` wrapper used by gateway implementations.
 ///
 /// Boring on purpose: no retries, no connection pooling beyond what
 /// `URLSession` already does, no logging. Surface a typed error and let the
 /// caller decide what to do.
-public struct HTTPClient: Sendable {
+public struct HTTPClient: Sendable, LineStreamingTransport {
     private let session: URLSession
 
     /// Create a client that issues requests through the supplied session.
@@ -88,7 +103,7 @@ public struct HTTPClient: Sendable {
         url: URL,
         body: some Encodable,
         headers: [String: String] = [:]
-    ) async throws -> AsyncThrowingStream<String, Error> {
+    ) async throws -> AsyncThrowingStream<String, any Error> {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -130,7 +145,7 @@ public struct HTTPClient: Sendable {
         /// Yield buffered bytes line by line.
         ///
         /// Used only on Linux where `URLSession.bytes(for:)` is unavailable.
-        private static func linesStream(from data: Data) -> AsyncThrowingStream<String, Error> {
+        private static func linesStream(from data: Data) -> AsyncThrowingStream<String, any Error> {
             AsyncThrowingStream { continuation in
                 let task = Task {
                     let text = String(bytes: data, encoding: .utf8) ?? ""

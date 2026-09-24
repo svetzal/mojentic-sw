@@ -44,6 +44,7 @@ See <doc:BuildingChatbots> for the multi-turn `ChatSession` form and
 - <doc:StructuredOutput>
 - <doc:BuildingAgents>
 - <doc:ImageAnalysis>
+- <doc:StreamingAndEvidence>
 
 ### Examples
 
@@ -64,6 +65,7 @@ for building your own.
 - ``ChatSession``
 - ``LLMMessage``
 - ``CompletionConfig``
+- ``ResponseFormat``
 - ``LLMResponse``
 - ``LLMGatewayResponse``
 - ``ImageContent``

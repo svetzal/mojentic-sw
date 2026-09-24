@@ -16,6 +16,12 @@ move independently.
 
 ### Added
 
+- **Layer 1 — LLM**: `CompletionConfig.responseFormat` requests an output
+  format (`ResponseFormat.text`, `.jsonObject`, `.jsonSchema(_:)`). The
+  OpenAI gateway forwards it as `response_format` and the Ollama gateway as
+  `format`, in both ordinary and streaming requests. `nil` leaves the request
+  unchanged. The field records what was requested; callers still validate the
+  content.
 - **Layer 1 — LLM**: `OpenAIModelRegistry` now recognises the OpenAI
   GPT-5.4 and GPT-5.5 reasoning families (`gpt-5.4`, `gpt-5.4-mini`,
   `gpt-5.4-nano`, `gpt-5.5`, `gpt-5.5-pro`, plus their dated snapshots).

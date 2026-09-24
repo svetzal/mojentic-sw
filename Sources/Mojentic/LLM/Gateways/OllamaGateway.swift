@@ -14,6 +14,7 @@ import Logging
 public struct OllamaGateway: LLMGateway {
     private let baseURL: URL
     private let client: HTTPClient
+    private let lineTransport: any LineStreamingTransport
     private let headers: [String: String]
     private let logger: Logger
 
@@ -34,8 +35,19 @@ public struct OllamaGateway: LLMGateway {
         client: HTTPClient = HTTPClient(),
         headers: [String: String] = [:]
     ) {
+        self.init(baseURL: baseURL, client: client, headers: headers, lineTransport: client)
+    }
+
+    /// Create an Ollama gateway whose streaming requests go through `lineTransport`.
+    init(
+        baseURL: URL = OllamaGateway.defaultBaseURL,
+        client: HTTPClient = HTTPClient(),
+        headers: [String: String] = [:],
+        lineTransport: any LineStreamingTransport
+    ) {
         self.baseURL = baseURL
         self.client = client
+        self.lineTransport = lineTransport
         self.headers = headers
         self.logger = Logger(label: "mojentic.gateway.ollama")
     }
@@ -55,7 +67,7 @@ public struct OllamaGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: false,
-            format: nil
+            format: Self.formatPayload(config.responseFormat)
         )
         logger.debug("Ollama complete", metadata: ["model": .string(model)])
         let url = baseURL.appendingPathComponent("api/chat")
@@ -127,16 +139,16 @@ public struct OllamaGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: true,
-            format: nil
+            format: Self.formatPayload(config.responseFormat)
         )
         let url = baseURL.appendingPathComponent("api/chat")
-        let client = self.client
+        let transport = lineTransport
         let headers = self.headers
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let lines = try await client.streamLines(
+                    let lines = try await transport.streamLines(
                         url: url,
                         body: body,
                         headers: headers
@@ -176,6 +188,20 @@ public struct OllamaGateway: LLMGateway {
     }
 
     // MARK: - Request building
+
+    /// Map a configured ``ResponseFormat`` onto Ollama's `format` field.
+    ///
+    /// Plain text is Ollama's default, so it omits the field.
+    static func formatPayload(_ format: ResponseFormat?) -> JSONValue? {
+        switch format {
+        case nil, .text:
+            return nil
+        case .jsonObject:
+            return "json"
+        case .jsonSchema(let schema):
+            return schema
+        }
+    }
 
     private func buildChatRequest(
         model: String,

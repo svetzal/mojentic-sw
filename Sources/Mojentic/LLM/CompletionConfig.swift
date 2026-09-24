@@ -10,6 +10,27 @@ public enum ReasoningEffort: String, Sendable, Codable, Hashable, CaseIterable {
     case high
 }
 
+/// Output format requested from the provider.
+///
+/// Gateways forward the requested format in both ordinary and streaming
+/// requests. The format records what was *requested*; it is not proof that
+/// the provider enforced it. Callers must still validate the content they
+/// receive.
+///
+/// | Case | OpenAI `response_format` | Ollama `format` |
+/// | ---- | ------------------------ | --------------- |
+/// | ``text`` | `{"type": "text"}` | omitted |
+/// | ``jsonObject`` | `{"type": "json_object"}` | `"json"` |
+/// | ``jsonSchema(_:)`` | `{"type": "json_schema", "json_schema": {"name": "response", "schema": …}}` | the schema |
+public enum ResponseFormat: Sendable, Codable, Hashable {
+    /// Plain text output.
+    case text
+    /// JSON object mode, without a schema.
+    case jsonObject
+    /// JSON schema mode constrained by the supplied JSON Schema.
+    case jsonSchema(JSONValue)
+}
+
 /// Configuration for a single LLM completion request.
 ///
 /// `CompletionConfig` collects the small set of knobs every provider exposes
@@ -39,6 +60,13 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
     /// dispatch before surfacing `MojenticError.toolDepthExceeded`; nil is unlimited.
     public var maxToolIterations: Int?
 
+    /// Output format to request from the provider; `nil` leaves the
+    /// provider default and the request body unchanged.
+    ///
+    /// Forwarded by ordinary and streaming requests. Structured-output calls
+    /// (`completeJSON`) derive their own schema and ignore this field.
+    public var responseFormat: ResponseFormat?
+
     /// Create a `CompletionConfig` with the documented defaults.
     public init(
         temperature: Double = 1.0,
@@ -47,7 +75,8 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
         reasoning: ReasoningEffort? = nil,
         numCtx: Int? = 32_768,
         extraOptions: [String: JSONValue] = [:],
-        maxToolIterations: Int? = 25
+        maxToolIterations: Int? = 25,
+        responseFormat: ResponseFormat? = nil
     ) {
         self.temperature = temperature
         self.maxTokens = maxTokens
@@ -56,5 +85,6 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
         self.numCtx = numCtx
         self.extraOptions = extraOptions
         self.maxToolIterations = maxToolIterations
+        self.responseFormat = responseFormat
     }
 }

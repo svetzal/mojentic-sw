@@ -20,6 +20,7 @@ public struct OpenAIGateway: LLMGateway {
     private let baseURL: URL
     private let apiKey: String
     private let client: HTTPClient
+    private let lineTransport: any LineStreamingTransport
     private let registry: OpenAIModelRegistry
     private let logger: Logger
 
@@ -38,10 +39,28 @@ public struct OpenAIGateway: LLMGateway {
         client: HTTPClient = HTTPClient(),
         registry: OpenAIModelRegistry = .shared
     ) {
+        self.init(
+            apiKey: apiKey,
+            baseURL: baseURL,
+            client: client,
+            registry: registry,
+            lineTransport: client
+        )
+    }
+
+    /// Create an OpenAI gateway whose streaming requests go through `lineTransport`.
+    init(
+        apiKey: String,
+        baseURL: URL = OpenAIGateway.defaultBaseURL,
+        client: HTTPClient = HTTPClient(),
+        registry: OpenAIModelRegistry = .shared,
+        lineTransport: any LineStreamingTransport
+    ) {
         precondition(!apiKey.isEmpty, "OpenAI API key must not be empty")
         self.apiKey = apiKey
         self.baseURL = baseURL
         self.client = client
+        self.lineTransport = lineTransport
         self.registry = registry
         self.logger = Logger(label: "mojentic.gateway.openai")
     }
@@ -61,7 +80,7 @@ public struct OpenAIGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: false,
-            responseFormat: nil
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
         )
         let url = baseURL.appendingPathComponent("chat/completions")
         let response = try await client.postJSON(
@@ -147,16 +166,16 @@ public struct OpenAIGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: true,
-            responseFormat: nil
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
         )
         let url = baseURL.appendingPathComponent("chat/completions")
-        let client = self.client
+        let transport = lineTransport
         let headers = authHeaders()
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let lines = try await client.streamLines(
+                    let lines = try await transport.streamLines(
                         url: url,
                         body: body,
                         headers: headers
@@ -206,6 +225,21 @@ public struct OpenAIGateway: LLMGateway {
     }
 
     // MARK: - Helpers
+
+    /// Map a configured ``ResponseFormat`` onto OpenAI's `response_format` payload.
+    static func responseFormatPayload(_ format: ResponseFormat) -> JSONValue {
+        switch format {
+        case .text:
+            return ["type": "text"]
+        case .jsonObject:
+            return ["type": "json_object"]
+        case .jsonSchema(let schema):
+            return [
+                "type": "json_schema",
+                "json_schema": ["name": "response", "schema": schema],
+            ]
+        }
+    }
 
     private func authHeaders() -> [String: String] {
         ["Authorization": "Bearer \(apiKey)"]
