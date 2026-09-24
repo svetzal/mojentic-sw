@@ -202,6 +202,31 @@ public struct OllamaGateway: LLMGateway {
         }
     }
 
+    /// Stream one turn with no tools via NDJSON and report completion evidence.
+    ///
+    /// Success requires a final frame with `done: true` and
+    /// `done_reason: "stop"`.
+    public func completeStreamEvents(
+        model: String,
+        messages: [LLMMessage],
+        config: CompletionConfig
+    ) -> AsyncStream<CompletionStreamEvent> {
+        CompletionEventStreaming.events(
+            transport: lineTransport,
+            url: baseURL.appendingPathComponent("api/chat"),
+            body: buildChatRequest(
+                model: model,
+                messages: messages,
+                tools: nil,
+                config: config,
+                stream: true,
+                format: Self.formatPayload(config.responseFormat)
+            ),
+            headers: headers,
+            parser: OllamaCompletionEventParser()
+        )
+    }
+
     // MARK: - Request building
 
     /// Map a configured ``ResponseFormat`` onto Ollama's `format` field.

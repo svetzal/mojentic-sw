@@ -71,9 +71,35 @@ public protocol LLMGateway: Sendable {
         tools: [any LLMTool]?,
         config: CompletionConfig
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error>
+
+    /// Issue one streaming request for a single turn, with no tools, and
+    /// report completion evidence.
+    ///
+    /// The returned stream yields content, then exactly one terminal event
+    /// decided by the provider's own completion rules. Terminating the
+    /// stream cancels the request. Throws
+    /// ``MojenticError/streamEventsUnsupported`` before sending anything when
+    /// the gateway does not support this API; that is the default.
+    func completeStreamEvents(
+        model: String,
+        messages: [LLMMessage],
+        config: CompletionConfig
+    ) throws(MojenticError) -> AsyncStream<CompletionStreamEvent>
 }
 
 extension LLMGateway {
+    /// Default implementation: the gateway does not support single-turn
+    /// event streams.
+    ///
+    /// Throws ``MojenticError/streamEventsUnsupported`` without sending a request.
+    public func completeStreamEvents(
+        model _: String,
+        messages _: [LLMMessage],
+        config _: CompletionConfig
+    ) throws(MojenticError) -> AsyncStream<CompletionStreamEvent> {
+        throw .streamEventsUnsupported
+    }
+
     /// Default implementation that reports no provider evidence.
     ///
     /// Delegates to ``completeJSON(model:messages:schema:config:)`` and

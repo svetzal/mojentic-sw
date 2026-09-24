@@ -71,6 +71,8 @@ for building your own.
 - ``StructuredGatewayResponse``
 - ``ImageContent``
 - ``StreamEvent``
+- ``CompletionStreamEvent``
+- ``CompletionEvidence``
 - ``GatewayStreamEvent``
 - ``TokenizerGateway``
 - ``ApproximateTokenizerGateway``

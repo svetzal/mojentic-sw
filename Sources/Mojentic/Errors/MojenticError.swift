@@ -38,6 +38,33 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
     /// An invariant required by the caller was violated (e.g. empty model name).
     case invalidArgument(message: String)
 
+    /// A single-turn event stream ended with a terminal marker but a finish
+    /// reason other than `stop`. Carries the provider's evidence.
+    case incompleteCompletion(CompletionEvidence)
+
+    /// A single-turn event stream ended without the provider's terminal
+    /// marker. Carries whatever evidence arrived first; `nil` when none did.
+    case incompleteStream(CompletionEvidence?)
+
+    /// A single-turn event stream contained a native tool call. That API
+    /// supplies no tools and executes none.
+    case unexpectedToolCalls
+
+    /// The provider reported an error in a single-turn event stream: an
+    /// error frame (`status` is `nil`) or a non-2xx HTTP response (`status`
+    /// is the HTTP status). `detail` is the reported payload.
+    case providerError(status: Int?, detail: JSONValue)
+
+    /// A single-turn event stream request failed: the connection or the body
+    /// read failed.
+    case requestFailed(message: String)
+
+    /// A stream frame could not be parsed as the provider's event shape.
+    case invalidStreamEvent(message: String)
+
+    /// The gateway does not support single-turn event streams.
+    case streamEventsUnsupported
+
     /// Human-readable representation of the error suitable for logging.
     public var description: String {
         switch self {
@@ -63,6 +90,20 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
             return "Operation cancelled"
         case .invalidArgument(let message):
             return "Invalid argument: \(message)"
+        case .incompleteCompletion(let evidence):
+            return "Incomplete completion (finish reason: \(evidence.finishReason ?? "none"))"
+        case .incompleteStream:
+            return "Stream ended without a terminal marker"
+        case .unexpectedToolCalls:
+            return "Stream contained unexpected tool calls"
+        case .providerError(let status, let detail):
+            return "Provider error\(status.map { " (HTTP \($0))" } ?? ""): \(detail)"
+        case .requestFailed(let message):
+            return "Request failed: \(message)"
+        case .invalidStreamEvent(let message):
+            return "Invalid stream event: \(message)"
+        case .streamEventsUnsupported:
+            return "Gateway does not support single-turn event streams"
         }
     }
 }

@@ -31,6 +31,22 @@ move independently.
   `LLMGateway.completeStructured(model:messages:schema:config:)` (default
   implementation wraps `completeJSON`, so custom gateways keep compiling).
   The legacy `LLMBroker.stream` keeps its existing tracing.
+- **Layer 1 — LLM**: `LLMBroker.generateStreamEvents(model:messages:config:context:)`
+  streams one turn, with no tools, as an `AsyncStream<CompletionStreamEvent>`:
+  `.content(String)` events, then exactly one terminal `.completed(CompletionEvidence)`
+  or `.error(MojenticError)`. OpenAI succeeds only on `finish_reason: "stop"`
+  plus `[DONE]`; Ollama only on `done: true` with `done_reason: "stop"`.
+  Anything else ends in an error carrying the provider's evidence. One
+  request, tool iterations forced to zero, no retry; stopping consumption
+  cancels the request. The tracer records the call, and the response with
+  usage, provider model, finish reason and metadata at the terminal event;
+  an early stop records no response. Supported by `OpenAIGateway` and
+  `OllamaGateway` through the new `LLMGateway.completeStreamEvents` (default:
+  unsupported, so Anthropic and custom gateways yield
+  `streamEventsUnsupported` without a request).
+- `MojenticError` gains `incompleteCompletion`, `incompleteStream`,
+  `unexpectedToolCalls`, `providerError(status:detail:)`, `requestFailed`,
+  `invalidStreamEvent` and `streamEventsUnsupported`.
 - **Layer 1 — LLM**: `OpenAIModelRegistry` now recognises the OpenAI
   GPT-5.4 and GPT-5.5 reasoning families (`gpt-5.4`, `gpt-5.4-mini`,
   `gpt-5.4-nano`, `gpt-5.5`, `gpt-5.5-pro`, plus their dated snapshots).

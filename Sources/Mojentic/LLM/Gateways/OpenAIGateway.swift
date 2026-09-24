@@ -239,6 +239,37 @@ public struct OpenAIGateway: LLMGateway {
         }
     }
 
+    /// Stream one turn with no tools via SSE and report completion evidence.
+    ///
+    /// Requests `stream_options: {include_usage: true}` so usage arrives in
+    /// the final chunk. Success requires `finish_reason: "stop"` and the
+    /// `data: [DONE]` marker.
+    public func completeStreamEvents(
+        model: String,
+        messages: [LLMMessage],
+        config: CompletionConfig
+    ) -> AsyncStream<CompletionStreamEvent> {
+        var body = buildRequest(
+            model: model,
+            messages: messages,
+            tools: nil,
+            config: config,
+            stream: true,
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
+        )
+        if case .object(var fields) = body {
+            fields["stream_options"] = ["include_usage": true]
+            body = .object(fields)
+        }
+        return CompletionEventStreaming.events(
+            transport: lineTransport,
+            url: baseURL.appendingPathComponent("chat/completions"),
+            body: body,
+            headers: authHeaders(),
+            parser: OpenAICompletionEventParser()
+        )
+    }
+
     // MARK: - Helpers
 
     /// Map a configured ``ResponseFormat`` onto OpenAI's `response_format` payload.

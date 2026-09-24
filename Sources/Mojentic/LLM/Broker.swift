@@ -34,8 +34,8 @@ public enum StreamEvent: Sendable {
 /// invocation inside a wider correlation tree (e.g. an agent's lifecycle, a
 /// ``ToolWrapper`` invoking a nested broker).
 public actor LLMBroker {
-    private let gateway: any LLMGateway
-    private let tracer: any Tracer
+    let gateway: any LLMGateway
+    let tracer: any Tracer
     private let toolRunner: any ToolRunner
     private let logger: Logger
 
