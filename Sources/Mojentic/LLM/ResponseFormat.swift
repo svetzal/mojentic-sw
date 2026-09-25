@@ -66,9 +66,10 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
     /// May differ from the requested model (for example a dated snapshot).
     public let providerModel: String?
 
-    /// Provider-reported response fields with no typed home (response ids,
-    /// timestamps, fingerprints, durations), kept as reported. `nil` when
-    /// the provider reported none.
+    /// Provider-reported response fields with no typed home, kept as reported.
+    ///
+    /// Examples are response ids, timestamps, fingerprints and durations.
+    /// `nil` when the provider reported none.
     public let metadata: [String: JSONValue]?
 
     /// Create a raw gateway response payload.

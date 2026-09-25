@@ -14,8 +14,9 @@ permissions:
   pages: write
 
 jobs:
+  # Xcode 27 ships Swift 6.4, the current stable toolchain.
   build-macos:
-    runs-on: macos-latest
+    runs-on: xcode-27
     if: ${{ github.actor != 'github-actions[bot]' }}
     steps:
       - uses: actions/checkout@v5
@@ -28,6 +29,9 @@ jobs:
 
       - name: Test
         run: swift test --parallel
+
+      - name: Test (all provider traits)
+        run: swift test --traits full
 
       - name: Build (release)
         run: swift build -c release
@@ -36,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'github-actions[bot]' }}
     container:
-      image: swift:6.1
+      image: swift:6.4-noble
     steps:
       - uses: actions/checkout@v5
 
@@ -49,12 +53,45 @@ jobs:
       - name: Test
         run: swift test --parallel
 
+      - name: Test (all provider traits)
+        run: swift test --traits full
+
       - name: Build (release)
         run: swift build -c release
 
-  format-check:
-    runs-on: macos-latest
+      - name: Build documentation
+        run: |
+          swift package --disable-sandbox \
+            generate-documentation \
+            --target Mojentic \
+            --output-path .build/docs \
+            --warnings-as-errors
+
+  # swift-tools-version 6.1 is the declared minimum (package traits).
+  build-linux-minimum:
+    runs-on: ubuntu-latest
     if: ${{ github.actor != 'github-actions[bot]' }}
+    container:
+      image: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Build (debug)
+        run: swift build
+
+      - name: Test (all provider traits)
+        run: swift test --traits full
+
+  # Linux swift-format splits doc-comment sentences more strictly than macOS
+  # (no NaturalLanguage framework), so the format gate runs on Linux.
+  format-check:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    container:
+      image: swift:6.4-noble
     steps:
       - uses: actions/checkout@v5
 
@@ -62,13 +99,12 @@ jobs:
         run: swift format lint --strict --recursive Sources Tests
 
   lint:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     if: ${{ github.actor != 'github-actions[bot]' }}
+    container:
+      image: ghcr.io/realm/swiftlint:0.65.1
     steps:
       - uses: actions/checkout@v5
-
-      - name: Install SwiftLint
-        run: brew install swiftlint
 
       - name: Run SwiftLint
         run: swiftlint --strict

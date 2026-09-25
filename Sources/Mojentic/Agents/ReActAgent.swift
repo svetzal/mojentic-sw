@@ -7,7 +7,7 @@ import Foundation
 /// tools. The broker already performs the tool-call loop natively, so this
 /// agent is a thin wrapper that injects a ReAct-style system prompt,
 /// enforces a maximum number of iterations (via the broker's
-/// `maxToolIterations`), and surfaces a typed ``Result``.
+/// `maxToolIterations`), and surfaces a typed ``Outcome``.
 public actor ReActAgent {
     private let broker: LLMBroker
     private let model: String

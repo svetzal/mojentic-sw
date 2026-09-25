@@ -88,10 +88,12 @@ extension ToolRunner {
     }
 }
 
-/// Tools that need the parent tracer context (e.g. ``ToolWrapper`` running a
-/// nested broker call) can opt in by conforming to this protocol.
+/// A tool that receives the parent call's tracer context.
 ///
-/// The runner detects the conformance and invokes ``executeWithContext`` so
+/// Tools that need the parent tracer context, such as ``ToolWrapper`` running
+/// a nested broker call, opt in by conforming to this protocol.
+///
+/// The runner detects the conformance and invokes ``executeWithContext(arguments:tracer:context:)`` so
 /// the nested call's tracer events nest under the calling tool's events.
 public protocol TracerContextAwareTool: LLMTool {
     /// Execute the tool with a tracer context derived from the parent call.

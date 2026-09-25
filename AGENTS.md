@@ -14,7 +14,15 @@ parity-target rationale; see `PARITY.md` for the cross-port feature matrix.
 ## Toolchain
 
 - **Swift 6.1 minimum** — required for Package Traits (provider gating) and the
-  current strict-concurrency feature set.
+  current strict-concurrency feature set. `swift-tools-version` stays at 6.1.
+- **Swift 6.4 current** — the toolchain CI, Foundry (`mojility-ops-01`, via
+  mise) and the Mac (Xcode 27) use. SwiftLint 0.65.1.
+- **Run swift-format on Linux before you trust a clean result.** Linux
+  swift-format has no NaturalLanguage framework, so
+  `BeginDocumentationCommentWithOneLineSummary` splits sentences at every
+  period (`e.g.`, `cutoff. \`nil\``). A summary that passes on macOS can fail
+  on Linux. Write the first doc-comment sentence as one sentence, then a
+  blank `///` line.
 - **Swift 6 language mode** — enforced via `swiftLanguageModes: [.v6]` in
   `Package.swift`. Strict concurrency is on; zero warnings tolerated.
 - **Platforms**: macOS 13+, iOS 16+, tvOS 16+, watchOS 9+, visionOS 1+, Linux
@@ -29,7 +37,10 @@ each commit:
 swift format lint --strict --recursive Sources Tests && \
 swiftlint --strict && \
 swift build -c release && \
-swift test --parallel
+swift test --parallel && \
+swift test --traits full && \
+swift package --disable-sandbox generate-documentation --target Mojentic \
+  --output-path .build/docs --warnings-as-errors
 ```
 
 | Concern        | Tool                                | Command                                                              |
@@ -39,12 +50,16 @@ swift test --parallel
 | Lint           | SwiftLint                           | `swiftlint --strict`                                                 |
 | Build          | SwiftPM                             | `swift build -c release`                                             |
 | Tests          | Swift Testing (preferred) + XCTest  | `swift test --parallel`                                              |
+| Tests (all)    | Swift Testing, every provider trait | `swift test --traits full`                                           |
+| Docs           | DocC                                | `swift package --disable-sandbox generate-documentation ...` (above) |
 | Coverage       | llvm-cov via SwiftPM                | `swift test --enable-code-coverage`                                  |
 | Security audit | Dependabot + manual lockfile review | Tracked in `Package.resolved` diffs; checklist in this file (TODO)   |
 | API surface    | `swift package diagnose-api-...`    | Run pre-release against last tagged version                          |
 
-CI (GitHub Actions) runs on macOS-latest and ubuntu-latest with the current
-stable Swift toolchain, plus a job pinned to the Swift 6.1 minimum.
+CI (GitHub Actions) runs on the `xcode-27` macOS image and in the
+`swift:6.4-noble` Linux container with the current stable Swift toolchain,
+plus a `swift:6.1-noble` job for the declared minimum. The format and lint
+gates run on Linux (`ghcr.io/realm/swiftlint:0.65.1` for SwiftLint).
 
 ## Engineering Principles
 

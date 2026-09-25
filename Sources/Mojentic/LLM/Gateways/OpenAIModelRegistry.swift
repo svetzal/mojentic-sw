@@ -326,7 +326,7 @@ public struct OpenAIModelRegistry: Sendable {
         }
     }
 
-    /// Chat Models (GPT-3.5 series). `instruct` variants are completions-only.
+    /// Chat Models (GPT-3.5 series), where `instruct` variants are completions-only.
     private static func registerGpt35Models(
         into registry: inout [String: OpenAIModelCapabilities]
     ) {

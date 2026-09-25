@@ -81,6 +81,20 @@ move independently.
   `swift-log`) when it infers a profile for an unknown model. New
   `isReasoningModel(_:)` and `registeredModels` accessors.
 
+### Changed
+
+- **Tooling**: The code passes `swift format lint --strict` under Swift 6.4
+  on Linux, where swift-format splits doc-comment sentences without the
+  NaturalLanguage framework. Four doc-comment summaries were rewritten, and
+  two DocC links that did not resolve now point at real symbols.
+- **CI**: macOS jobs run on the `xcode-27` image (Swift 6.4). Linux jobs use
+  the `swift:6.4-noble` image, and a `swift:6.1-noble` job checks the
+  declared minimum. The format gate runs on Linux, SwiftLint runs from the
+  `ghcr.io/realm/swiftlint:0.65.1` image, every build job also runs
+  `swift test --traits full`, and the Linux job builds the DocC catalog with
+  warnings as errors. `swift-tools-version` stays at 6.1, the lowest version
+  with package traits.
+
 ## [2.0.0] - 2026-05-18
 
 First production release. Reaches cross-port parity with the Python,
