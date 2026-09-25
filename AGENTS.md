@@ -43,6 +43,11 @@ swift package --disable-sandbox generate-documentation --target Mojentic \
   --output-path .build/docs --warnings-as-errors
 ```
 
+Foundry's nightly maintenance on `mojility-ops-01` runs the same gate from
+`.hone-gates.json` (gates `format`, `lint`, `build`, `test`,
+`test-full-traits`, `docs`, all required). Every command works on macOS and on
+Linux. Keep the two in step when the gate changes.
+
 | Concern        | Tool                                | Command                                                              |
 |----------------|-------------------------------------|----------------------------------------------------------------------|
 | Format check   | swift-format                        | `swift format lint --strict --recursive Sources Tests`               |

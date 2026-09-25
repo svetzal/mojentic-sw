@@ -101,6 +101,9 @@ move independently.
   `actions/upload-pages-artifact@v5` and `actions/deploy-pages@v5`.
 - **CI**: A `Supply Chain` workflow scans `Package.resolved` with
   osv-scanner 2.6.0 on every push and weekly.
+- **Tooling**: `.hone-gates.json` defines the mandatory gate for Foundry
+  (format, lint, build, test, test-full-traits, docs), all required and all
+  runnable on macOS and Linux.
 
 ## [2.0.0] - 2026-05-18
 
