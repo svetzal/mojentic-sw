@@ -25,6 +25,49 @@ private struct SleepyTool: LLMTool {
     }
 }
 
+/// Holds every arriving caller until `expected` callers are in flight at once.
+///
+/// A serial runner never gets past the first arrival, so a test that uses it
+/// proves concurrency without depending on wall-clock timing.
+private actor ArrivalBarrier {
+    private let expected: Int
+    private var arrived = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(expected: Int) {
+        self.expected = expected
+    }
+
+    func arriveAndWait() async {
+        arrived += 1
+        if arrived >= expected {
+            waiting.forEach { $0.resume() }
+            waiting.removeAll()
+            return
+        }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+}
+
+private struct BarrierTool: LLMTool {
+    let barrier: ArrivalBarrier
+    let descriptor: ToolDescriptor
+
+    init(name: String, barrier: ArrivalBarrier) {
+        self.barrier = barrier
+        self.descriptor = ToolDescriptor(
+            name: name,
+            description: "wait for siblings",
+            parameters: ["type": "object"]
+        )
+    }
+
+    func execute(arguments _: JSONValue) async throws -> JSONValue {
+        await barrier.arriveAndWait()
+        return ["name": .string(descriptor.name)]
+    }
+}
+
 private struct ExplodingTool: LLMTool {
     let descriptor = ToolDescriptor(
         name: "boom",
@@ -61,30 +104,24 @@ struct ParallelToolRunnerTests {
         }
     }
 
-    @Test("parallel dispatch is faster than serial for I/O-bound tools")
-    func parallelSpeedup() async throws {
-        let tools: [any LLMTool] = [
-            SleepyTool(id: "one", duration: .milliseconds(80)),
-            SleepyTool(id: "two", duration: .milliseconds(80)),
-            SleepyTool(id: "three", duration: .milliseconds(80)),
-        ]
-        let calls = (0..<3).map { index in
-            ToolCallExecution(
-                id: "\(index)",
-                name: "sleep_\(["one", "two", "three"][index])",
-                arguments: .object([:])
-            )
+    @Test(
+        "parallel dispatch runs every call in a batch at the same time",
+        .timeLimit(.minutes(1))
+    )
+    func runsCallsConcurrently() async throws {
+        let names = ["one", "two", "three"]
+        let barrier = ArrivalBarrier(expected: names.count)
+        let tools: [any LLMTool] = names.map { BarrierTool(name: $0, barrier: barrier) }
+        let calls = names.map { name in
+            ToolCallExecution(id: name, name: name, arguments: .object([:]))
         }
-        let clock = ContinuousClock()
-        let parallelTime = try await clock.measure {
-            _ = try await ParallelToolRunner(maxConcurrency: 4)
-                .runBatch(calls, tools: tools)
-        }
-        let serialTime = try await clock.measure {
-            _ = try await SerialToolRunner().runBatch(calls, tools: tools)
-        }
-        // Serial should be at least ~2x slower (3 * 80ms vs ~80ms ceiling).
-        #expect(parallelTime < serialTime / 2)
+
+        // Each tool returns only after all three are in flight, so this
+        // completes only if the runner dispatches them concurrently.
+        let outcomes = try await ParallelToolRunner(maxConcurrency: 4)
+            .runBatch(calls, tools: tools)
+
+        #expect(outcomes.map(\.id) == names)
     }
 
     @Test("tool failure is captured per-call without aborting siblings")
