@@ -94,6 +94,11 @@ move independently.
   `swift test --traits full`, and the Linux job builds the DocC catalog with
   warnings as errors. `swift-tools-version` stays at 6.1, the lowest version
   with package traits.
+- **Dependencies**: `swift-log` 1.12.0 → 1.15.1 (minimum raised from
+  1.5.0 to 1.15.1) and the `swift-docc-plugin` minimum raised from 1.4.0 to
+  1.5.0, its latest release. `swift-docc-symbolkit` stays at 1.0.0, its only
+  release. GitHub Actions move to `actions/checkout@v7`,
+  `actions/upload-pages-artifact@v5` and `actions/deploy-pages@v5`.
 
 ## [2.0.0] - 2026-05-18
 
