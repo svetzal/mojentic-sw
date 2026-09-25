@@ -1,0 +1,31 @@
+name: Supply Chain
+
+# Scans the resolved SwiftPM dependency graph (Package.resolved) against the
+# OSV database, which includes GitHub security advisories for Swift packages.
+# The weekly run catches advisories published after the last push.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  osv-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Scan Package.resolved with osv-scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
+        with:
+          scan-args: |-
+            scan
+            source
+            --lockfile=Package.resolved

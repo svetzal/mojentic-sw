@@ -99,6 +99,8 @@ move independently.
   1.5.0, its latest release. `swift-docc-symbolkit` stays at 1.0.0, its only
   release. GitHub Actions move to `actions/checkout@v7`,
   `actions/upload-pages-artifact@v5` and `actions/deploy-pages@v5`.
+- **CI**: A `Supply Chain` workflow scans `Package.resolved` with
+  osv-scanner 2.6.0 on every push and weekly.
 
 ## [2.0.0] - 2026-05-18
 

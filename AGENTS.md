@@ -53,13 +53,20 @@ swift package --disable-sandbox generate-documentation --target Mojentic \
 | Tests (all)    | Swift Testing, every provider trait | `swift test --traits full`                                           |
 | Docs           | DocC                                | `swift package --disable-sandbox generate-documentation ...` (above) |
 | Coverage       | llvm-cov via SwiftPM                | `swift test --enable-code-coverage`                                  |
-| Security audit | Dependabot + manual lockfile review | Tracked in `Package.resolved` diffs; checklist in this file (TODO)   |
+| Security audit | osv-scanner (OSV + GitHub advisories) | `osv-scanner scan source --lockfile=Package.resolved`              |
 | API surface    | `swift package diagnose-api-...`    | Run pre-release against last tagged version                          |
 
 CI (GitHub Actions) runs on the `xcode-27` macOS image and in the
 `swift:6.4-noble` Linux container with the current stable Swift toolchain,
 plus a `swift:6.1-noble` job for the declared minimum. The format and lint
 gates run on Linux (`ghcr.io/realm/swiftlint:0.65.1` for SwiftLint).
+
+The `Supply Chain` workflow (`.github/workflows/security.yml`) runs
+osv-scanner against `Package.resolved` on every push and every Monday, so
+advisories published after the last push still surface. `Package.resolved` is
+tracked; review its diff whenever a dependency moves. Dependabot is not used:
+its update PRs conflict with trunk-based development, and Foundry's nightly
+maintenance keeps dependencies current.
 
 ## Engineering Principles
 
