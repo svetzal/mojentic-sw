@@ -274,23 +274,12 @@ public struct OpenAIGateway: LLMGateway {
             dict["response_format"] = format
         }
         if let tools, !tools.isEmpty, capabilities.supportsTools {
-            dict["tools"] = .array(tools.map(toolDescriptor(for:)))
+            dict["tools"] = .array(tools.map { OpenAIMessageAdapter.tool($0.descriptor) })
         }
         for (key, value) in config.extraOptions {
             dict[key] = value
         }
         return .object(dict)
-    }
-
-    private func toolDescriptor(for tool: any LLMTool) -> JSONValue {
-        [
-            "type": "function",
-            "function": [
-                "name": .string(tool.descriptor.name),
-                "description": .string(tool.descriptor.description),
-                "parameters": tool.descriptor.parameters,
-            ],
-        ]
     }
 }
 
@@ -421,7 +410,8 @@ struct OpenAIUsage: Decodable {
     }
 }
 
-private struct OpenAIModelListResponse: Decodable {
+/// The `data[].id` entries of an OpenAI-compatible `GET /v1/models` response.
+struct OpenAIModelListResponse: Decodable {
     let data: [Entry]
 
     struct Entry: Decodable {

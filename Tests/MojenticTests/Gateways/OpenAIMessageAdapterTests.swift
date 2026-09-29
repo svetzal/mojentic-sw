@@ -5,6 +5,18 @@ import Testing
 
 @Suite("OpenAIMessageAdapter")
 struct OpenAIMessageAdapterTests {
+    @Test("a tool descriptor becomes a function tool definition")
+    func toolDefinition() {
+        let parameters: JSONValue = ["type": "object", "properties": ["q": ["type": "string"]]]
+        let descriptor = ToolDescriptor(name: "lookup", description: "Look it up", parameters: parameters)
+        #expect(
+            OpenAIMessageAdapter.tool(descriptor) == [
+                "type": "function",
+                "function": ["name": "lookup", "description": "Look it up", "parameters": parameters],
+            ]
+        )
+    }
+
     @Test("system message becomes role=system + content string")
     func systemMessage() {
         let adapted = OpenAIMessageAdapter.adapt([.system("rules")])

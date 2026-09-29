@@ -13,6 +13,18 @@ public enum OpenAIMessageAdapter {
         messages.map(adaptSingle)
     }
 
+    /// Convert a tool descriptor to an OpenAI `function` tool definition.
+    static func tool(_ descriptor: ToolDescriptor) -> JSONValue {
+        [
+            "type": "function",
+            "function": [
+                "name": .string(descriptor.name),
+                "description": .string(descriptor.description),
+                "parameters": descriptor.parameters,
+            ],
+        ]
+    }
+
     private static func adaptSingle(_ message: LLMMessage) -> JSONValue {
         switch message.role {
         case .system:
