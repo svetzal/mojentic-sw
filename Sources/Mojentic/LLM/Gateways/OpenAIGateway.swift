@@ -183,60 +183,13 @@ public struct OpenAIGateway: LLMGateway {
             stream: true,
             responseFormat: config.responseFormat.map(Self.responseFormatPayload)
         )
-        let url = baseURL.appendingPathComponent("chat/completions")
-        let transport = lineTransport
-        let headers = authHeaders()
-
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    let lines = try await transport.streamLines(
-                        url: url,
-                        body: body,
-                        headers: headers
-                    )
-                    var accumulator = OpenAIToolCallAccumulator()
-                    var finishReason: FinishReason?
-                    var usage: Usage?
-                    for try await line in lines {
-                        try Task.checkCancellation()
-                        // OpenAI emits SSE `data: ...` lines plus heartbeats.
-                        guard let payload = Self.payload(from: line) else { continue }
-                        if payload == "[DONE]" { break }
-                        guard let data = payload.data(using: .utf8) else { continue }
-                        let chunk: OpenAIStreamChunk
-                        do {
-                            chunk = try JSONDecoder().decode(OpenAIStreamChunk.self, from: data)
-                        } catch {
-                            continue
-                        }
-                        if let reportedUsage = chunk.usage?.toUsage() {
-                            usage = reportedUsage
-                        }
-                        guard let choice = chunk.choices.first else { continue }
-                        if let delta = choice.delta.content, !delta.isEmpty {
-                            continuation.yield(.textDelta(delta))
-                        }
-                        if let toolDeltas = choice.delta.toolCalls {
-                            accumulator.absorb(toolDeltas)
-                        }
-                        if let reason = choice.finishReason {
-                            finishReason = FinishReason(rawValue: reason) ?? .other
-                        }
-                    }
-                    for call in accumulator.flushed() {
-                        continuation.yield(.toolCallRequest(call))
-                    }
-                    continuation.yield(.done(finishReason: finishReason, usage: usage))
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
+        return OpenAILegacyStreaming.events(
+            transport: lineTransport,
+            url: baseURL.appendingPathComponent("chat/completions"),
+            body: body,
+            headers: authHeaders(),
+            parser: OpenAILegacyStreamParser()
+        )
     }
 
     /// Stream one turn with no tools via SSE and report completion evidence.
@@ -338,12 +291,6 @@ public struct OpenAIGateway: LLMGateway {
                 "parameters": tool.descriptor.parameters,
             ],
         ]
-    }
-
-    private static func payload(from line: String) -> String? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("data:") else { return nil }
-        return String(trimmed.dropFirst("data:".count)).trimmingCharacters(in: .whitespaces)
     }
 }
 
@@ -479,73 +426,5 @@ private struct OpenAIModelListResponse: Decodable {
 
     struct Entry: Decodable {
         let id: String
-    }
-}
-
-private struct OpenAIStreamChunk: Decodable {
-    let choices: [StreamChoice]
-    let usage: OpenAIUsage?
-}
-
-private struct StreamChoice: Decodable {
-    let delta: StreamDelta
-    let finishReason: String?
-
-    enum CodingKeys: String, CodingKey {
-        case delta
-        case finishReason = "finish_reason"
-    }
-}
-
-private struct StreamDelta: Decodable {
-    let content: String?
-    let toolCalls: [StreamToolCallDelta]?
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case toolCalls = "tool_calls"
-    }
-}
-
-private struct StreamToolCallDelta: Decodable {
-    let index: Int
-    let id: String?
-    let function: FunctionDelta?
-
-    struct FunctionDelta: Decodable {
-        let name: String?
-        let arguments: String?
-    }
-}
-
-/// Accumulates per-chunk tool-call deltas from OpenAI's streaming format
-/// into complete ``LLMToolCall`` values.
-private struct OpenAIToolCallAccumulator {
-    private var entries: [Int: Builder] = [:]
-
-    private struct Builder {
-        var id: String?
-        var name: String?
-        var arguments: String = ""
-    }
-
-    mutating func absorb(_ deltas: [StreamToolCallDelta]) {
-        for delta in deltas {
-            var builder = entries[delta.index] ?? Builder()
-            if let id = delta.id { builder.id = id }
-            if let name = delta.function?.name { builder.name = name }
-            if let chunk = delta.function?.arguments { builder.arguments += chunk }
-            entries[delta.index] = builder
-        }
-    }
-
-    func flushed() -> [LLMToolCall] {
-        entries.keys.sorted().compactMap { index -> LLMToolCall? in
-            guard let builder = entries[index], let name = builder.name else { return nil }
-            let arguments = OpenAIToolCall.decodeArguments(
-                builder.arguments.isEmpty ? "{}" : builder.arguments
-            )
-            return LLMToolCall(id: builder.id, name: name, arguments: arguments)
-        }
     }
 }
