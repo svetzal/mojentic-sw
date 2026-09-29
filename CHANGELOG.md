@@ -16,6 +16,23 @@ move independently.
 
 ### Added
 
+- **Layer 1 — LLM**: `OMLXGateway` reaches an [oMLX](https://github.com/jundot/omlx)
+  server on Apple Silicon. It is configured by `host`, `apiKey` and `timeout`
+  (seconds), falling back to `OMLX_HOST` (default `http://localhost:8000`;
+  the gateway adds `/v1`), `OMLX_API_KEY` (bearer header only when set) and
+  `OMLX_TIMEOUT` (milliseconds; default 600 seconds, for every request
+  including model load). It reuses the OpenAI message adapter and stream
+  parsers without the OpenAI model registry, so every parameter is sent
+  unchanged whatever the model is called; `max_tokens` is always sent.
+  `reasoning_content` becomes `thinking`, and a streamed
+  `.thinkingDelta` in the legacy stream. Structured output sends a
+  `json_schema` response format; a `Warning` header on a structured request
+  is recorded in metadata under `response_format_warning` and logged.
+  oMLX's full `usage` object is kept in metadata under `usage`. Supports the
+  single-turn events API with the OpenAI completion rules, and drops oMLX
+  keep-alive frames in both streaming APIs. Adds `loadModel(_:)`,
+  `unloadModel(_:)`, and embeddings (`EmbeddingsGateway`, one request per
+  text, model required). See the "Local models with oMLX" article.
 - **Layer 1 — LLM**: `CompletionConfig.responseFormat` requests an output
   format (`ResponseFormat.text`, `.jsonObject`, `.jsonSchema(_:)`). The
   OpenAI gateway forwards it as `response_format` and the Ollama gateway as

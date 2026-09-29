@@ -78,7 +78,8 @@ let package = Package(
         ),
         .testTarget(
             name: "MojenticTests",
-            dependencies: ["Mojentic"]
+            dependencies: ["Mojentic"],
+            resources: [.copy("Fixtures")]
         ),
         .executableTarget(
             name: "SimpleLLM",

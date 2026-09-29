@@ -7,12 +7,22 @@ import Foundation
 /// fragments accumulate until ``finish()``, and malformed frames are skipped.
 /// The `data: [DONE]` marker sets ``isDone``.
 struct OpenAILegacyStreamParser {
+    private let surfacesReasoning: Bool
     private var accumulator = OpenAIToolCallAccumulator()
     private var finishReason: FinishReason?
     private var usage: Usage?
 
     /// Whether the `data: [DONE]` marker has arrived.
     private(set) var isDone = false
+
+    /// Create a parser.
+    ///
+    /// - Parameter surfacesReasoning: when `true`, `delta.reasoning_content`
+    ///   becomes ``GatewayStreamEvent/thinkingDelta(_:)``. OpenAI leaves it
+    ///   off; OpenAI-compatible servers that stream reasoning turn it on.
+    init(surfacesReasoning: Bool = false) {
+        self.surfacesReasoning = surfacesReasoning
+    }
 
     /// Consume one line of the response and return the events it produces.
     mutating func consume(line: String) -> [GatewayStreamEvent] {
@@ -32,6 +42,9 @@ struct OpenAILegacyStreamParser {
         }
         guard let choice = chunk.choices.first else { return [] }
         var events: [GatewayStreamEvent] = []
+        if surfacesReasoning, let reasoning = choice.delta.reasoningContent, !reasoning.isEmpty {
+            events.append(.thinkingDelta(reasoning))
+        }
         if let delta = choice.delta.content, !delta.isEmpty {
             events.append(.textDelta(delta))
         }
@@ -115,10 +128,12 @@ private struct StreamChoice: Decodable {
 
 private struct StreamDelta: Decodable {
     let content: String?
+    let reasoningContent: String?
     let toolCalls: [StreamToolCallDelta]?
 
     enum CodingKeys: String, CodingKey {
         case content
+        case reasoningContent = "reasoning_content"
         case toolCalls = "tool_calls"
     }
 }

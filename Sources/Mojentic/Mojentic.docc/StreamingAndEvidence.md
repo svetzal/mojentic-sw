@@ -103,8 +103,8 @@ yielded before an error is evidence of what the provider sent, not a result.
 
 | Situation | Terminal event |
 | --------- | -------------- |
-| OpenAI: `finish_reason: "stop"` and `data: [DONE]` | `completed` |
-| OpenAI: `[DONE]` with any other finish reason | ``MojenticError/incompleteCompletion(_:)`` with the evidence |
+| OpenAI and oMLX: `finish_reason: "stop"` and `data: [DONE]` | `completed` |
+| OpenAI and oMLX: `[DONE]` with any other finish reason | ``MojenticError/incompleteCompletion(_:)`` with the evidence |
 | Ollama: final frame with `done: true` and `done_reason: "stop"` | `completed` |
 | Ollama: final frame with any other `done_reason`, or none | ``MojenticError/incompleteCompletion(_:)`` with the evidence |
 | End of stream without a terminal marker | ``MojenticError/incompleteStream(_:)`` with any evidence that arrived first |

@@ -19,17 +19,69 @@ protocol LineStreamingTransport: Sendable {
     ) async throws -> AsyncThrowingStream<String, any Error>
 }
 
+/// One HTTP response header as received.
+struct HTTPHeader: Sendable, Hashable {
+    /// Header name as the server sent it.
+    let name: String
+    /// Header value as the server sent it.
+    let value: String
+}
+
+/// A buffered request for ``RequestTransport``.
+struct TransportRequest: Sendable {
+    /// HTTP method, for example `GET` or `POST`.
+    let method: String
+    /// Absolute request URL.
+    let url: URL
+    /// JSON body; `nil` sends no body.
+    var body: JSONValue?
+    /// Request headers.
+    var headers: [String: String] = [:]
+    /// Idle timeout for this request; `nil` uses the transport's default.
+    var timeout: TimeInterval?
+}
+
+/// A successful buffered response from ``RequestTransport``.
+struct TransportResponse: Sendable {
+    /// Response body bytes.
+    let body: Data
+    /// Response headers, in the order received.
+    var headers: [HTTPHeader] = []
+
+    /// Every value of the header `name`, compared case-insensitively.
+    func values(for name: String) -> [String] {
+        headers.filter { $0.name.caseInsensitiveCompare(name) == .orderedSame }.map(\.value)
+    }
+}
+
+/// Boundary for buffered HTTP requests whose response headers matter.
+///
+/// ``HTTPClient`` is the production conformance. A non-2xx status throws
+/// ``MojenticError/http(status:body:)``.
+protocol RequestTransport: Sendable {
+    /// Send `request` and return the buffered response.
+    func send(_ request: TransportRequest) async throws -> TransportResponse
+}
+
 /// Thin `URLSession` wrapper used by gateway implementations.
 ///
 /// Boring on purpose: no retries, no connection pooling beyond what
 /// `URLSession` already does, no logging. Surface a typed error and let the
 /// caller decide what to do.
-public struct HTTPClient: Sendable, LineStreamingTransport {
+public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     private let session: URLSession
+    private let requestTimeout: TimeInterval?
 
     /// Create a client that issues requests through the supplied session.
     public init(session: URLSession = .shared) {
+        self.init(session: session, requestTimeout: nil)
+    }
+
+    /// Create a client whose requests use `requestTimeout` as their idle
+    /// timeout; `nil` keeps the `URLRequest` default.
+    init(session: URLSession = .shared, requestTimeout: TimeInterval?) {
         self.session = session
+        self.requestTimeout = requestTimeout
     }
 
     /// Issue a JSON POST and return the decoded response body.
@@ -55,12 +107,8 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
         body: some Encodable,
         headers: [String: String] = [:]
     ) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
         do {
             request.httpBody = try JSONEncoder().encode(body)
         } catch {
@@ -77,12 +125,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
         headers: [String: String] = [:],
         responseType: Response.Type
     ) async throws -> Response {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        let data = try await execute(request: request)
+        let data = try await execute(request: makeRequest(url: url, method: "GET", headers: headers))
         do {
             return try JSONDecoder().decode(responseType, from: data)
         } catch {
@@ -104,12 +147,8 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
         body: some Encodable,
         headers: [String: String] = [:]
     ) async throws -> AsyncThrowingStream<String, any Error> {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
         do {
             request.httpBody = try JSONEncoder().encode(body)
         } catch {
@@ -163,11 +202,51 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
         }
     #endif
 
+    /// Send a buffered request and return the body with the response headers.
+    func send(_ request: TransportRequest) async throws -> TransportResponse {
+        var urlRequest = makeRequest(url: request.url, method: request.method, headers: request.headers)
+        if let timeout = request.timeout {
+            urlRequest.timeoutInterval = timeout
+        }
+        if let body = request.body {
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            do {
+                urlRequest.httpBody = try JSONEncoder().encode(body)
+            } catch {
+                throw MojenticError.transport(
+                    message: "Failed to encode request body: \(error.localizedDescription)"
+                )
+            }
+        }
+        let (data, response) = try await perform(request: urlRequest)
+        let headers = response.allHeaderFields.compactMap { key, value -> HTTPHeader? in
+            guard let name = key as? String, let value = value as? String else { return nil }
+            return HTTPHeader(name: name, value: value)
+        }
+        return TransportResponse(body: data, headers: headers)
+    }
+
+    private func makeRequest(url: URL, method: String, headers: [String: String]) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        if let requestTimeout {
+            request.timeoutInterval = requestTimeout
+        }
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        return request
+    }
+
     private func execute(request: URLRequest) async throws -> Data {
+        try await perform(request: request).0
+    }
+
+    private func perform(request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
             let (data, response) = try await session.data(for: request)
-            try assertSuccess(response: response, sampleBody: data)
-            return data
+            let http = try assertSuccess(response: response, sampleBody: data)
+            return (data, http)
         } catch let error as MojenticError {
             throw error
         } catch is CancellationError {
@@ -177,7 +256,8 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
         }
     }
 
-    private func assertSuccess(response: URLResponse, sampleBody: Data) throws {
+    @discardableResult
+    private func assertSuccess(response: URLResponse, sampleBody: Data) throws -> HTTPURLResponse {
         guard let http = response as? HTTPURLResponse else {
             throw MojenticError.transport(message: "Non-HTTP response: \(type(of: response))")
         }
@@ -185,5 +265,6 @@ public struct HTTPClient: Sendable, LineStreamingTransport {
             let body = String(data: sampleBody, encoding: .utf8) ?? ""
             throw MojenticError.http(status: http.statusCode, body: body)
         }
+        return http
     }
 }

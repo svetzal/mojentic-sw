@@ -38,7 +38,8 @@ has full walkthroughs for each.
 
 ## Features
 
-- **Multi-Provider Support**: Ollama, OpenAI, and Anthropic gateways.
+- **Multi-Provider Support**: Ollama, OpenAI, and Anthropic gateways, plus
+  oMLX for local models on Apple Silicon.
 - **Async-First**: Swift Concurrency end to end (`async/await`,
   `AsyncSequence`, actors, structured tasks).
 - **Tool System**: Extensible tool calling with automatic recursive

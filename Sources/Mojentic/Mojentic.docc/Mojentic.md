@@ -45,6 +45,7 @@ See <doc:BuildingChatbots> for the multi-turn `ChatSession` form and
 - <doc:BuildingAgents>
 - <doc:ImageAnalysis>
 - <doc:StreamingAndEvidence>
+- <doc:LocalModelsWithOMLX>
 
 ### Examples
 
@@ -62,6 +63,7 @@ for building your own.
 - ``LLMGateway``
 - ``OllamaGateway``
 - ``OpenAIGateway``
+- ``OMLXGateway``
 - ``ChatSession``
 - ``LLMMessage``
 - ``CompletionConfig``
