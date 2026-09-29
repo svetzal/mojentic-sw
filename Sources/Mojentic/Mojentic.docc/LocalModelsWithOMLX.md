@@ -23,6 +23,9 @@ let response = try await broker.complete(
 print(response.content)
 ```
 
+The `OMLXChat` example (`swift run OMLXChat`) runs one turn against a local
+server and prints the thinking, the answer and the finish reason.
+
 ## Configuration
 
 Each setting takes the explicit initializer value, then the environment

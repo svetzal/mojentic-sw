@@ -51,6 +51,7 @@ let package = Package(
         .executable(name: "RealtimeBargeIn", targets: ["RealtimeBargeIn"]),
         .executable(name: "RealtimeToolCall", targets: ["RealtimeToolCall"]),
         .executable(name: "AnthropicSimple", targets: ["AnthropicSimple"]),
+        .executable(name: "OMLXChat", targets: ["OMLXChat"]),
     ],
     traits: [
         .default(enabledTraits: ["ollama"]),
@@ -230,6 +231,11 @@ let package = Package(
             name: "AnthropicSimple",
             dependencies: ["Mojentic"],
             path: "Examples/AnthropicSimple"
+        ),
+        .executableTarget(
+            name: "OMLXChat",
+            dependencies: ["Mojentic"],
+            path: "Examples/OMLXChat"
         ),
     ],
     swiftLanguageModes: [.v6]
