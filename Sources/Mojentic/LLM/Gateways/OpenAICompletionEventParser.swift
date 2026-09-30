@@ -50,7 +50,20 @@ struct OpenAICompletionEventParser: CompletionEventParser {
     }
 
     private mutating func consume(choice: JSONValue, payload: String) -> [CompletionStreamEvent] {
-        let delta = choice.objectValue?["delta"]?.objectValue ?? [:]
+        guard let fields = choice.objectValue,
+            Self.validOptional(fields["delta"], kind: { $0.objectValue != nil }),
+            Self.validOptional(fields["finish_reason"], kind: { $0.stringValue != nil })
+        else { return terminate(.error(.invalidStreamEvent(message: payload))) }
+        let delta = fields["delta"]?.objectValue ?? [:]
+        guard
+            Self.validOptional(
+                delta["tool_calls"],
+                kind: {
+                    if case .array = $0 { return true }
+                    return false
+                }),
+            Self.validOptional(delta["function_call"], kind: { $0.objectValue != nil })
+        else { return terminate(.error(.invalidStreamEvent(message: payload))) }
         if Self.containsToolCalls(delta) {
             return terminate(.error(.unexpectedToolCalls))
         }
@@ -76,6 +89,11 @@ struct OpenAICompletionEventParser: CompletionEventParser {
     private mutating func terminate(_ event: CompletionStreamEvent) -> [CompletionStreamEvent] {
         isTerminal = true
         return [event]
+    }
+
+    private static func validOptional(_ value: JSONValue?, kind: (JSONValue) -> Bool) -> Bool {
+        guard let value, value != .null else { return true }
+        return kind(value)
     }
 
     private static func containsToolCalls(_ delta: [String: JSONValue]) -> Bool {

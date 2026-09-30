@@ -265,7 +265,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     ///   model, before any request; ``MojenticError/http(status:body:)`` when
     ///   oMLX rejects the request, for example a 400 for a chat model.
     public func embed(texts: [String], model: String) async throws -> [[Float]] {
-        guard !model.trimmingCharacters(in: .whitespaces).isEmpty else {
+        guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw MojenticError.invalidArgument(
                 message: "oMLX embeddings require a model; there is no default embedding model"
             )
@@ -371,7 +371,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     /// `/v1/models/{model}/{action}`, with the model id percent-encoded as
     /// one path segment.
     private func modelActionURL(_ model: String, action: String) throws -> URL {
-        guard !model.isEmpty,
+        guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             let segment = model.addingPercentEncoding(withAllowedCharacters: Self.unreservedCharacters),
             let url = URL(string: "\(url("models").absoluteString)/\(segment)/\(action)")
         else {
@@ -449,7 +449,7 @@ struct OMLXConfiguration: Sendable, Equatable {
             .flatMap { $0 > 0 ? $0 / 1000 : nil }
         return OMLXConfiguration(
             host: host ?? environmentHost ?? defaultHost,
-            apiKey: apiKey.flatMap { $0.isEmpty ? nil : $0 } ?? value("OMLX_API_KEY"),
+            apiKey: apiKey.map { $0.isEmpty ? nil : $0 } ?? value("OMLX_API_KEY"),
             timeout: timeout ?? environmentTimeout ?? defaultTimeout
         )
     }

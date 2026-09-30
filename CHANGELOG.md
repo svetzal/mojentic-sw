@@ -10,6 +10,11 @@ move independently.
 
 ## [Unreleased]
 
+- Reject malformed completion stream control fields instead of ignoring them.
+- Preserve Ollama model, token counts and timing evidence across sparse frames.
+- An explicit empty oMLX API key disables authentication even when the environment has a key.
+- Reject blank oMLX load and unload model IDs before sending a request.
+
 - Test split-chunk tool-call IDs through OpenAI and oMLX broker streaming follow-ups.
 - Add a single-response broker API for caller-owned context and native tool requests.
 - Support explicit unlimited tool rounds while retaining finite defaults.

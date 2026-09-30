@@ -99,7 +99,7 @@ format) and the response has that header, the gateway:
 
 - records the header value in ``LLMGatewayResponse/metadata`` under
   ``OMLXGateway/responseFormatWarningKey`` (`response_format_warning`), with
-  several `Warning` headers joined by `, `
+  several `Warning` headers joined by `,`
 - logs a warning
 
 It does not retry or fail. The header is evidence that the output was not
@@ -153,3 +153,6 @@ oMLX errors use the OpenAI shape. A non-2xx response throws
 example 401 for a missing or wrong API key and 404 for an unknown model. In
 the events API it is ``MojenticError/providerError(status:detail:)`` with the
 status, and with the body where the platform's streaming transport exposes it.
+
+Passing an explicit empty `apiKey` disables authentication, even when
+`OMLX_API_KEY` is set in the environment.

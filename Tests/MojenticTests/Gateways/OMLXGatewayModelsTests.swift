@@ -63,11 +63,14 @@ struct OMLXModelsTests {
         #expect(failure?.body.contains("invalid_request_error") == true)
     }
 
-    @Test("an empty model id is rejected before any request")
-    func emptyModelID() async throws {
+    @Test("a blank model id is rejected before any request", arguments: ["", " ", "\n\t"])
+    func emptyModelID(_ model: String) async throws {
         let transport = FakeRequestTransport()
         await #expect(throws: MojenticError.self) {
-            try await omlxGateway(transport).loadModel("")
+            try await omlxGateway(transport).loadModel(model)
+        }
+        await #expect(throws: MojenticError.self) {
+            try await omlxGateway(transport).unloadModel(model)
         }
         #expect(await transport.recorder.requests.isEmpty)
     }
@@ -98,7 +101,7 @@ struct OMLXEmbeddingsTests {
         #expect(inputs == ["a", "b"])
     }
 
-    @Test("a missing model is an argument error before any request", arguments: ["", "  "])
+    @Test("a missing model is an argument error before any request", arguments: ["", "  ", "\n"])
     func missingModel(model: String) async throws {
         let transport = FakeRequestTransport(.success(Data(embedding.utf8)))
         await #expect {

@@ -94,6 +94,16 @@ struct OpenAICompletionEventParserTests {
         #expect(parse([openAIChunk(#"[{"index":0,"delta":{"content":42}}]"#)]) == [.invalidStreamEvent])
     }
 
+    @Test(
+        "malformed choice and control fields fail",
+        arguments: [
+            "42", #"{"delta":42}"#, #"{"delta":{"tool_calls":"bad"}}"#,
+            #"{"delta":{"function_call":[]}}"#, #"{"delta":{},"finish_reason":42}"#,
+        ])
+    func malformedControlFields(_ choice: String) {
+        #expect(parse([openAIChunk("[" + choice + "]")]) == [.invalidStreamEvent])
+    }
+
     @Test("nothing is produced after a terminal event")
     func nothingAfterTerminal() {
         var parser = OpenAICompletionEventParser()
@@ -181,6 +191,40 @@ struct OllamaCompletionEventParserTests {
             parse([#"{"error":"model not found"}"#]) == [
                 .providerError(status: nil, detail: "model not found")
             ])
+    }
+
+    @Test("sparse frames retain previously reported evidence")
+    func sparseEvidence() {
+        var parser = OllamaCompletionEventParser()
+        _ = parser.consume(
+            line: #"{"model":"qwen3","prompt_eval_count":5,"eval_count":2,"total_duration":10,"done":false}"#)
+        let expected = CompletionEvidence(
+            finishReason: "stop",
+            usage: Usage(promptTokens: 5, completionTokens: 2, totalTokens: 7),
+            providerModel: "qwen3",
+            metadata: ["total_duration": 10])
+        #expect(parser.partialEvidence?.usage == expected.usage)
+        #expect(parser.partialEvidence?.metadata == expected.metadata)
+        let terminal = parser.consume(line: #"{"done":true,"done_reason":"stop"}"#)
+        #expect(terminal.map(SeenEvent.init) == [.completed(expected)])
+    }
+
+    @Test("token counts reported on separate frames accumulate")
+    func splitCounts() {
+        var parser = OllamaCompletionEventParser()
+        _ = parser.consume(line: #"{"prompt_eval_count":5,"done":false}"#)
+        _ = parser.consume(line: #"{"eval_count":2,"done":false}"#)
+        #expect(parser.partialEvidence?.usage == Usage(promptTokens: 5, completionTokens: 2, totalTokens: 7))
+    }
+
+    @Test(
+        "malformed control fields fail",
+        arguments: [
+            #"{"done":"false"}"#, #"{"done":false,"done_reason":42}"#,
+            #"{"message":42}"#, #"{"message":{"tool_calls":"bad"}}"#,
+        ])
+    func malformedControlFields(_ frame: String) {
+        #expect(parse([frame]) == [.invalidStreamEvent])
     }
 
     @Test("a malformed frame is an invalid-stream-event error")

@@ -138,3 +138,7 @@ stream from them ends as an incomplete completion.
 - The configured ``CompletionConfig/responseFormat`` is forwarded as in any
   other request. OpenAI requests also set
   `stream_options: {include_usage: true}` so usage arrives before `[DONE]`.
+
+Ollama evidence accumulates across frames. A frame that omits the model, token
+counts or timing fields keeps earlier reported values. Malformed message and
+completion control fields end the stream with an invalid-stream-event error.

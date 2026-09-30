@@ -36,6 +36,11 @@ struct OMLXConfigurationTests {
         #expect(configuration.timeout == 1.5)
     }
 
+    @Test("an explicit empty key disables environment authentication")
+    func explicitEmptyKey() {
+        #expect(resolve(apiKey: "", environment: environment).apiKey == nil)
+    }
+
     @Test("explicit values take precedence over the environment")
     func explicitWins() throws {
         let host = try #require(URL(string: "http://mac.local:8123"))
