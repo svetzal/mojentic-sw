@@ -10,6 +10,7 @@ move independently.
 
 ## [Unreleased]
 
+- Test split-chunk tool-call IDs through OpenAI and oMLX broker streaming follow-ups.
 - Add a single-response broker API for caller-owned context and native tool requests.
 - Support explicit unlimited tool rounds while retaining finite defaults.
 - Unknown tools produce error exchanges in both ordinary and streaming broker calls.
