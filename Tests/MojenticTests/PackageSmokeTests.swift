@@ -6,6 +6,6 @@ import Testing
 struct PackageSmokeTests {
     @Test("Module loads and exposes a version string")
     func versionIsExposed() {
-        #expect(Mojentic.version == "2.0.0")
+        #expect(Mojentic.version == "2.1.0")
     }
 }

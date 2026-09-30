@@ -15,5 +15,5 @@ public enum Mojentic {
     /// `mojentic-ru/AGENTS.md` — major and minor track the other ports,
     /// patch versions move independently. Realtime Voice support moves
     /// Mojentic to the 2.0 line across all ports.
-    public static let version = "2.0.0"
+    public static let version = "2.1.0"
 }

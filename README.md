@@ -11,7 +11,7 @@ Mojentic provides a clean abstraction over multiple LLM providers with tool
 support, structured output generation, streaming, an event-driven agent system,
 and realtime voice — all built natively on Swift Concurrency.
 
-> **Status: 2.0.0 — production.** All four layers (LLM, Tracer, Agents,
+> **Status: 2.1.0 — production.** All four layers (LLM, Tracer, Agents,
 > Realtime Voice) ship at cross-port parity. Realtime Voice is the 2.0
 > line across all Mojentic ports. See `SWIFT.md` in the `mojentic-unify`
 > monorepo for the original plan and parity notes.
@@ -72,7 +72,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/svetzal/mojentic-sw.git", from: "2.0.0")
+    .package(url: "https://github.com/svetzal/mojentic-sw.git", from: "2.1.0")
 ]
 ```
 
@@ -82,7 +82,7 @@ providers via traits:
 ```swift
 .package(
     url: "https://github.com/svetzal/mojentic-sw.git",
-    from: "2.0.0",
+    from: "2.1.0",
     traits: ["openai", "ollama", "anthropic"]
 )
 ```

@@ -10,6 +10,8 @@ move independently.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-30
+
 - Reject malformed completion stream control fields instead of ignoring them.
 - Preserve Ollama model, token counts and timing evidence across sparse frames.
 - An explicit empty oMLX API key disables authentication even when the environment has a key.
