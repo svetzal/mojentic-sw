@@ -6,8 +6,8 @@ this file covers Swift-specific quality gates, tooling, and patterns.
 
 ## Project Overview
 
-`mojentic-sw` is the Swift port of Mojentic. The Python implementation
-(`mojentic-py`) is the source of truth for API design and feature behaviour.
+`mojentic-sw` is the Swift port of Mojentic. The Elixir implementation
+(`mojentic-ex`) is the source of truth for API design and feature behaviour.
 See `SWIFT.md` in the `mojentic-unify` monorepo for the full plan, roadmap, and
 parity-target rationale; see `PARITY.md` for the cross-port feature matrix.
 
