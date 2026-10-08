@@ -10,6 +10,9 @@ move independently.
 
 ## [Unreleased]
 
+- **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
+  `Package.swift` constraint is unchanged.
+
 ## [2.1.0] - 2026-09-30
 
 - Reject malformed completion stream control fields instead of ignoring them.
