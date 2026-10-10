@@ -111,12 +111,12 @@ enum OpenAILegacyStreaming {
 
 // MARK: - Wire decoding
 
-private struct OpenAIStreamChunk: Decodable {
+struct OpenAIStreamChunk: Decodable {
     let choices: [StreamChoice]
     let usage: OpenAIUsage?
 }
 
-private struct StreamChoice: Decodable {
+struct StreamChoice: Decodable {
     let delta: StreamDelta
     let finishReason: String?
 
@@ -126,7 +126,7 @@ private struct StreamChoice: Decodable {
     }
 }
 
-private struct StreamDelta: Decodable {
+struct StreamDelta: Decodable {
     let content: String?
     let reasoningContent: String?
     let toolCalls: [StreamToolCallDelta]?
@@ -138,7 +138,7 @@ private struct StreamDelta: Decodable {
     }
 }
 
-private struct StreamToolCallDelta: Decodable {
+struct StreamToolCallDelta: Decodable {
     let index: Int
     let id: String?
     let function: FunctionDelta?
@@ -151,10 +151,10 @@ private struct StreamToolCallDelta: Decodable {
 
 /// Accumulates per-chunk tool-call deltas from OpenAI's streaming format
 /// into complete ``LLMToolCall`` values.
-private struct OpenAIToolCallAccumulator {
+struct OpenAIToolCallAccumulator {
     private var entries: [Int: Builder] = [:]
 
-    private struct Builder {
+    struct Builder {
         var id: String?
         var name: String?
         var arguments: String = ""

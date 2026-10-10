@@ -6,6 +6,8 @@ import Testing
 /// A comparable rendering of ``CompletionStreamEvent`` for assertions.
 enum SeenEvent: Equatable {
     case content(String)
+    case progress(RecoveryProgress)
+    case metrics(CompletionEvidence)
     case completed(CompletionEvidence)
     case incompleteCompletion(CompletionEvidence)
     case incompleteStream(CompletionEvidence?)
@@ -20,6 +22,8 @@ enum SeenEvent: Equatable {
     init(_ event: CompletionStreamEvent) {
         switch event {
         case .content(let text): self = .content(text)
+        case .progress(let progress): self = .progress(progress)
+        case .metrics(let evidence): self = .metrics(evidence)
         case .completed(let evidence): self = .completed(evidence)
         case .error(let error): self = SeenEvent(error)
         }

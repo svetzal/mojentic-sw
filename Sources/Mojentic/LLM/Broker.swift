@@ -306,6 +306,8 @@ public actor LLMBroker {
             case .textDelta(let delta):
                 accumulatedContent += delta
                 continuation.yield(.textDelta(delta))
+            case .progress, .metrics:
+                break
             case .thinkingDelta(let delta):
                 accumulatedThinking += delta
                 continuation.yield(.thinkingDelta(delta))

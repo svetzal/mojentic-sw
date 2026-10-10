@@ -1,3 +1,6 @@
+# Keep lint cache inside the writable worktree in isolated Foundry runs.
+cache_path: .build/swiftlint-cache
+
 included:
   - Sources
   - Tests

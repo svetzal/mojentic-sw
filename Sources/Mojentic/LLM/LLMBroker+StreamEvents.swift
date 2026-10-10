@@ -14,7 +14,7 @@ extension LLMBroker {
     /// not an answer.
     ///
     /// The broker sends one request, forces `maxToolIterations` to zero, and
-    /// never retries or recurses. Stopping consumption (breaking the loop,
+    /// never recurses; an enabled gateway may recover that one request. Stopping consumption (breaking the loop,
     /// dropping the stream or cancelling the task) cancels the request.
     ///
     /// The tracer records the call once the gateway accepts the request, and
@@ -86,6 +86,10 @@ extension LLMBroker {
         for await event in upstream {
             if case .content(let text) = event {
                 content += text
+                continuation.yield(event)
+                continue
+            }
+            if !event.isTerminal {
                 continuation.yield(event)
                 continue
             }

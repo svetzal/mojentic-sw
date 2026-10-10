@@ -112,7 +112,7 @@ struct OpenAICompletionEventParser: CompletionEventParser {
 }
 
 /// Evidence fields of one OpenAI stream chunk.
-private struct OpenAIStreamEvidence: Decodable {
+struct OpenAIStreamEvidence: Decodable {
     let usage: OpenAIUsage?
     let model: String?
     let envelope: OpenAIResponseEnvelope

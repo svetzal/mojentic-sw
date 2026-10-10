@@ -1,0 +1,101 @@
+# Recovering Local Completion Streams
+
+Enable request recovery without replaying tools or appending a replacement to partial output.
+
+The same ``CompletionRecoveryPolicy`` now covers Ollama and oMLX `stream` and
+`completeStreamEvents`, including ``LLMBroker`` and ``ChatSession`` callers.
+Initializers without `recovery:` retain their legacy parsing and one-send behavior.
+Policy presence defaults to one attempt. Request bytes are encoded once and remain
+identical across explicitly admitted retries; client IDs provide correlation,
+not provider idempotency.
+
+## Migrate a tool-capable stream
+
+Reuse the admission policy from <doc:BufferedCompletionRecovery>, with a controller
+that verifies ownership and termination of this exact attempt before allowing a
+resend. Pending admission is never approval. A keepalive, timeout or closed socket
+does not prove that remote inference ended.
+
+```swift
+let gateway = OllamaGateway(recovery: policy)
+// Alternatively: OMLXGateway(host: localURL, recovery: policy)
+let broker = LLMBroker(gateway: gateway)
+let session = ChatSession(broker: broker, model: "local-model", tools: tools)
+do {
+    for try await event in session.stream("Continue") {
+        if case .textDelta(let text) = event {
+            displayPartial(text)
+        }
+    }
+} catch let error as RecoveryError {
+    recordSafeSummary(error.description)
+    // Explicit inspection is sensitive and belongs to your storage policy.
+    let originalCause = error.failure.inspectEvidence().cause
+}
+```
+
+A failed or recovered completion after a completed tool preserves the tool result
+in its exact request bytes. Neither retries nor backoff reset tool depth or execute
+the completed tool again. A failed session turn follows the existing history rollback
+rules; the caller owns any subsequent session recovery.
+
+## Consume a single turn with typed terminal errors
+
+```swift
+for await event in broker.generateStreamEvents(model: "local-model", messages: messages) {
+    switch event {
+    case .content(let text): displayPartial(text)
+    case .progress(let counts): recordProgress(counts)
+    case .metrics(let metrics): recordProviderMetrics(metrics)
+    case .completed(let evidence): acceptFinishedAnswer(evidence)
+    case .error(.recovery(let failure)): recordSafeSummary(failure.description)
+    case .error(let error): recordSafeSummary(error.description)
+    }
+}
+```
+
+``MojenticError/recovery(_:)`` retains the structured history and original cause.
+Gateway tool streams throw ``RecoveryError`` directly. Observed reasoning, content,
+tool fragments or completed tools prevent transparent recovery even if capture failed
+before delivery. Delivery is counted separately; single-turn reasoning is observed
+but remains absent from the content-only API. UTF-8 byte counters are exact.
+
+## Completion evidence and telemetry
+
+Recovery-enabled Ollama streams require `done: true` and `done_reason: "stop"`.
+oMLX requires a valid finish reason (`stop`, or `tool_calls` for a tool stream)
+and `data: [DONE]`. End of transport is not completion proof. Malformed frames are
+terminal and never retried. Ordinary buffered finish handling is unchanged.
+
+Ollama adds progress events for validated frames and metrics when provider usage
+or numeric durations are present. No model names, timestamps or echoed IDs appear
+in these metrics. Terminal completion evidence retains the provider fields already
+exposed by Swift; its default formatting is safe. A valid length-terminated Ollama
+frame produces progress and reported metrics before the original finish failure.
+Its semantic fields remain observed-only, and no completed tool is delivered.
+Malformed frames produce no fabricated telemetry. oMLX has no invented Ollama
+progress or metric events.
+
+Gateway consumption applies backpressure to semantic and telemetry delivery. Pausing on
+terminal metadata cannot establish success or release a completed tool. Cancellation
+closes locally owned HTTP resources and records a failed actual attempt followed by
+one terminal cancellation. Swift stream iteration may return `nil` when `next()`
+begins on an already cancelled task; the lifecycle/report observers retain the
+cleanup outcome. Neither cancellation nor local socket closure claims remote
+termination. Drop the stream/iterator to release its producer when stopping early.
+
+## Capabilities and sensitive capture
+
+Both local adapters expose local HTTP cancellation. Remote request cancellation,
+exact-attempt status querying and provider idempotency remain unsupported. Recovery
+for OpenAI and Anthropic completion adapters, realtime voice and embeddings is outside
+this slice. Supported message/tool history and generation controls are preserved;
+no native reasoning-history field is invented.
+
+Lifecycle events contain numeric status, identities, progress, classification and
+bounded attempt counts without payloads or raw cause text. Exact encoded request
+bytes, normalized HTTP headers and received response chunks are available only
+through the caller-owned ``CompletionRecoveryPolicy/wireObserver`` hook. This is
+body capture, not raw HTTP framing or TLS capture. A throwing capture hook is terminal
+and cannot authorize a resend. No recovery deadline limits an already admitted,
+healthy generation; budgets apply to admission and backoff.

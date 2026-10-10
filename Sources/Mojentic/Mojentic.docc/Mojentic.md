@@ -47,6 +47,7 @@ See <doc:BuildingChatbots> for the multi-turn `ChatSession` form and
 - <doc:StreamingAndEvidence>
 - <doc:LocalModelsWithOMLX>
 - <doc:BufferedCompletionRecovery>
+- <doc:StreamingCompletionRecovery>
 
 ### Examples
 

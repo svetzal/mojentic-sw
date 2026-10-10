@@ -29,19 +29,22 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     private let semantics: @Sendable (Data) -> RecoverySemanticProgress
     private let didStart: @Sendable () -> Void
     private let mayStart: @Sendable () -> Bool
+    private let stream: RecoveryStreamDecoder?
 
     init(
         identity: RecoveryIdentity,
         observer: (@Sendable (RecoveryWireEvent) throws -> Void)?,
         semantics: @escaping @Sendable (Data) -> RecoverySemanticProgress,
         didStart: @escaping @Sendable () -> Void,
-        mayStart: @escaping @Sendable () -> Bool
+        mayStart: @escaping @Sendable () -> Bool,
+        stream: RecoveryStreamDecoder? = nil
     ) {
         self.identity = identity
         self.observer = observer
         self.semantics = semantics
         self.didStart = didStart
         self.mayStart = mayStart
+        self.stream = stream
     }
 
     func send(_ request: URLRequest) async -> RecoveryHTTPResult {
@@ -119,7 +122,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         bytes.append(data)
         let received = bytes
         lock.unlock()
-        let semantic = semantics(received)
+        let semantic = stream?.observe(data, status: response?.statusCode) ?? semantics(received)
         lock.lock()
         observed.reasoningBytes = max(observed.reasoningBytes, semantic.reasoningBytes)
         observed.contentBytes = max(observed.contentBytes, semantic.contentBytes)
@@ -128,6 +131,12 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         lock.unlock()
         do {
             try observer?(.body(identity, data))
+            if stream?.deliver() == true {
+                lock.lock()
+                let task = self.task
+                lock.unlock()
+                task?.cancel()
+            }
         } catch {
             lock.lock()
             captureCause = error

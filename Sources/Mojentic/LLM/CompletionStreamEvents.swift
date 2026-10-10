@@ -4,7 +4,13 @@ import Foundation
 ///
 /// Every field is exactly what the provider reported, or `nil` when it
 /// reported nothing. The library never estimates any of them.
-public struct CompletionEvidence: Sendable, Hashable {
+public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, CustomDebugStringConvertible {
+    /// Safe summary; inspect properties explicitly for provider metadata.
+    public var description: String { "Provider completion evidence" }
+
+    /// Safe debug summary excluding echoed provider strings.
+    public var debugDescription: String { description }
+
     /// Finish reason exactly as reported (OpenAI `finish_reason`, Ollama
     /// `done_reason`), for example `stop` or `length`.
     public let finishReason: String?
@@ -44,6 +50,12 @@ public enum CompletionStreamEvent: Sendable {
     /// Visible assistant content, in the order the provider sent it.
     case content(String)
 
+    /// Validated observed progress for an opt-in recovery stream.
+    case progress(RecoveryProgress)
+
+    /// Provider evidence from a validated recovery streaming frame.
+    case metrics(CompletionEvidence)
+
     /// Terminal success: the provider proved the turn finished normally.
     case completed(CompletionEvidence)
 
@@ -53,7 +65,10 @@ public enum CompletionStreamEvent: Sendable {
 
     /// Whether this event ends the stream.
     public var isTerminal: Bool {
-        if case .content = self { return false }
+        switch self {
+        case .content, .progress, .metrics: return false
+        default: break
+        }
         return true
     }
 }

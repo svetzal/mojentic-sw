@@ -83,7 +83,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     ///   - timeout: idle timeout in seconds for every request; falls back to
     ///     `OMLX_TIMEOUT` (in milliseconds), then 600 seconds.
     ///   - session: the `URLSession` legacy requests go through.
-    ///   - recovery: Optional buffered recovery using an isolated session per wire attempt.
+    ///   - recovery: Optional completion recovery using an isolated session per wire attempt.
     public init(
         host: URL? = nil,
         apiKey: String? = nil,
@@ -208,6 +208,16 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             stream: true,
             responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload)
         )
+        if let recovery {
+            return StreamingRecovery.gatewayEvents(
+                policy: recovery,
+                provider: "omlx",
+                url: url("chat/completions"),
+                headers: authHeaders(),
+                body: body,
+                timeout: configuration.timeout
+            )
+        }
         return OpenAILegacyStreaming.events(
             transport: lineTransport,
             url: url("chat/completions"),
@@ -239,6 +249,16 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         if case .object(var fields) = body {
             fields["stream_options"] = ["include_usage": true]
             body = .object(fields)
+        }
+        if let recovery {
+            return StreamingRecovery.completionEvents(
+                policy: recovery,
+                provider: "omlx",
+                url: url("chat/completions"),
+                headers: authHeaders(),
+                body: body,
+                timeout: configuration.timeout
+            )
         }
         return CompletionEventStreaming.events(
             transport: lineTransport,

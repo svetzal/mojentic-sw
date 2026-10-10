@@ -1,6 +1,6 @@
 import Foundation
 
-/// Recovery applies only to buffered Ollama and oMLX completions.
+/// Recovery applies to buffered and streaming Ollama and oMLX completions.
 public enum RecoveryCategory: String, Sendable, Codable, Hashable {
     /// HTTP transport failed without confirmed remote termination.
     case transport
@@ -40,7 +40,7 @@ public struct RecoverySemanticProgress: Sendable, Codable, Equatable {
     public var completedToolCalls = 0
 }
 
-/// Observed evidence is independent of buffered delivery to the caller.
+/// Observed evidence is independent of delivery to the caller.
 public struct RecoveryProgress: Sendable, Codable, Equatable {
     /// Whether HTTP response headers were received.
     public var headersReceived = false
@@ -72,7 +72,7 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
     public let identity: RecoveryIdentity?
     /// Local provider identity.
     public let provider: String
-    /// Ordinary or structured buffered completion.
+    /// Ordinary, structured, or streaming completion.
     public let operation: String
     /// Stable failure classification.
     public let category: RecoveryCategory
@@ -200,7 +200,7 @@ public struct RecoveryEvent: Sendable, Codable, Equatable {
     public let delay: TimeInterval?
     /// Local provider identity.
     public let provider: String
-    /// Ordinary or structured buffered completion.
+    /// Ordinary, structured, or streaming completion.
     public let operation: String
     /// Known failure phase, absent when evidence cannot distinguish it.
     public let phase: RecoveryPhase?
@@ -251,7 +251,7 @@ public struct RecoveryTiming: Sendable {
     public init() {}
 }
 
-/// Opt-in policy for one buffered completion, independent of tool depth.
+/// Opt-in policy for one provider completion, independent of tool depth.
 ///
 /// Admission is an asynchronous stream: remaining pending never grants permission.
 /// Cancellation terminates iteration. Limits apply to recovery, never active generation.
@@ -304,6 +304,8 @@ public enum RecoveryPhase: String, Sendable, Codable {
     case awaitingHeaders
     /// Receiving the buffered body.
     case receiving
+    /// Receiving or validating provider streaming frames.
+    case streaming
     /// Decoding the provider response.
     case decoding
 }
@@ -318,7 +320,7 @@ public enum RecoveryCapabilitySupport: String, Sendable, Codable {
     case unknown
 }
 
-/// Verified local-provider facilities for this buffered adapter slice.
+/// Verified local-provider facilities for completion recovery.
 public struct CompletionRecoveryCapabilities: Sendable {
     /// Cancelling the local HTTP task is supported, without remote termination proof.
     public let localRequestCancellation: RecoveryCapabilitySupport = .supported
@@ -348,7 +350,7 @@ public struct CompletionRecoveryReport: Sendable, CustomStringConvertible, Custo
     public var debugDescription: String { description }
 }
 
-/// Typed lifecycle transitions and terminal outcomes for buffered recovery.
+/// Typed lifecycle transitions and terminal outcomes for completion recovery.
 public enum RecoveryTransition: String, Sendable, Codable, Equatable {
     /// Lifecycle transition: attempt started.
     case attemptStarted
@@ -382,6 +384,8 @@ public enum RecoveryTransition: String, Sendable, Codable, Equatable {
     case malformedResponse
     /// Lifecycle transition: encoding.
     case encoding
+    /// Semantic output was observed before a failed completion.
+    case interrupted
 }
 
 /// Typed HTTP rejection when the transport itself completed successfully.

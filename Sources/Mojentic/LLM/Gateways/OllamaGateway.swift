@@ -43,7 +43,7 @@ public struct OllamaGateway: LLMGateway {
     ///
     /// `recovery` opts buffered completions into isolated wire sessions; the supplied
     /// client's idle timeout is preserved but its custom protocol/TLS session configuration is not inherited.
-    /// Streaming always follows the existing client path.
+    /// Streaming recovery uses the same isolated wire sessions and explicit admission.
     public init(
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
@@ -198,6 +198,16 @@ public struct OllamaGateway: LLMGateway {
             format: Self.formatPayload(config.responseFormat)
         )
         let url = baseURL.appendingPathComponent("api/chat")
+        if let recovery {
+            return StreamingRecovery.gatewayEvents(
+                policy: recovery,
+                provider: "ollama",
+                url: url,
+                headers: headers,
+                body: body,
+                timeout: client.bufferedRequestTimeout
+            )
+        }
         let transport = lineTransport
         let headers = self.headers
 
@@ -252,7 +262,23 @@ public struct OllamaGateway: LLMGateway {
         messages: [LLMMessage],
         config: CompletionConfig
     ) -> AsyncStream<CompletionStreamEvent> {
-        CompletionEventStreaming.events(
+        if let recovery {
+            return StreamingRecovery.completionEvents(
+                policy: recovery,
+                provider: "ollama",
+                url: baseURL.appendingPathComponent("api/chat"),
+                headers: headers,
+                body: buildChatRequest(
+                    model: model,
+                    messages: messages,
+                    tools: nil,
+                    config: config,
+                    stream: true,
+                    format: Self.formatPayload(config.responseFormat)
+                ), timeout: client.bufferedRequestTimeout
+            )
+        }
+        return CompletionEventStreaming.events(
             transport: lineTransport,
             url: baseURL.appendingPathComponent("api/chat"),
             body: buildChatRequest(
@@ -524,56 +550,6 @@ struct OllamaResponseToolFunction: Decodable {
     let arguments: JSONValue?
 }
 
-private struct OllamaStreamChunk: Decodable {
-    let message: OllamaResponseMessage?
-    let done: Bool?
-    let doneReason: String?
-    let evidence: OllamaResponseEvidence
-
-    enum CodingKeys: String, CodingKey {
-        case message
-        case done
-        case doneReason = "done_reason"
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        message = try container.decodeIfPresent(OllamaResponseMessage.self, forKey: .message)
-        done = try container.decodeIfPresent(Bool.self, forKey: .done)
-        doneReason = try container.decodeIfPresent(String.self, forKey: .doneReason)
-        evidence = try OllamaResponseEvidence(from: decoder)
-    }
-
-    func toEvents() -> [GatewayStreamEvent] {
-        guard let message else { return [] }
-        var events: [GatewayStreamEvent] = []
-        if let content = message.content, !content.isEmpty {
-            events.append(.textDelta(content))
-        }
-        if let thinking = message.thinking, !thinking.isEmpty {
-            events.append(.thinkingDelta(thinking))
-        }
-        if let calls = message.toolCalls {
-            for (index, call) in calls.enumerated() {
-                events.append(
-                    .toolCallRequest(
-                        LLMToolCall(
-                            id: call.id ?? "call-\(index)",
-                            name: call.function.name,
-                            arguments: call.function.arguments ?? .object([:])
-                        )
-                    )
-                )
-            }
-        }
-        return events
-    }
-
-    func toFinishReason() -> FinishReason? {
-        mapFinishReason(doneReason, hasToolCalls: message?.toolCalls?.isEmpty == false)
-    }
-}
-
 private struct OllamaTagsResponse: Decodable {
     let models: [OllamaTagEntry]
 }
@@ -582,7 +558,7 @@ private struct OllamaTagEntry: Decodable {
     let name: String
 }
 
-private func mapFinishReason(_ raw: String?, hasToolCalls: Bool) -> FinishReason? {
+func mapFinishReason(_ raw: String?, hasToolCalls: Bool) -> FinishReason? {
     if hasToolCalls { return .toolCalls }
     switch raw {
     case "stop", nil:

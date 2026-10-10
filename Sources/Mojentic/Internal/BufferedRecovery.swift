@@ -132,12 +132,13 @@ struct BufferedRecovery {
         preconditionFailure("Attempt loop always returns or terminates")
     }
 
-    private mutating func dispatch(
+    mutating func dispatch(
         url: URL,
         headers: [String: String],
         bytes: Data,
         timeout: TimeInterval?,
-        number: Int
+        number: Int,
+        stream: RecoveryStreamDecoder? = nil
     ) async throws -> RecoveryHTTPResult {
         // Request capture is pre-dispatch; its failure consumes no wire attempt.
         let candidate = RecoveryIdentity(logicalID: logicalID, attemptID: UUID(), wireNumber: number)
@@ -180,7 +181,8 @@ struct BufferedRecovery {
                 current.emit(number == 1 ? .attemptStarted : .retryStarted)
                 if number > 1 { current.emit(.attemptStarted) }
             },
-            mayStart: { [current = previous] in number == 1 || current.withinLimits(delay: 0) }
+            mayStart: { [current = previous] in number == 1 || current.withinLimits(delay: 0) },
+            stream: stream
         )
         let result = await transport.send(request)
         if !result.dispatched {
@@ -201,7 +203,7 @@ struct BufferedRecovery {
         progress.observed.toolFragments = response.toolCalls.count
     }
 
-    private mutating func admit(_ failure: RecoveryFailure, next: Int) async throws {
+    mutating func admit(_ failure: RecoveryFailure, next: Int) async throws {
         if Task.isCancelled {
             throw finish(.cancelled, failure)
         }
@@ -262,7 +264,7 @@ struct BufferedRecovery {
         }
     }
 
-    private func report() -> CompletionRecoveryReport {
+    func report() -> CompletionRecoveryReport {
         CompletionRecoveryReport(
             logicalID: logicalID,
             identity: identity,
@@ -292,10 +294,11 @@ struct BufferedRecovery {
 
     private var currentPhase: RecoveryPhase? {
         guard progress.headersReceived else { return nil }
+        if operation == "streaming" { return .streaming }
         return wire?.cause == nil ? .decoding : .receiving
     }
 
-    private func makeFailure(
+    func makeFailure(
         category: RecoveryCategory,
         cause: (any Error)?,
         reason: String
@@ -366,7 +369,7 @@ struct BufferedRecovery {
         return .invalid
     }
 
-    private mutating func terminal(
+    mutating func terminal(
         _ cause: any Error,
         outcome: RecoveryTransition,
         category: RecoveryCategory,
@@ -385,7 +388,7 @@ struct BufferedRecovery {
         return finish(cancelled ? .cancelled : outcome, failure)
     }
 
-    private func finish(_ outcome: RecoveryTransition, _ failure: RecoveryFailure) -> RecoveryError {
+    func finish(_ outcome: RecoveryTransition, _ failure: RecoveryFailure) -> RecoveryError {
         // All terminal refusals converge here, including limits observed by hooks.
         // A cancellation never replaces the already recorded actual failure.
         let outcome = Task.isCancelled ? RecoveryTransition.cancelled : outcome
@@ -398,7 +401,7 @@ struct BufferedRecovery {
         return RecoveryError(logicalID: logicalID, outcome: outcome, failure: failure, history: history)
     }
 
-    private func emit(
+    func emit(
         _ transition: RecoveryTransition,
         category: RecoveryCategory? = nil,
         delay: TimeInterval? = nil
@@ -430,7 +433,7 @@ struct BufferedRecovery {
 private struct RecoveryAdmissionLimit: Error {}
 
 extension BufferedRecovery {
-    private func validatePolicy() throws {
+    func validatePolicy() throws {
         guard policy.maximumAttempts > 0,
             policy.baseDelay.isFinite, policy.baseDelay >= 0,
             policy.delayCeiling.isFinite, policy.delayCeiling >= 0,

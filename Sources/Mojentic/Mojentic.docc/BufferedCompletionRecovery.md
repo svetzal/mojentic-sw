@@ -7,7 +7,7 @@ conversion. Pass a ``CompletionRecoveryPolicy`` through the new `recovery:`
 initializer overload to receive ``RecoveryError`` with numeric status, bounded
 history, typed causes, and separate observed/delivered progress. This covers
 ordinary `complete`, `completeStructured`, and `completeJSON`, including calls
-made by ``LLMBroker`` and ``ChatSession``. Streaming remains on its existing path.
+made by ``LLMBroker`` and ``ChatSession``. For streaming migration and terminal rules see <doc:StreamingCompletionRecovery>.
 
 ## Admission belongs to the caller
 
