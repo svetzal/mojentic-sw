@@ -1,5 +1,12 @@
 import Foundation
 
+/// Internal scheduling seam for the cancellation/registration interleaving.
+enum RecoveryDeliveryScheduling {
+    @TaskLocal static var didDeliver: (@Sendable () -> Void)?
+    @TaskLocal static var finished: (@Sendable (String) -> Void)?
+    @TaskLocal static var beforeSenderRegistration: (@Sendable (String) async -> Void)?
+}
+
 /// A rendezvous prevents buffered terminal metadata from establishing success.
 ///
 /// The lock protects producer and consumer continuations; no user code runs under it.
@@ -16,6 +23,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     func send(_ element: Element) async throws {
         try Task.checkCancellation()
         try await withTaskCancellationHandler {
+            await RecoveryDeliveryScheduling.beforeSenderRegistration?(String(reflecting: Element.self))
             try await withCheckedThrowingContinuation { (continuation: Sender) in
                 let action = lock.withLock { () -> (() -> Void) in
                     if cancellationRequested {
@@ -75,12 +83,14 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     }
 
     func cancel() {
-        lock.withLock { cancellationRequested = true }
         cancelSender()
     }
 
     private func cancelSender() {
         let sender = lock.withLock {
+            // Remember cancellation even if the sender has not registered yet.
+            // Registration and removal observe this state under the same lock.
+            cancellationRequested = true
             let sender = pending?.1
             pending = nil
             return sender
@@ -103,6 +113,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     }
 
     func finish(_ error: (any Error)? = nil) {
+        defer { RecoveryDeliveryScheduling.finished?(String(reflecting: Element.self)) }
         let result: Result<Void, any Error> = error.map(Result.failure) ?? .success(())
         let saved = lock.withLock {
             if end != nil {

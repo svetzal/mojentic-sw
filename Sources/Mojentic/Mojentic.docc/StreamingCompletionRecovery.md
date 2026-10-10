@@ -125,6 +125,14 @@ one `cancelled` event, with no retry or success. Reports describe delivery at th
 gateway boundary; a relay receiving a value does not establish final application
 delivery.
 
+Cancellation remains effective between a sender's initial task check and its
+continuation registration. Cancellation and registration share one lock, and the
+cancellation state stays recorded even when there is no sender to resume yet.
+The producer reaches cleanup while the consumer, returned stream, and fixture
+response remain retained independently. This applies to both gateway event APIs
+and the scoped broker/session relays; cancellation cannot deliver a completed
+tool or establish success through a buffered terminal frame.
+
 Existing stream signatures remain compatible. A bare `AsyncStream` only receives
 consumer cancellation during iteration; keeping a stream alive while awaiting
 unrelated work does not install a cancellation handler for that work. Migrate the

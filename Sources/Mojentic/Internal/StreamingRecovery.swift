@@ -220,6 +220,7 @@ enum StreamingRecovery {
                         }
                         try await deliver(output)
                         decoder.delivered(output)
+                        RecoveryDeliveryScheduling.didDeliver?()
                     } catch { break }
                 }
                 return nil

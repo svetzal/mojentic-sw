@@ -1,9 +1,12 @@
 # Swift transient recovery conformance
 
-The preserved streaming slice is `0b06cc90e1cf51235001ad702d80f4ff2ab997c0`.
-This correction adds cancellation ownership across consumer pauses and reconciles
-SwiftFormat with native formatting. Foundry owns finalization; no refs, releases,
-dependencies, or sibling/harness files are changed.
+The preserved c4 baseline is `59abd6b0c7aca633563f7907c0d0825c619c3774`,
+including streaming recovery and scoped cancellation. This correction closes only
+the cancellation-before-sender-registration gap in that slice. Foundry owns
+finalization; no refs, releases, dependencies, or sibling/harness files are changed.
+The initial working tree was clean. The later Foundry prohibition on ref mutation
+supersedes the plan's fetch/rebase/landing steps; observed origin/main is recorded
+in `.foundry/regression-revisions.json`, without asserting remote freshness.
 
 ## Verified cancellation contract and migration
 
@@ -31,11 +34,36 @@ correction does not invent provider values or implement missing telemetry.
 
 ## Behavioral evidence
 
-`.foundry/proof.json` contains the real rejecting and corrected HTTP probe with
-actual exit codes and complete logs. The rejection keeps the consumer paused on a
-cancellation-independent continuation: no cleanup report arrives, and lifecycle
-stops at attemptStarted. The corrected scope produces cleanup before resuming the
-consumer, releasing the stream, or releasing the held fixture response.
+`.foundry/proof.json` retains real rejecting and corrected HTTP probes, actual
+exit codes, source hashes, and complete Foundry captures. The first gateway-only
+probe rejected the preserved baseline before fixture/documentation expansion.
+The final identical public matrix is then run with baseline sender cancellation
+and with the corrected latch. Internal task-local scheduling seams pause precisely
+after the initial cancellation check, inside the installed cancellation handler,
+before continuation registration. These seams exercise public Ollama/oMLX HTTP
+requests rather than replacing them with an internal synchronization test.
+
+`SenderRegistrationCancellationTests` independently retains the cancelled consumer,
+the returned stream, and the held fixture response. It targets gateway senders,
+broker throwing/completion relays, and the session's nested throwing relay.
+Completion has no session API, so those two matrix combinations are inapplicable.
+Before resuming the consumer or draining the stream, it requires all delivery
+finish callbacks, the gateway cleanup report, and peer FIN. The rejected baseline
+requires draining to unstick a sender and exposes forbidden delivery after cancellation.
+The corrected matrix checks exact socket/captured request bytes, unmasked identities,
+one actual wire attempt, original headers/body and `URLError.cancelled`, failed
+history, observed content/reasoning/tool counters, and exactly
+`attemptStarted`, `attemptFailed`, `cancelled`. A retained stream later delivers
+only its terminal cancellation. Session history rolls back.
+
+Gateway reports count gateway-to-relay delivery, not final consumer delivery.
+The direct gateway is paused before any acknowledgment; the broker acknowledges
+its first semantic event (Ollama content, oMLX reasoning), and the session's extra
+relay permits two upstream acknowledgments. A dedicated acknowledgment seam
+synchronizes these exact counters before cancellation, avoiding scheduler guesses.
+Completed-tool delivery remains zero on every path. Lifecycle equality prohibits
+retry, admission, and success. Existing terminal-frame and tool-once tests remain
+applicable.
 
 `PausedRecoveryOwnershipTests` exercises applicable Ollama/oMLX public gateway,
 broker, and session paths against active keepalives and buffered terminal frames.
@@ -69,39 +97,43 @@ needs the scoped caller handler. This is a source comparison, not a Rust rerun o
 a claim of whole-port equivalence.
 
 The independent review is `.foundry/review-current.md`, with exact reviewed hashes
-and its own evidence inspection. Available historical captures are copied into
-`.foundry/prior-evidence/`; the inventory records originals and hashes. The original
-historical review.md and formatter-conflicts.md were not located. Prior report
-references are not counted as evidence of current approval.
+and its own evidence inspection. Historical artifact references are not counted as current evidence; this worktree
+did not contain the previous `.foundry` artifacts. Current receipts are retained
+afresh without writing to sibling checkouts.
 
 ## Formatting and validation limits
 
-All default SwiftFormat rules remain enabled, with no exclusions, lint allowlists,
-or disabled rules. Native formatting keeps its 110-column limit and all prior rules.
-Import grouping is aligned through style configuration while import ordering stays
-mandatory. Multiline layout, equivalent condition expressions, and fixture literals
-were reconciled across the full repository; escaped multiline fixture strings retain
-their original bytes. Complete captures and actual exits are retained under
-`.foundry/logs/`; final gate receipts are in `.foundry/gates.json`. Nonzero attempts
-remain evidence and are never presented as passing audits.
+All existing formatter/linter configurations remain unchanged; no exclusions,
+allowlists, advisory suppressions, or threshold changes are added. Complete logs
+and exit receipts are retained under `.foundry/logs/`; `.foundry/gates.json`
+records current checks. Nonzero attempts are retained as failures.
 
-Linux Swift 6.4 is available here. Apple URLSession/Darwin sockets/strict-concurrency/
-DocC and the declared Swift 6.1 minimum require controller validation and remain
-explicitly pending. The unfiltered OSV scan has no suppressions or dependency changes.
-The default unfiltered API comparison fails during baseline generation on a read-only
-Clang cache. The native-build-system rerun with writable caches completes against
-`v2.1.0` and exits 1 with seven diagnostics: five enum-case additions in the preserved
-streaming slice and two generic-to-opaque metatype signature changes produced by the
-mandatory default formatter rule (Router.subscribe and JSONSchemaGenerator.schema).
-That audit is not passing; no breakage allowlist or threshold change is used.
-Whole-mission gaps remain OpenAI/Anthropic recovery, oMLX telemetry parity, remote
-termination/status/idempotency, and cross-port controller validation. No claim of
-whole-mission completion follows from the local cancellation proof.
+Linux Swift 6.4 is available here. Apple URLSession/Darwin sockets/strict concurrency/
+DocC and the declared Swift 6.1 minimum remain pending unless separately verified.
+The unfiltered OSV scan uses the tracked `Package.resolved` without suppressions.
+An unfiltered API audit against the preserved c4 commit checks this repair for
+public API changes. The separate release-baseline audit remains an audit of the
+whole preserved slice: historical diagnostics must not be hidden by changing
+unrelated APIs, removing streaming features, or using a breakage allowlist.
+The current preserved-baseline audit exits 0 with no breaking changes. The
+unfiltered `v2.1.0` audit exits 1 with seven diagnostics: five enum-case additions
+(`MojenticError.recovery`, progress/metrics on both stream event enums), and two
+prior generic-to-opaque metatype signature changes (`Router.subscribe` and
+`JSONSchemaGenerator.schema`). These are already in c4 and are not introduced by
+this repair. They remain whole-slice landing blockers; this task does not remove
+preserved features, change unrelated APIs, or allowlist them. Both audits use the
+native build system and writable caches; the native-system deprecation diagnostic
+is retained. Receipts are recorded in `.foundry/proof.json`.
 
-Final Linux receipts: native strict format, whole-repository SwiftFormat lint, strict
-SwiftLint, release/debug builds, both full test suites (310 default / 311 full-trait
-tests), DocC with warnings-as-errors, and unfiltered OSV all exit 0. The independent
-paused-consumer probe exits 0. Source hashes are in `.foundry/source-hashes.json`;
-`.foundry/validate-evidence.py` checks proof shape, exits, log existence, hashes, and
-retained mutations. SwiftPM emits sandbox cache diagnostics; these are retained,
-not source compiler/DocC warnings or suppressed diagnostics.
+Current Linux gates pass: strict native format, strict SwiftLint, whole-repository
+SwiftFormat lint, release build, 311 default tests, 312 full-trait tests, DocC with
+warnings-as-errors, and unfiltered OSV (three resolved packages, no issues).
+The final sender-registration HTTP matrix passes all ten applicable combinations.
+SwiftPM's cache/sandbox diagnostics are retained separately from source warnings.
+Exact tool versions are in `.foundry/toolchain.json`.
+
+Whole-mission gaps remain OpenAI/Anthropic recovery, oMLX telemetry parity,
+remote termination/status/idempotency, and Apple/minimum-toolchain validation.
+This local cancellation proof makes no coordinated-parity or whole-mission claim.
+Foundry must reconcile and finalize the uncommitted slice on main after review
+and applicable landing gates; no landing is performed in this task worktree.
