@@ -284,8 +284,11 @@ struct RecoverySafeguardTests {
             _ = try await boundary.complete(boundary.gateway(server, policy: policy))
         }
         #expect(failure.outcome == .captureFailed)
-        #expect(failure.failure.identity == nil)
-        #expect(failure.failure.progress.rawBytes == 0)
+        #expect(failure.failure.identity == failure.history.first?.identity)
+        #expect(failure.failure.progress.rawBytes == 4)
+        #expect(failure.failure.inspectEvidence().body == Data("busy".utf8))
+        #expect(failure.failure.inspectEvidence().cause is RecoveryCaptureSentinel)
+        #expect(failure.history.first?.inspectEvidence().cause is RecoveryHTTPStatusFailure)
         #expect(failure.history.count == 1)
         #expect(failure.history.first?.identity?.wireNumber == 1)
         #expect(failure.logicalID == failure.history.first?.logicalID)

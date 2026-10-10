@@ -98,12 +98,28 @@ do {
 ```
 
 The body is encoded once; every admitted attempt uses exactly those bytes.
+The duration budget starts at the first failure, so a slow initial request does
+not consume it. The absolute deadline and duration budget govern retry admission,
+including a final check after request capture. An admitted active request may
+finish beyond either limit. A refused proposed retry retains the failed actual
+attempt's identity, progress and history; it adds no actual attempt.
+
+Observed reasoning, content or tool evidence makes a failed attempt ineligible
+for replay, even when buffered delivery is zero and the caller would allow it.
+Callers migrating from the preserved recovery slice must handle that terminal
+`ineligible` result rather than relying on admission to replay semantic output.
+Whitespace keepalives alone still do not count as semantic output.
 Request capture precedes dispatch; capture failure there sends zero requests.
 Response capture runs at header/body receipt. Decodable semantic evidence is
 counted before body capture. Capture failure is terminal, preserves available
 observed reasoning/content/tools, and delivers none. Incomplete JSON retains raw
 bytes; semantic counters describe decodable evidence, not guessed text.
-Cancellation preserves available evidence and wins over successful return.
+Cancellation preserves available evidence and wins over successful return and
+all retry refusals. A cancellation from `attemptFailed` retains that actual
+failure before exactly one terminal cancellation event. Start events describe
+launched HTTP tasks; cancellation from those observers cancels the active task.
+A request capture identity is proposed until launch and must not be counted as
+another wire attempt merely because capture ran.
 
 Wire capture exposes exact body bytes and caller request headers. URLSession
 normalizes response headers; this is not raw HTTP framing, TLS traffic, or an

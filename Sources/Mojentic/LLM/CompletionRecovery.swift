@@ -222,7 +222,7 @@ public enum RecoveryAdmission: Sendable {
 
 /// Exact wire capture is opt-in, sensitive and caller-owned.
 public enum RecoveryWireEvent: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
-    /// Pre-dispatch encoded body and caller headers; failure sends zero requests.
+    /// Proposed pre-dispatch body and headers; identity becomes actual only on launch.
     case request(RecoveryIdentity, URL, [String: String], Data)
     /// Status and URLSession response header values at receipt.
     case headers(RecoveryIdentity, Int, [String: String])
@@ -262,7 +262,7 @@ public struct CompletionRecoveryPolicy: Sendable {
     public var baseDelay: TimeInterval = 0.1
     /// Maximum permitted backoff, including Retry-After, in seconds.
     public var delayCeiling: TimeInterval = 30
-    /// Optional recovery duration in seconds; never limits active generation.
+    /// Optional recovery duration from the first failure in seconds; never limits active generation.
     public var budget: TimeInterval?
     /// Optional absolute monotonic admission/backoff deadline.
     public var deadline: TimeInterval?

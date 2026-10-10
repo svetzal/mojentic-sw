@@ -1,7 +1,7 @@
 # Buffered local-provider recovery conformance
 
 Scope: opt-in buffered Ollama and oMLX ordinary/structured completion recovery.
-Swift base: `0035c10e4816eee90e937ee0d474447fb5c18f76`. Reviewed Rust reference:
+Preserved Swift slice: `e09f7ef4ddd04f8616a9a141aecec2c35d76f074`. Reviewed Rust reference:
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Working source hashes, input hashes,
 reference snapshots, actual capture receipts and gate results live in `.foundry/`.
 This worktree is deliberately uncommitted for Foundry finalization.
@@ -39,9 +39,9 @@ oMLX/structured. Tests below exercise these four boundaries unless stated otherw
 
 | Requirement | Actual assertions / test names |
 | --- | --- |
-| Early public-boundary rejection and correction | `admitted503PreservesBytesAndIdentity`: 503 rejects the legacy path; corrected opt-in path returns decoded content/reasoning, equal exact body bytes, matching logical IDs, unequal UUID attempt IDs, wire numbers 1/2 and the entire ordered lifecycle. `.foundry/proof.json` records actual exits 1/0 and existing complete probe logs before expansion. |
+| Proof-first public-boundary rejection and correction | `expiryDuringRetryCapturePreventsResend`: the preserved engine incorrectly sends an expired retry and returns success; corrected engine refuses without another wire request, preserving exact body bytes, actual identity, typed cause, history, progress and ordered lifecycle. `.foundry/proof.json` records actual exits 1/0 and complete logs. The final probe also covers expiry during transport setup. |
 | Successful request/result preservation | `bothOperationsPreserveShapingAndResults`, `successfulLegacyAndRecoveryResultsMatch`: real body bytes remain equal on retry, legacy/recovery decoded requests and entire results agree; model, stream, temperature, token cap, reasoning hint, tools, schema/format, usage, model evidence and warning metadata are checked. |
-| Ordinary JSON controls retain legacy behavior | `ordinaryJSONFormatKeepsLegacySuccessfulResult`: both providers retain the legacy successful ordinary result even when JSON mode was requested and content is plain text. The initial oMLX rejection and corrected passing fixture captures are retained. |
+| Ordinary JSON controls retain legacy behavior | `ordinaryJSONFormatKeepsLegacySuccessfulResult`: both providers retain the legacy successful ordinary result even when JSON mode was requested and content is plain text. These assertions pass in the current captured parallel and full-traits suites; no separate historical rejection artifact is claimed. |
 | Retry-After seconds/date/invalid | `retryAfterUsesInjectedTiming`: numeric 2, an IMF-fixdate resolving to 2 seconds, invalid and negative values assert typed parsing and exact sleeper values. `pastDateDoesNotReplaceJitterDelay` asserts 0.5-second jitter when the date is past. |
 | Ceiling/budget/deadline refusals | `retryAfterLimitRefusesResend`, `expiresWhileAdmissionIsPending`, `expiredAbsoluteDeadlinePreventsAdmission`: typed original failure/history survive, no scheduled delay when refused, pending admission expires without approval, and only one actual request exists. |
 | Bounded exponential backoff and persistent 504 | `persistent504IsBounded`, `exponentialCeilingsAndBoundedHistory`: exact histories 1/2/3 or 1/2/3/4, distinct IDs, stable logical ID, absent Retry-After, exact delays 1/2/3 with a ceiling of 3, failure after exhaustion, and exact server request counts. |
@@ -49,9 +49,9 @@ oMLX/structured. Tests below exercise these four boundaries unless stated otherw
 | Authoritative cancellation | `cancellationBeforeDispatchMakesZeroRequests`, `cancellationWinsAtEveryBoundary`: active body, pending admission, backoff and successful received body cancellation; actual failure is recorded before one terminal cancellation; no retry/success event afterward, zero delivered progress, retained received headers/bytes/semantic evidence, and zero wire requests before dispatch. |
 | No recovery generation cutoff | `healthyActiveGenerationOutlivesRecoveryBudget`: the fixture holds an incomplete successful body, advances the injected clock beyond both budget/deadline, then completes successfully with one request. |
 | Permanent truncated 400/401/403 | `permanentTruncatedStatusWins`: all three statuses across all four entrypoints retain numeric status, exact partial bytes, headers and typed URLError despite status selection and an allow-capable hook; no admission/resend, one failure in history, exact lifecycle and private evidence absent from default formatting. |
-| Capture failure terminal at every boundary | `captureFailureIsTerminal`, `failedSecondRequestCaptureDoesNotInventAnotherAttempt`: request/header/body hook errors retain their typed sentinel cause; pre-dispatch failure has no actual identity/history/progress/request; a failed proposed second capture leaves one actual attempt and stable logical identity. |
+| Capture failure terminal at every boundary | `captureFailureIsTerminal`, `failedSecondRequestCaptureDoesNotInventAnotherAttempt`: request/header/body hook errors retain their typed sentinel cause; pre-dispatch failure has no actual identity/history/progress/request; a failed proposed second capture retains the first actual identity, raw progress and history without another attempt. |
 | Successful capture failure retains semantic evidence | `successfulCaptureFailureRetainsObservedAndTypedCause`: content/reasoning byte counts, complete tool record counts, zero delivered progress, original typed capture cause, exactly one actual request and ordered failure/terminal transitions. |
-| Malformed envelopes and structured JSON | `malformedResponseNeverResends`, `structuredJSONFailureRetainsReceivedSemanticEvidence`, `receivedSemanticProgressSurvivesMalformedTail`: typed DecodingError survives, malformed output is terminal; structured content parsing retains observed reasoning/content while delivering none through public `completeJSON`. A later malformed body chunk cannot erase previously observed reasoning or complete tools. The separate `.foundry/semantic-proof.json` preserves its actual rejection/correction. |
+| Malformed envelopes and structured JSON | `malformedResponseNeverResends`, `structuredJSONFailureRetainsReceivedSemanticEvidence`, `receivedSemanticProgressSurvivesMalformedTail`: typed DecodingError survives, malformed output is terminal; structured content parsing retains observed reasoning/content while delivering none through public `completeJSON`. A later malformed body chunk cannot erase previously observed reasoning or complete tools. The current `.foundry/proof.json` preserves rejection/correction at the retry-capture boundary; all semantic assertions are rerun in the full suites. |
 | Redirects and legacy one-send default | `redirectsAreNotFollowed`, `disabledRecoveryRetainsLegacyOneSend`: real 307 remains a structured status error without following Location; legacy 503 is unchanged and sends once. |
 | Credential/payload echoes | `bothOperationsPreserveShapingAndResults`, `permanentTruncatedStatusWins`, capture-failure tests: synthetic credential/payload sentinels in headers, IDs, warnings, body and typed causes remain available only through explicit inspection/capture; encoded safe events and default error formatting exclude them. |
 | Tool side effects and history through broker/session | `completedToolSurvivesRecoveredFollowUp`: both providers through LLMBroker.complete and ChatSession.send execute the completed tool once, retain its original result/history and oMLX tool-call ID, resend equal follow-up bytes, distinguish logical requests and preserve one-based wire IDs 1/1/2. |
@@ -83,48 +83,86 @@ provider codes/IDs are excluded from safe formatting and events. Incomplete JSON
 retains bytes rather than guessing semantic text. All buffered failures deliver
 zero semantic progress.
 
-The Rust revision was inspected directly; its recovery policy, engine, adapter,
-frames and types are frozen under `.foundry/reference/`. Swift retains the same
-separation of classification and admission, bounded attempts, privacy boundaries,
-HTTP permanent-status precedence and pre-capture semantic accounting. Its
-buffered slice allows caller-admitted transport recovery before delivery, including
-keepalive-only bytes; the reviewed Rust classifier additionally fails closed on
-nonempty partial successful buffered bodies/observed output. This is a documented
-capability difference, not an alignment or six-port parity claim. Swift does not
-inherit or change Rust streaming/finish handling. The task's binding October 10
-requirements are recorded in source evidence; the locally available related
-harness integration document is retained read-only, and no standalone supplement
-file was present in this worktree.
+The reviewed Rust revision is frozen under `.foundry/reference/`; its
+`engine.rs` classifier rejects observed or delivered semantic output before
+retry admission (lines 128–132 and 227–229). This correction closes Swift's
+previous allowance for caller-admitted replay after observed reasoning, content
+or tools. Zero buffered delivery does not restore eligibility. Rust also rejects
+nonempty partial successful buffered bodies; Swift still distinguishes decoded
+semantic evidence from undecodable bytes and whitespace keepalives. That broader
+Rust safeguard is not claimed as Swift parity. Streaming/finish behavior is outside
+this correction.
+
+The original contract is `TRANSIENT-RECOVERY-2026-10.md`. The binding October 10
+correction requirements came from this task's user instructions; a verbatim
+standalone supplement was not present. Their applied acceptance requirements are
+retained in `.foundry/october-10-input.md`. No sibling or harness files were edited.
+
+### Corrected retry admission boundaries
+
+`expiryDuringRetryCapturePreventsResend` is the proof-first public loopback probe.
+The preserved implementation returned success after sending an expired proposed
+retry at all four entrypoints (exit 1); the correction retains the original HTTP
+failure and refuses another send (exit 0). The final probe also scripts expiry
+during URLSession setup after the engine check; transport admission rechecks
+limits immediately before resume. It checks exact request/response bytes,
+unmasked correlation IDs, typed cause, history, progress and complete lifecycle.
+`slowInitialFailureStartsBudgetAndAdmittedRequestMayOutliveLimits` holds the first
+request, advances the clock past a full duration budget, then verifies recovery
+starts its duration at that failure. The admitted response succeeds beyond both
+limits. `expiryFromActualStartObserverDoesNotAbortAdmittedRequest` verifies limits
+do not retroactively invalidate a launched task.
+
+`cancellationWinsOverRefusal` covers exhaustion, ineligibility, missing admission,
+zero budget, jitter/refusal and proposed request capture. Every case retains the
+failed actual HTTP attempt before exactly one terminal cancellation. A proposed
+capture identity is not an actual history entry. `cancellationFromActualStartObserverCancelsLaunchedRequest`
+waits for the second exact HTTP payload at loopback before cancelling from the
+start observer; this also exercises the launch/cancellation lock boundary without
+inventing a send. `observedSemanticEvidenceRefusesReplay` separately proves
+reasoning, content and tool evidence forbid replay despite zero delivery and an
+allow-capable caller hook across all four public entrypoints. Existing retries-off,
+broker and session completed-tool-once assertions remain in the full suites.
 
 ## Validation and review
 
-Actual final gate receipts are in `.foundry/gates.json`; complete capture logs and
-SHA-256 hashes are in `.foundry/captures/` and `.foundry/hashes.json`. Linux uses
-Swift 6.4 and SwiftLint 0.65.1. The original formatter/linter rules, thresholds,
-exclusions, runtime pins, Package.swift and Package.resolved remain unchanged.
-OSV scans the entire tracked lockfile without advisory filtering or suppressions.
-API comparison targets the last release tag `v2.1.0` (commit
-`618eb7b42ff2b74e6ff9bb6fd9f3c65373da2262`) without a breakage allowlist.
-The final Linux parallel and full-traits suites each pass 284 tests in 67 suites;
-release build, strict format, DocC with warnings as errors, OSV and API audit pass.
-The API digester's first invocation attempted a read-only Clang cache; its rerun
-passes with only explicit module-cache flags, without target/product filtering.
-The result is “No breaking changes detected in Mojentic.”
+Actual gate receipts are in `.foundry/gates.json`; complete stdout/stderr captures
+are in `.foundry/captures/`, source revisions in `.foundry/source-revisions.json`,
+and artifact/source SHA-256 hashes in `.foundry/hashes.json`. These artifacts are
+regenerated for this correction: the preserved Git tree contained none of its
+previously referenced `.foundry` receipts. The durable artifact root is
+`/home/svetzal/.foundry/tool-logs/mojentic-sw-transient-recovery-v2-c2-9cf308/`;
+its `hashes.json` authenticates retained sources, reference snapshots and evidence.
+Only source/evidence within this worktree and its permitted tool-log root is written.
 
-The exact `swiftlint --strict` invocation reports zero source violations but exits
-nonzero because its default `/var/tmp/SwiftLint` cache is outside the writable
-sandbox. A recorded rerun changes only `--cache-path` to a writable temporary
-location and passes with the same rules and scope. Swift compiler caches are also
-redirected through environment variables, without changing gate commands or pins.
-The exact lint invocation remains pending controller execution with a writable
-cache. Original cache failures, compile failures and the timeout fixture failure
-are preserved rather than suppressed or discarded.
+Independent review is recorded in `.foundry/review.md`. Its first review rejected
+a gap between lifecycle observers and actual launch; the correction moves start
+notifications after launch, serializes response callbacks behind them, and never
+resumes a pre-cancelled task. Re-review found no blocking issue. No Git finalization
+is performed; refs remain unchanged for Foundry.
 
-Apple validation of Darwin socket/URLSession behavior, strict concurrency and
-DocC remains explicitly pending controller validation. The Swift 6.1 minimum
-compiler is not installed in this Linux environment and remains pending. Linux
-uses FoundationNetworking; no new platform exclusions or gate exclusions were
-added. Streaming, OpenAI, Anthropic, whole-mission recovery and cross-port review
-coverage remain pending and outside this slice. Embeddings, realtime, model
-management, dependencies, harness pins, campaigns and frozen benchmarks were not
-changed. Foundry owns finalization; no commit, push, rebase, tag or release occurred.
+Linux uses Swift 6.4 and SwiftLint 0.65.1. Original rules, thresholds, exclusions,
+runtime pins, Package.swift and Package.resolved are unchanged. The unfiltered OSV
+lockfile scan is captured in `.foundry/logs/security.log`. The unfiltered API audit
+compares every library module against `v2.1.0` without a breakage allowlist. Final
+suite results: parallel passes 289 tests in 68 suites; full traits passes 290 tests
+in 69 suites. Strict Linux format, release build, DocC with warnings as errors and
+lint with a writable cache pass. OSV scans all three resolved packages and finds
+no issues. The first API invocation used relative module-cache flags; its compiler
+working directory resolved them outside the writable worktree and failed. Its
+complete failure is preserved in `.foundry/logs/api.log`; rerun uses absolute
+module-cache paths only, with no library filtering or allowlist. That rerun passes:
+“No breaking changes detected in Mojentic” (`.foundry/logs/api-absolute-cache.log`).
+
+The exact `swiftlint --strict` invocation reports no source violations but cannot
+write `/var/tmp/SwiftLint` in this sandbox. Its original failure is retained. A
+rerun changes only `--cache-path` to `.build/swiftlint-cache`, retaining every rule
+and source file. Controller execution of the exact default-cache command remains
+pending. The generic `swiftformat --lint .` tool is not installed; this project's
+mandatory formatter is `swift format lint --strict --recursive Sources Tests`,
+which is run on Linux with the existing configuration.
+
+Apple/Darwin socket, URLSession, strict concurrency and DocC validation remain
+pending. The Swift 6.1 minimum compiler is unavailable and remains pending.
+Streaming, other providers and whole-mission/six-port alignment are outside scope.
+No release, dependency upgrade, live inference or benchmark restart occurred.

@@ -28,6 +28,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     private let socketFD: Int32
     private let replies: [RecoveryReply]
     private let condition = NSCondition()
+    private let requestCondition = NSCondition()
     private var released = false
 
     init(
@@ -90,6 +91,16 @@ final class RecoveryLoopback: @unchecked Sendable {
         condition.unlock()
     }
 
+    func waitForRequest(_ number: Int) -> Bool {
+        let deadline = Date().addingTimeInterval(5)
+        requestCondition.lock()
+        defer { requestCondition.unlock() }
+        while requests.withLock({ $0.count }) < number {
+            if !requestCondition.wait(until: deadline) { return false }
+        }
+        return true
+    }
+
     private func serve(_ client: Int32) {
         var request = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
@@ -115,6 +126,9 @@ final class RecoveryLoopback: @unchecked Sendable {
             requests.append(body)
             return requests.count - 1
         }
+        requestCondition.lock()
+        requestCondition.broadcast()
+        requestCondition.unlock()
         let reply = replies[min(index, replies.count - 1)]
         let data = Data(reply.body.utf8)
         var header =

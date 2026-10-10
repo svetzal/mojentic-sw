@@ -14,6 +14,9 @@ protocol BufferedRecoveryTransport: Sendable {
 /// The session delegate queue is serial; the lock also synchronizes cancellation.
 final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTransport, @unchecked Sendable {
     private let lock = NSLock()
+    // Response callbacks wait until actual-launch lifecycle notifications finish.
+    // Cancellation uses the separate state lock, so observers may cancel safely.
+    private let launch = NSLock()
     private var bytes = Data()
     private var response: HTTPURLResponse?
     private var continuation: CheckedContinuation<RecoveryHTTPResult, Never>?
@@ -24,15 +27,21 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     private let identity: RecoveryIdentity
     private let observer: (@Sendable (RecoveryWireEvent) throws -> Void)?
     private let semantics: @Sendable (Data) -> RecoverySemanticProgress
+    private let didStart: @Sendable () -> Void
+    private let mayStart: @Sendable () -> Bool
 
     init(
         identity: RecoveryIdentity,
         observer: (@Sendable (RecoveryWireEvent) throws -> Void)?,
-        semantics: @escaping @Sendable (Data) -> RecoverySemanticProgress
+        semantics: @escaping @Sendable (Data) -> RecoverySemanticProgress,
+        didStart: @escaping @Sendable () -> Void,
+        mayStart: @escaping @Sendable () -> Bool
     ) {
         self.identity = identity
         self.observer = observer
         self.semantics = semantics
+        self.didStart = didStart
+        self.mayStart = mayStart
     }
 
     func send(_ request: URLRequest) async -> RecoveryHTTPResult {
@@ -46,13 +55,28 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
                 configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
                 let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
                 let task = session.dataTask(with: request)
+                launch.lock()
+                // Setup/scheduling can consume recovery time. Caller timing hooks
+                // run outside the cancellation lock, immediately before launch.
+                let admitted = mayStart()
                 lock.lock()
+                if !admitted || cancelled || Task.isCancelled {
+                    let cause: (any Error)? = cancelled || Task.isCancelled ? CancellationError() : nil
+                    lock.unlock()
+                    launch.unlock()
+                    session.invalidateAndCancel()
+                    continuation.resume(
+                        returning: RecoveryHTTPResult(
+                            response: nil, body: Data(), cause: cause, dispatched: false
+                        ))
+                    return
+                }
                 self.continuation = continuation
                 self.task = task
-                let cancelled = self.cancelled
-                lock.unlock()
                 task.resume()
-                if cancelled { task.cancel() }
+                lock.unlock()
+                didStart()
+                launch.unlock()
             }
         } onCancel: {
             self.lock.lock()
@@ -69,6 +93,8 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         didReceive response: URLResponse,
         completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void
     ) {
+        launch.lock()
+        launch.unlock()
         lock.lock()
         self.response = response as? HTTPURLResponse
         lock.unlock()
@@ -87,6 +113,8 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     }
 
     func urlSession(_: URLSession, dataTask _: URLSessionDataTask, didReceive data: Data) {
+        launch.lock()
+        launch.unlock()
         lock.lock()
         bytes.append(data)
         let received = bytes
@@ -130,6 +158,8 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     }
 
     func urlSession(_ session: URLSession, task _: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        launch.lock()
+        launch.unlock()
         lock.lock()
         let result = RecoveryHTTPResult(
             response: response,
@@ -153,6 +183,7 @@ struct RecoveryHTTPResult: Sendable {
     let cause: (any Error)?
     var captureFailed = false
     var observed = RecoverySemanticProgress()
+    var dispatched = true
 
     var headers: [String: String] {
         guard let response else { return [:] }
