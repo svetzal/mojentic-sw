@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// The model the oMLX fixtures were captured from.
 let omlxFixtureModel = "Qwen3.8-27B-MLX-8bit"
@@ -10,7 +9,7 @@ let omlxFixtureModel = "Qwen3.8-27B-MLX-8bit"
 func omlxGateway(
     _ transport: FakeRequestTransport = FakeRequestTransport(),
     lines: FakeLineTransport = FakeLineTransport(),
-    configuration: OMLXConfiguration = OMLXConfiguration()
+    configuration: OMLXConfiguration = OMLXConfiguration(),
 ) -> OMLXGateway {
     OMLXGateway(configuration: configuration, transport: transport, lineTransport: lines)
 }
@@ -22,9 +21,7 @@ func jsonBody(_ request: TransportRequest) throws -> [String: JSONValue] {
 
 /// Run `operation` and return the status and body of the HTTP error it throws.
 func httpFailure(_ operation: () async throws -> Void) async -> (status: Int, body: String)? {
-    do {
-        try await operation()
-    } catch MojenticError.http(let status, let body) {
+    do { try await operation() } catch MojenticError.http(let status, let body) {
         return (status, body)
     } catch {
         Issue.record("expected an HTTP error, got \(error)")
@@ -40,11 +37,11 @@ struct ResolveDateTool: LLMTool {
         name: "resolve_date",
         description: "Resolve a relative date",
         parameters: [
-            "type": "object",
-            "properties": ["relative": ["type": "string"]],
-            "required": ["relative"],
-        ]
+            "type": "object", "properties": ["relative": ["type": "string"]], "required": ["relative"],
+        ],
     )
 
-    func execute(arguments: JSONValue) async throws -> JSONValue { arguments }
+    func execute(arguments: JSONValue) async throws -> JSONValue {
+        arguments
+    }
 }

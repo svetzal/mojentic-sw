@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// Actor-isolated state for the broker-backing fake gateway.
 private actor ScriptedGatewayState {
@@ -10,10 +9,7 @@ private actor ScriptedGatewayState {
     var invocations: [[LLMMessage]] = []
     var errorOnNext: (any Error)?
 
-    init(
-        responses: [LLMGatewayResponse],
-        streamScripts: [[GatewayStreamEvent]] = []
-    ) {
+    init(responses: [LLMGatewayResponse], streamScripts: [[GatewayStreamEvent]] = []) {
         self.responses = responses
         self.streamScripts = streamScripts
     }
@@ -38,9 +34,13 @@ private actor ScriptedGatewayState {
         return streamScripts.removeFirst()
     }
 
-    func recordedInvocations() -> [[LLMMessage]] { invocations }
+    func recordedInvocations() -> [[LLMMessage]] {
+        invocations
+    }
 
-    func failNext(_ error: any Error) { self.errorOnNext = error }
+    func failNext(_ error: any Error) {
+        errorOnNext = error
+    }
 }
 
 private struct ScriptedGateway: LLMGateway {
@@ -50,7 +50,7 @@ private struct ScriptedGateway: LLMGateway {
         model _: String,
         messages: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         await state.record(messages)
         return try await state.nextResponse()
@@ -60,18 +60,22 @@ private struct ScriptedGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
-    ) async throws -> JSONValue { .object([:]) }
+        config _: CompletionConfig,
+    ) async throws -> JSONValue {
+        .object([:])
+    }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
-        let state = self.state
+        let state = state
         return AsyncThrowingStream { continuation in
             let task = Task {
                 await state.record(messages)
@@ -107,9 +111,7 @@ struct ChatSessionTests {
 
     @Test("clear() resets history but keeps the system prompt")
     func clearKeepsSystem() async throws {
-        let state = ScriptedGatewayState(responses: [
-            LLMGatewayResponse(content: "ok", finishReason: .stop)
-        ])
+        let state = ScriptedGatewayState(responses: [LLMGatewayResponse(content: "ok", finishReason: .stop)])
         let broker = LLMBroker(gateway: ScriptedGateway(state: state))
         let session = ChatSession(broker: broker, model: "test", systemPrompt: "rules")
         _ = try await session.send("hi")
@@ -141,12 +143,8 @@ struct ChatSessionTests {
         let state = ScriptedGatewayState(
             responses: [],
             streamScripts: [
-                [
-                    .textDelta("hello "),
-                    .textDelta("world"),
-                    .done(finishReason: .stop, usage: nil),
-                ]
-            ]
+                [.textDelta("hello "), .textDelta("world"), .done(finishReason: .stop, usage: nil)]
+            ],
         )
         let broker = LLMBroker(gateway: ScriptedGateway(state: state))
         let session = ChatSession(broker: broker, model: "test", systemPrompt: nil)

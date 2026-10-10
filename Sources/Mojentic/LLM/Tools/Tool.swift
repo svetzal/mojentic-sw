@@ -39,8 +39,12 @@ public protocol LLMTool: Sendable {
 
 extension LLMTool {
     /// Tool name (delegates to `descriptor.name`).
-    public var name: String { descriptor.name }
+    public var name: String {
+        descriptor.name
+    }
 
     /// Returns `true` when this tool answers to the given name.
-    public func matches(_ name: String) -> Bool { self.name == name }
+    public func matches(_ name: String) -> Bool {
+        self.name == name
+    }
 }

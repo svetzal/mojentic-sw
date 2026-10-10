@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// Loads the live oMLX fixtures copied into the test bundle.
 ///
@@ -11,14 +10,14 @@ enum OMLXFixture {
     static func data(_ name: String) throws -> Data {
         let url = try #require(
             Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/omlx"),
-            "missing fixture \(name)"
+            "missing fixture \(name)",
         )
         return try Data(contentsOf: url)
     }
 
     /// The lines of fixture `name`, as a line-streaming transport yields them.
     static func lines(_ name: String) throws -> [String] {
-        let text = try #require(String(bytes: try data(name), encoding: .utf8))
+        let text = try #require(try String(bytes: data(name), encoding: .utf8))
         return text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
     }
 }
@@ -32,12 +31,12 @@ enum ScriptedReply: Sendable {
 
     /// A 2xx response whose body is fixture `name`.
     static func fixture(_ name: String, headers: [HTTPHeader] = []) throws -> ScriptedReply {
-        .success(try OMLXFixture.data(name), headers: headers)
+        try .success(OMLXFixture.data(name), headers: headers)
     }
 
     /// A non-2xx response whose body is fixture `name`.
     static func fixture(_ name: String, status: Int) throws -> ScriptedReply {
-        .failure(status: status, body: try OMLXFixture.data(name))
+        try .failure(status: status, body: OMLXFixture.data(name))
     }
 }
 
@@ -64,8 +63,7 @@ struct FakeRequestTransport: RequestTransport {
     func send(_ request: TransportRequest) async throws -> TransportResponse {
         await recorder.record(request)
         switch reply {
-        case .success(let body, let headers):
-            return TransportResponse(body: body, headers: headers)
+        case .success(let body, let headers): return TransportResponse(body: body, headers: headers)
         case .failure(let status, let body):
             throw MojenticError.http(status: status, body: String(bytes: body, encoding: .utf8) ?? "")
         }
@@ -75,6 +73,8 @@ struct FakeRequestTransport: RequestTransport {
     func onlyRequest() async throws -> TransportRequest {
         let requests = await recorder.requests
         return try #require(
-            requests.count == 1 ? requests.first : nil, "expected one request, got \(requests.count)")
+            requests.count == 1 ? requests.first : nil,
+            "expected one request, got \(requests.count)",
+        )
     }
 }

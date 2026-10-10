@@ -50,7 +50,7 @@ public struct LLMRequestEvent: Event, Codable {
         model: String? = nil,
         toolNames: [String]? = nil,
         correlationId: UUID = UUID(),
-        parentId: UUID? = nil
+        parentId: UUID? = nil,
     ) {
         self.correlationId = correlationId
         self.parentId = parentId
@@ -71,11 +71,7 @@ public struct LLMResponseEvent: Event, Codable {
     public let response: LLMResponse
 
     /// Construct a response event.
-    public init(
-        response: LLMResponse,
-        correlationId: UUID,
-        parentId: UUID? = nil
-    ) {
+    public init(response: LLMResponse, correlationId: UUID, parentId: UUID? = nil) {
         self.correlationId = correlationId
         self.parentId = parentId
         self.response = response
@@ -95,11 +91,7 @@ public struct ErrorEvent: Event, Codable {
     public let description: String
 
     /// Construct an error event.
-    public init(
-        description: String,
-        correlationId: UUID,
-        parentId: UUID? = nil
-    ) {
+    public init(description: String, correlationId: UUID, parentId: UUID? = nil) {
         self.correlationId = correlationId
         self.parentId = parentId
         self.description = description
@@ -117,11 +109,7 @@ public struct CompositeEvent: Event {
     public let components: [AnyEvent]
 
     /// Construct a composite event.
-    public init(
-        components: [any Event],
-        correlationId: UUID,
-        parentId: UUID? = nil
-    ) {
+    public init(components: [any Event], correlationId: UUID, parentId: UUID? = nil) {
         self.correlationId = correlationId
         self.parentId = parentId
         self.components = components.map(AnyEvent.init(_:))

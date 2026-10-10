@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("AsyncAggregatorAgent")
 struct AsyncAggregatorAgentTests {
@@ -9,13 +8,9 @@ struct AsyncAggregatorAgentTests {
     func firesOnce() async throws {
         let aggregator = AsyncAggregatorAgent(expected: 2)
         let correlation = UUID()
-        let first = try await aggregator.handle(
-            TextEvent(content: "a", correlationId: correlation)
-        )
+        let first = try await aggregator.handle(TextEvent(content: "a", correlationId: correlation))
         #expect(first.isEmpty)
-        let second = try await aggregator.handle(
-            TextEvent(content: "b", correlationId: correlation)
-        )
+        let second = try await aggregator.handle(TextEvent(content: "b", correlationId: correlation))
         #expect(second.count == 1)
         let composite = second.first as? CompositeEvent
         #expect(composite?.components.count == 2)
@@ -26,12 +21,8 @@ struct AsyncAggregatorAgentTests {
     func ignoresStragglers() async throws {
         let aggregator = AsyncAggregatorAgent(expected: 1)
         let correlation = UUID()
-        _ = try await aggregator.handle(
-            TextEvent(content: "fire", correlationId: correlation)
-        )
-        let straggler = try await aggregator.handle(
-            TextEvent(content: "ignored", correlationId: correlation)
-        )
+        _ = try await aggregator.handle(TextEvent(content: "fire", correlationId: correlation))
+        let straggler = try await aggregator.handle(TextEvent(content: "ignored", correlationId: correlation))
         #expect(straggler.isEmpty)
     }
 
@@ -40,9 +31,7 @@ struct AsyncAggregatorAgentTests {
         let aggregator = AsyncAggregatorAgent(expected: 2)
         let firstCorrelation = UUID()
         let secondCorrelation = UUID()
-        _ = try await aggregator.handle(
-            TextEvent(content: "a", correlationId: firstCorrelation)
-        )
+        _ = try await aggregator.handle(TextEvent(content: "a", correlationId: firstCorrelation))
         let secondPartial = try await aggregator.handle(
             TextEvent(content: "x", correlationId: secondCorrelation)
         )

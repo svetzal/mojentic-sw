@@ -6,10 +6,14 @@ import Foundation
 /// reported nothing. The library never estimates any of them.
 public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, CustomDebugStringConvertible {
     /// Safe summary; inspect properties explicitly for provider metadata.
-    public var description: String { "Provider completion evidence" }
+    public var description: String {
+        "Provider completion evidence"
+    }
 
     /// Safe debug summary excluding echoed provider strings.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 
     /// Finish reason exactly as reported (OpenAI `finish_reason`, Ollama
     /// `done_reason`), for example `stop` or `length`.
@@ -29,7 +33,7 @@ public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, C
         finishReason: String? = nil,
         usage: Usage? = nil,
         providerModel: String? = nil,
-        metadata: [String: JSONValue]? = nil
+        metadata: [String: JSONValue]? = nil,
     ) {
         self.finishReason = finishReason
         self.usage = usage
@@ -100,18 +104,18 @@ enum CompletionEventStreaming {
         url: URL,
         body: some Encodable & Sendable,
         headers: [String: String],
-        parser: some CompletionEventParser
+        parser: some CompletionEventParser,
     ) -> AsyncStream<CompletionStreamEvent> {
         AsyncStream { continuation in
             let task = Task {
-                continuation.yield(
-                    await relay(
+                await continuation.yield(
+                    relay(
                         transport: transport,
                         url: url,
                         body: body,
                         headers: headers,
                         parser: parser,
-                        continuation: continuation
+                        continuation: continuation,
                     )
                 )
                 continuation.finish()
@@ -127,7 +131,7 @@ enum CompletionEventStreaming {
         body: some Encodable & Sendable,
         headers: [String: String],
         parser initial: some CompletionEventParser,
-        continuation: AsyncStream<CompletionStreamEvent>.Continuation
+        continuation: AsyncStream<CompletionStreamEvent>.Continuation,
     ) async -> CompletionStreamEvent {
         var parser = initial
         do {
@@ -135,15 +139,15 @@ enum CompletionEventStreaming {
             for try await line in lines {
                 try Task.checkCancellation()
                 for event in parser.consume(line: line) {
-                    if event.isTerminal { return event }
+                    if event.isTerminal {
+                        return event
+                    }
                     continuation.yield(event)
                 }
             }
             try Task.checkCancellation()
             return .error(.incompleteStream(parser.partialEvidence))
-        } catch {
-            return .error(Task.isCancelled ? .cancelled : requestError(error))
-        }
+        } catch { return .error(Task.isCancelled ? .cancelled : requestError(error)) }
     }
 
     /// Map a transport failure onto the single-turn event error vocabulary.
@@ -152,12 +156,9 @@ enum CompletionEventStreaming {
         case MojenticError.http(let status, let body):
             let detail = (try? JSONDecoder().decode(JSONValue.self, from: Data(body.utf8))) ?? .string(body)
             return .providerError(status: status, detail: detail)
-        case MojenticError.transport(let message):
-            return .requestFailed(message: message)
-        case is CancellationError, MojenticError.cancelled:
-            return .cancelled
-        default:
-            return .requestFailed(message: String(describing: error))
+        case MojenticError.transport(let message): return .requestFailed(message: message)
+        case is CancellationError, MojenticError.cancelled: return .cancelled
+        default: return .requestFailed(message: String(describing: error))
         }
     }
 }

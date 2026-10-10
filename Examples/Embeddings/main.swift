@@ -18,7 +18,7 @@ struct Embeddings {
         do {
             let vectors = try await gateway.embed(
                 texts: sentences,
-                model: "text-embedding-3-small"
+                model: "text-embedding-3-small",
             )
             print("similarity(0, 1) = \(cosine(vectors[0], vectors[1]))")
             print("similarity(0, 2) = \(cosine(vectors[0], vectors[2]))")
@@ -39,7 +39,7 @@ struct Embeddings {
             firstNorm += first[index] * first[index]
             secondNorm += second[index] * second[index]
         }
-        guard firstNorm > 0 && secondNorm > 0 else { return 0 }
+        guard firstNorm > 0, secondNorm > 0 else { return 0 }
         return dot / (firstNorm.squareRoot() * secondNorm.squareRoot())
     }
 }

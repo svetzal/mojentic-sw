@@ -23,9 +23,7 @@ public actor EventStore {
     }
 
     /// Return events matching the supplied predicate.
-    public func events(
-        matching predicate: @Sendable (TracerEvent) -> Bool
-    ) -> [TracerEvent] {
+    public func events(matching predicate: @Sendable (TracerEvent) -> Bool) -> [TracerEvent] {
         events.filter(predicate)
     }
 

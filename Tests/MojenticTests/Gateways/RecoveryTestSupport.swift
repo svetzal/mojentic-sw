@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -10,7 +9,10 @@ import Testing
 struct RecoveryBoundary: Sendable, CustomStringConvertible {
     let omlx: Bool
     let structured: Bool
-    var description: String { "\(omlx ? "omlx" : "ollama")/\(structured ? "structured" : "ordinary")" }
+    var description: String {
+        "\(omlx ? "omlx" : "ollama")/\(structured ? "structured" : "ordinary")"
+    }
+
     static let all = [
         Self(omlx: false, structured: false), Self(omlx: false, structured: true),
         Self(omlx: true, structured: false), Self(omlx: true, structured: true),
@@ -19,14 +21,14 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
     func gateway(
         _ server: RecoveryLoopback,
         policy: CompletionRecoveryPolicy?,
-        idleTimeout: TimeInterval = 5
+        idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
         if omlx {
             return OMLXGateway(
                 host: server.url,
                 apiKey: "credential-sentinel",
                 timeout: idleTimeout,
-                recovery: policy
+                recovery: policy,
             )
         }
         let session = URLSessionConfiguration.ephemeral
@@ -35,7 +37,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
             baseURL: server.url,
             client: HTTPClient(session: URLSession(configuration: session)),
             headers: ["Authorization": "credential-sentinel"],
-            recovery: policy
+            recovery: policy,
         )
     }
 
@@ -46,14 +48,14 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
                 model: "fixture",
                 messages: [.user("payload-sentinel")],
                 schema: ["type": "object"],
-                config: config
+                config: config,
             ).response
         }
         return try await gateway.complete(
             model: "fixture",
             messages: [.user("payload-sentinel")],
             tools: [ResolveDateTool()],
-            config: config
+            config: config,
         )
     }
 
@@ -66,35 +68,39 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
             var call: [String: JSONValue] = [
                 "id": "original-tool", "function": ["name": "resolve_date", "arguments": arguments],
             ]
-            if omlx { call["type"] = "function" }
+            if omlx {
+                call["type"] = "function"
+            }
             message["tool_calls"] = .array([.object(call)])
         }
-        let root: JSONValue
-        if omlx {
-            root = [
-                "model": "served", "id": "payload-sentinel",
-                "choices": .array([
-                    ["message": .object(message), "finish_reason": tools ? "tool_calls" : "stop"]
-                ]),
-                "usage": ["prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7],
-            ]
-        } else {
-            root = [
-                "model": "served", "message": .object(message), "done": true, "done_reason": "stop",
-                "prompt_eval_count": 3, "eval_count": 4,
-            ]
-        }
-        return RecoveryReply(
+        let root: JSONValue =
+            if omlx {
+                [
+                    "model": "served", "id": "payload-sentinel",
+                    "choices": .array([
+                        ["message": .object(message), "finish_reason": tools ? "tool_calls" : "stop"]
+                    ]),
+                    "usage": ["prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7],
+                ]
+            } else {
+                [
+                    "model": "served", "message": .object(message), "done": true, "done_reason": "stop",
+                    "prompt_eval_count": 3, "eval_count": 4,
+                ]
+            }
+        return try RecoveryReply(
             headers: [
                 "Warning": "credential-sentinel payload-sentinel", "X-Request-ID": "credential-sentinel",
             ],
-            body: try #require(String(bytes: JSONEncoder().encode(root), encoding: .utf8))
+            body: #require(String(bytes: JSONEncoder().encode(root), encoding: .utf8)),
         )
     }
 }
 
 struct RecoveryCaptureSentinel: Error, Sendable, CustomStringConvertible {
-    var description: String { "credential-sentinel payload-sentinel" }
+    var description: String {
+        "credential-sentinel payload-sentinel"
+    }
 }
 
 func recoveryPolicy(_ recorder: RecoveryRecorder, attempts: Int = 2) -> CompletionRecoveryPolicy {
@@ -127,7 +133,10 @@ func recoveryFailure(_ action: () async throws -> Void) async throws -> Recovery
 final class RecoveryLocked<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
-    init(_ value: Value) { self.value = value }
+    init(_ value: Value) {
+        self.value = value
+    }
+
     func withLock<Result>(_ action: (inout Value) throws -> Result) rethrows -> Result {
         lock.lock()
         defer { lock.unlock() }

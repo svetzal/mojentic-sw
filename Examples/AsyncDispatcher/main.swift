@@ -6,7 +6,9 @@ import Mojentic
 private actor EchoAgent: BaseAgent {
     let label: String
 
-    init(label: String) { self.label = label }
+    init(label: String) {
+        self.label = label
+    }
 
     func handle(_ event: any Event) async throws -> [any Event] {
         if let textEvent = event as? TextEvent {

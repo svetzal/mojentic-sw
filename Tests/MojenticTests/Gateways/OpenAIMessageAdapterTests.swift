@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("OpenAIMessageAdapter")
 struct OpenAIMessageAdapterTests {
@@ -35,9 +34,7 @@ struct OpenAIMessageAdapterTests {
     @Test("multimodal user message becomes content parts array")
     func userMultimodal() {
         let image = ImageContent(base64: "abc", mimeType: "image/png")
-        let adapted = OpenAIMessageAdapter.adapt([
-            .user(text: "describe", images: [image])
-        ])
+        let adapted = OpenAIMessageAdapter.adapt([.user(text: "describe", images: [image])])
         guard let parts = adapted.first?.objectValue?["content"], case .array(let array) = parts else {
             Issue.record("expected content parts array")
             return

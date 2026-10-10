@@ -14,7 +14,7 @@ struct SimpleTool {
             let response = try await broker.complete(
                 model: "llama3.2",
                 messages: messages,
-                tools: tools
+                tools: tools,
             )
             print(response.content)
         } catch {

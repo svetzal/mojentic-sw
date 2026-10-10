@@ -22,19 +22,15 @@ public actor AsyncAggregatorAgent: BaseAgent {
     /// Capture an incoming event; emit a CompositeEvent once expected count reached.
     public func handle(_ event: any Event) async throws -> [any Event] {
         let id = event.correlationId
-        if fired.contains(id) { return [] }
+        if fired.contains(id) {
+            return []
+        }
         var bucket = pending[id] ?? []
         bucket.append(event)
         if bucket.count >= expected {
             fired.insert(id)
             pending.removeValue(forKey: id)
-            return [
-                CompositeEvent(
-                    components: bucket,
-                    correlationId: id,
-                    parentId: event.parentId
-                )
-            ]
+            return [CompositeEvent(components: bucket, correlationId: id, parentId: event.parentId)]
         }
         pending[id] = bucket
         return []

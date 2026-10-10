@@ -1,19 +1,13 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("JSONValue encoding and accessors")
 struct JSONValueTests {
     @Test("round-trips primitive and nested values")
     func roundTrip() throws {
         let value: JSONValue = [
-            "name": "alice",
-            "age": 30,
-            "tags": ["a", "b"],
-            "active": true,
-            "score": 1.5,
-            "meta": .null,
+            "name": "alice", "age": 30, "tags": ["a", "b"], "active": true, "score": 1.5, "meta": .null,
         ]
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(JSONValue.self, from: data)

@@ -37,7 +37,7 @@ public struct OllamaEmbeddingsGateway: EmbeddingsGateway {
     public init(
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
     ) {
         self.baseURL = baseURL
         self.client = client
@@ -53,7 +53,7 @@ public struct OllamaEmbeddingsGateway: EmbeddingsGateway {
             url: url,
             body: body,
             headers: headers,
-            responseType: OllamaEmbedResponse.self
+            responseType: OllamaEmbedResponse.self,
         )
         return response.embeddings
     }
@@ -64,9 +64,7 @@ private struct OllamaEmbedRequest: Encodable {
     let input: [String]
 }
 
-private struct OllamaEmbedResponse: Decodable {
-    let embeddings: [[Float]]
-}
+private struct OllamaEmbedResponse: Decodable { let embeddings: [[Float]] }
 
 /// Embeddings gateway against the OpenAI `/v1/embeddings` endpoint.
 public struct OpenAIEmbeddingsGateway: EmbeddingsGateway {
@@ -81,7 +79,7 @@ public struct OpenAIEmbeddingsGateway: EmbeddingsGateway {
     public init(
         apiKey: String,
         baseURL: URL = OpenAIGateway.defaultBaseURL,
-        client: HTTPClient = HTTPClient()
+        client: HTTPClient = HTTPClient(),
     ) {
         precondition(!apiKey.isEmpty, "OpenAI API key must not be empty")
         self.baseURL = baseURL
@@ -97,10 +95,8 @@ public struct OpenAIEmbeddingsGateway: EmbeddingsGateway {
         let response = try await client.postJSON(
             url: url,
             body: body,
-            headers: [
-                "Authorization": "Bearer \(apiKey)"
-            ],
-            responseType: OpenAIEmbedResponse.self
+            headers: ["Authorization": "Bearer \(apiKey)"],
+            responseType: OpenAIEmbedResponse.self,
         )
         // OpenAI returns entries unordered in theory; sort by `index` to be
         // sure we hand them back in input order.

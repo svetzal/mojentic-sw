@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private actor RecordingGatewayState {
     var responses: [LLMGatewayResponse]
@@ -12,9 +11,7 @@ private actor RecordingGatewayState {
     }
 
     func next() throws -> LLMGatewayResponse {
-        guard !responses.isEmpty else {
-            throw MojenticError.invalidArgument(message: "no responses left")
-        }
+        guard !responses.isEmpty else { throw MojenticError.invalidArgument(message: "no responses left") }
         invocations += 1
         return responses.removeFirst()
     }
@@ -27,7 +24,7 @@ private struct RecordingGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         try await state.next()
     }
@@ -36,29 +33,31 @@ private struct RecordingGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
-    ) async throws -> JSONValue { .object([:]) }
+        config _: CompletionConfig,
+    ) async throws -> JSONValue {
+        .object([:])
+    }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { continuation in continuation.finish() }
     }
 }
 
 private struct EchoTool: LLMTool {
-    let descriptor = ToolDescriptor(
-        name: "echo",
-        description: "echo",
-        parameters: ["type": "object"]
-    )
+    let descriptor = ToolDescriptor(name: "echo", description: "echo", parameters: ["type": "object"])
 
-    func execute(arguments: JSONValue) async throws -> JSONValue { arguments }
+    func execute(arguments: JSONValue) async throws -> JSONValue {
+        arguments
+    }
 }
 
 @Suite("Broker tracer integration")
@@ -68,21 +67,17 @@ struct BrokerTracerIntegrationTests {
         let store = EventStore()
         let tracer = EventStoreTracer(store: store)
         let gateway = RecordingGateway(
-            state: RecordingGatewayState(responses: [
-                LLMGatewayResponse(content: "ok", finishReason: .stop)
-            ])
+            state: RecordingGatewayState(responses: [LLMGatewayResponse(content: "ok", finishReason: .stop)])
         )
         let broker = LLMBroker(gateway: gateway, tracer: tracer)
         let context = TracerContext()
-        _ = try await broker.complete(
-            model: "test",
-            messages: [.user("hi")],
-            context: context
-        )
+        _ = try await broker.complete(model: "test", messages: [.user("hi")], context: context)
         let events = await store.events(correlatedTo: context.correlationId)
         #expect(events.count == 2)
         let response = events.first { event in
-            if case .llmResponse = event { return true }
+            if case .llmResponse = event {
+                return true
+            }
             return false
         }
         #expect(response?.duration != nil)
@@ -105,17 +100,18 @@ struct BrokerTracerIntegrationTests {
             model: "test",
             messages: [.user("call echo")],
             tools: [EchoTool()],
-            context: context
+            context: context,
         )
         let events = await store.events(correlatedTo: context.correlationId)
         let firstResponseId = events.compactMap { event -> UUID? in
             guard case .llmResponse(let payload) = event else { return nil }
             return payload.id
-        }
-        .first
+        }.first
         #expect(firstResponseId != nil)
         let toolCallEvent = events.first { event in
-            if case .toolCall = event { return true }
+            if case .toolCall = event {
+                return true
+            }
             return false
         }
         guard let event = toolCallEvent, case .toolCall(let payload) = event else {

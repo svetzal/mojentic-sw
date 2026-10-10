@@ -36,7 +36,7 @@ struct BrokerExamples {
                 messages: [
                     .system("You are a concise assistant."),
                     .user("Name one type of bird that cannot fly."),
-                ]
+                ],
             )
             print("Plain: \(plain.content)")
 
@@ -46,7 +46,7 @@ struct BrokerExamples {
                     .system("Use tools when the user asks for the current time."),
                     .user("What time is it right now?"),
                 ],
-                tools: [CurrentDateTimeTool()]
+                tools: [CurrentDateTimeTool()],
             )
             print("Tooled: \(tooled.content)")
 
@@ -56,7 +56,7 @@ struct BrokerExamples {
                     .system("Extract structured data from the user message."),
                     .user("Bob is 27 years old."),
                 ],
-                responseType: Person.self
+                responseType: Person.self,
             )
             print("Structured: \(person.name), \(person.age)")
         } catch {

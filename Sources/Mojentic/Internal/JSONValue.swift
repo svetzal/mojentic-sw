@@ -23,20 +23,28 @@ public enum JSONValue: Sendable, Hashable {
 
     /// Convenience accessor for `.object` payloads.
     public var objectValue: [String: JSONValue]? {
-        if case .object(let value) = self { return value }
+        if case .object(let value) = self {
+            return value
+        }
         return nil
     }
 
     /// Convenience accessor for `.string` payloads.
     public var stringValue: String? {
-        if case .string(let value) = self { return value }
+        if case .string(let value) = self {
+            return value
+        }
         return nil
     }
 
     /// Convenience accessor that coerces `.integer` or `.number` to `Int`.
     public var intValue: Int? {
-        if case .integer(let value) = self { return value }
-        if case .number(let value) = self { return Int(value) }
+        if case .integer(let value) = self {
+            return value
+        }
+        if case .number(let value) = self {
+            return Int(value)
+        }
         return nil
     }
 }
@@ -75,7 +83,7 @@ extension JSONValue: Codable {
         }
         throw DecodingError.dataCorruptedError(
             in: container,
-            debugDescription: "Unable to decode JSONValue"
+            debugDescription: "Unable to decode JSONValue",
         )
     }
 
@@ -83,20 +91,13 @@ extension JSONValue: Codable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .null:
-            try container.encodeNil()
-        case .bool(let value):
-            try container.encode(value)
-        case .integer(let value):
-            try container.encode(value)
-        case .number(let value):
-            try container.encode(value)
-        case .string(let value):
-            try container.encode(value)
-        case .array(let value):
-            try container.encode(value)
-        case .object(let value):
-            try container.encode(value)
+        case .null: try container.encodeNil()
+        case .bool(let value): try container.encode(value)
+        case .integer(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .string(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
         }
     }
 }
@@ -131,7 +132,7 @@ extension JSONValue: ExpressibleByBooleanLiteral {
 
 extension JSONValue: ExpressibleByNilLiteral {
     /// Build a `.null` value from a `nil` literal.
-    public init(nilLiteral: ()) {
+    public init(nilLiteral _: ()) {
         self = .null
     }
 }

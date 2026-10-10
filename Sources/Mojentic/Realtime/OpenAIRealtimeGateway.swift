@@ -33,7 +33,7 @@ public struct OpenAIRealtimeGateway: RealtimeGateway {
     public func openSession(
         _ config: RealtimeSessionConfig,
         tracer: any Tracer,
-        toolRunner: any ToolRunner
+        toolRunner: any ToolRunner,
     ) async throws -> RealtimeSession {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw MojenticError.invalidArgument(message: "Realtime base URL is malformed")
@@ -46,18 +46,15 @@ public struct OpenAIRealtimeGateway: RealtimeGateway {
         }
         let transport = URLSessionWebSocketTransport(
             url: url,
-            headers: [
-                "Authorization": "Bearer \(config.apiKey)",
-                "OpenAI-Beta": "realtime=v1",
-            ],
-            session: session
+            headers: ["Authorization": "Bearer \(config.apiKey)", "OpenAI-Beta": "realtime=v1"],
+            session: session,
         )
         let realtimeSession = RealtimeSession(
             transport: transport,
             tools: config.tools,
             tracer: tracer,
             toolRunner: toolRunner,
-            vad: config.vad
+            vad: config.vad,
         )
         await realtimeSession.start()
         try await realtimeSession.update(session: buildSessionUpdate(config: config))
@@ -66,8 +63,7 @@ public struct OpenAIRealtimeGateway: RealtimeGateway {
 
     private func buildSessionUpdate(config: RealtimeSessionConfig) -> JSONValue {
         var session: [String: JSONValue] = [
-            "modalities": ["text", "audio"],
-            "turn_detection": vadPayload(for: config.vad),
+            "modalities": ["text", "audio"], "turn_detection": vadPayload(for: config.vad),
         ]
         if let instructions = config.instructions {
             session["instructions"] = .string(instructions)
@@ -80,19 +76,15 @@ public struct OpenAIRealtimeGateway: RealtimeGateway {
 
     private func vadPayload(for mode: VADMode) -> JSONValue {
         switch mode {
-        case .server:
-            return ["type": "server_vad"]
-        case .manual:
-            return .null
+        case .server: ["type": "server_vad"]
+        case .manual: .null
         }
     }
 
     private func toolPayload(for tool: any LLMTool) -> JSONValue {
         [
-            "type": "function",
-            "name": .string(tool.descriptor.name),
-            "description": .string(tool.descriptor.description),
-            "parameters": tool.descriptor.parameters,
+            "type": "function", "name": .string(tool.descriptor.name),
+            "description": .string(tool.descriptor.description), "parameters": tool.descriptor.parameters,
         ]
     }
 }

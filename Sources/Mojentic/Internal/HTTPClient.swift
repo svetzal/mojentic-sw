@@ -15,7 +15,7 @@ protocol LineStreamingTransport: Sendable {
     func streamLines(
         url: URL,
         body: some Encodable,
-        headers: [String: String]
+        headers: [String: String],
     ) async throws -> AsyncThrowingStream<String, any Error>
 }
 
@@ -94,12 +94,10 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
         url: URL,
         body: some Encodable,
         headers: [String: String] = [:],
-        responseType: Response.Type
+        responseType: Response.Type,
     ) async throws -> Response {
         let data = try await postRaw(url: url, body: body, headers: headers)
-        do {
-            return try JSONDecoder().decode(responseType, from: data)
-        } catch {
+        do { return try JSONDecoder().decode(responseType, from: data) } catch {
             throw MojenticError.decoding(
                 message: "Failed to decode \(responseType): \(error.localizedDescription)"
             )
@@ -108,15 +106,13 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
 
     /// Issue a JSON POST and return raw response bytes.
     public func postRaw(
-        url: URL,
-        body: some Encodable,
-        headers: [String: String] = [:]
-    ) async throws -> Data {
+        url: URL, body: some Encodable, headers: [String: String] = [:],
+    ) async throws
+        -> Data
+    {
         var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        do {
-            request.httpBody = try JSONEncoder().encode(body)
-        } catch {
+        do { request.httpBody = try JSONEncoder().encode(body) } catch {
             throw MojenticError.transport(
                 message: "Failed to encode request body: \(error.localizedDescription)"
             )
@@ -128,12 +124,10 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     public func getJSON<Response: Decodable>(
         url: URL,
         headers: [String: String] = [:],
-        responseType: Response.Type
+        responseType: Response.Type,
     ) async throws -> Response {
         let data = try await execute(request: makeRequest(url: url, method: "GET", headers: headers))
-        do {
-            return try JSONDecoder().decode(responseType, from: data)
-        } catch {
+        do { return try JSONDecoder().decode(responseType, from: data) } catch {
             throw MojenticError.decoding(
                 message: "Failed to decode \(responseType): \(error.localizedDescription)"
             )
@@ -150,13 +144,11 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     public func streamLines(
         url: URL,
         body: some Encodable,
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
     ) async throws -> AsyncThrowingStream<String, any Error> {
         var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        do {
-            request.httpBody = try JSONEncoder().encode(body)
-        } catch {
+        do { request.httpBody = try JSONEncoder().encode(body) } catch {
             throw MojenticError.transport(
                 message: "Failed to encode streaming body: \(error.localizedDescription)"
             )
@@ -176,9 +168,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
                             continuation.yield(line)
                         }
                         continuation.finish()
-                    } catch {
-                        continuation.finish(throwing: error)
-                    }
+                    } catch { continuation.finish(throwing: error) }
                 }
                 continuation.onTermination = { _ in task.cancel() }
             }
@@ -195,9 +185,11 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
                     let text = String(bytes: data, encoding: .utf8) ?? ""
                     for line in text.split(
                         omittingEmptySubsequences: false,
-                        whereSeparator: { $0.isNewline }
+                        whereSeparator: { $0.isNewline },
                     ) {
-                        if Task.isCancelled { break }
+                        if Task.isCancelled {
+                            break
+                        }
                         continuation.yield(String(line))
                     }
                     continuation.finish()
@@ -215,9 +207,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
         }
         if let body = request.body {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            do {
-                urlRequest.httpBody = try JSONEncoder().encode(body)
-            } catch {
+            do { urlRequest.httpBody = try JSONEncoder().encode(body) } catch {
                 throw MojenticError.transport(
                     message: "Failed to encode request body: \(error.localizedDescription)"
                 )
@@ -252,17 +242,16 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
             let (data, response) = try await session.data(for: request)
             let http = try assertSuccess(response: response, sampleBody: data)
             return (data, http)
-        } catch let error as MojenticError {
-            throw error
-        } catch is CancellationError {
+        } catch let error as MojenticError { throw error } catch is CancellationError {
             throw MojenticError.cancelled
-        } catch {
-            throw MojenticError.transport(message: error.localizedDescription)
-        }
+        } catch { throw MojenticError.transport(message: error.localizedDescription) }
     }
 
     @discardableResult
-    private func assertSuccess(response: URLResponse, sampleBody: Data) throws -> HTTPURLResponse {
+    private func assertSuccess(
+        response: URLResponse,
+        sampleBody: Data,
+    ) throws -> HTTPURLResponse {
         guard let http = response as? HTTPURLResponse else {
             throw MojenticError.transport(message: "Non-HTTP response: \(type(of: response))")
         }

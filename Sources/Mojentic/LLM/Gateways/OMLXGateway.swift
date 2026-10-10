@@ -8,7 +8,8 @@ import Logging
 /// Gateway for oMLX, an LLM server for Apple Silicon that speaks the OpenAI
 /// chat completions protocol.
 ///
-/// See [oMLX on GitHub](https://github.com/jundot/omlx). The gateway reuses the OpenAI message adapter and stream parsers, but not
+/// See [oMLX on GitHub](https://github.com/jundot/omlx). The gateway reuses the OpenAI message adapter and
+/// stream parsers, but not
 /// the OpenAI model registry: every request carries the configured
 /// parameters unchanged, whatever the model is called. It adds what
 /// ``OpenAIGateway`` does not do for a local server:
@@ -68,7 +69,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         host: URL? = nil,
         apiKey: String? = nil,
         timeout: TimeInterval? = nil,
-        session: URLSession = .shared
+        session: URLSession = .shared,
     ) {
         self.init(host: host, apiKey: apiKey, timeout: timeout, session: session, recovery: nil)
     }
@@ -89,13 +90,13 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         apiKey: String? = nil,
         timeout: TimeInterval? = nil,
         session: URLSession = .shared,
-        recovery: CompletionRecoveryPolicy?
+        recovery: CompletionRecoveryPolicy?,
     ) {
         let configuration = OMLXConfiguration.resolve(
             host: host,
             apiKey: apiKey,
             timeout: timeout,
-            environment: ProcessInfo.processInfo.environment
+            environment: ProcessInfo.processInfo.environment,
         )
         let client = HTTPClient(session: session, requestTimeout: configuration.timeout)
         self.init(configuration: configuration, transport: client, lineTransport: client)
@@ -106,12 +107,12 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     init(
         configuration: OMLXConfiguration,
         transport: any RequestTransport,
-        lineTransport: any LineStreamingTransport
+        lineTransport: any LineStreamingTransport,
     ) {
         self.configuration = configuration
         self.transport = transport
         self.lineTransport = OMLXKeepAliveFilter(base: lineTransport)
-        self.logger = Logger(label: "mojentic.gateway.omlx")
+        logger = Logger(label: "mojentic.gateway.omlx")
     }
 
     // MARK: - LLMGateway
@@ -121,7 +122,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         let body = Self.chatBody(
             model: model,
@@ -129,7 +130,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             tools: tools,
             config: config,
             stream: false,
-            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload)
+            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload),
         )
         return try await chat(body: body, structured: config.responseFormat?.isStructured ?? false)
     }
@@ -139,7 +140,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> JSONValue {
         try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
     }
@@ -154,7 +155,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
         let body = Self.chatBody(
             model: model,
@@ -162,7 +163,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             tools: nil,
             config: config,
             stream: false,
-            responseFormat: OpenAIGateway.responseFormatPayload(.jsonSchema(schema))
+            responseFormat: OpenAIGateway.responseFormatPayload(.jsonSchema(schema)),
         )
         if recovery != nil {
             return try await recoveryChat(body: body, structured: true, operation: "structured") { response in
@@ -198,7 +199,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         let body = Self.chatBody(
             model: model,
@@ -206,7 +207,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             tools: tools,
             config: config,
             stream: true,
-            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload)
+            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload),
         )
         if let recovery {
             return StreamingRecovery.gatewayEvents(
@@ -215,7 +216,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
                 url: url("chat/completions"),
                 headers: authHeaders(),
                 body: body,
-                timeout: configuration.timeout
+                timeout: configuration.timeout,
             )
         }
         return OpenAILegacyStreaming.events(
@@ -223,7 +224,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             url: url("chat/completions"),
             body: body,
             headers: authHeaders(),
-            parser: OpenAILegacyStreamParser(surfacesReasoning: true)
+            parser: OpenAILegacyStreamParser(surfacesReasoning: true),
         )
     }
 
@@ -236,7 +237,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     public func completeStreamEvents(
         model: String,
         messages: [LLMMessage],
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
         var body = Self.chatBody(
             model: model,
@@ -244,7 +245,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             tools: nil,
             config: config,
             stream: true,
-            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload)
+            responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload),
         )
         if case .object(var fields) = body {
             fields["stream_options"] = ["include_usage": true]
@@ -257,7 +258,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
                 url: url("chat/completions"),
                 headers: authHeaders(),
                 body: body,
-                timeout: configuration.timeout
+                timeout: configuration.timeout,
             )
         }
         return CompletionEventStreaming.events(
@@ -265,7 +266,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             url: url("chat/completions"),
             body: body,
             headers: authHeaders(),
-            parser: OpenAICompletionEventParser()
+            parser: OpenAICompletionEventParser(),
         )
     }
 
@@ -281,7 +282,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     ///   model id, before any request; ``MojenticError/http(status:body:)``
     ///   when oMLX rejects the request.
     public func loadModel(_ model: String) async throws {
-        _ = try await send(TransportRequest(method: "POST", url: try modelActionURL(model, action: "load")))
+        _ = try await send(TransportRequest(method: "POST", url: modelActionURL(model, action: "load")))
     }
 
     /// Unload `model` from memory (`POST /v1/models/{model}/unload`).
@@ -291,7 +292,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     ///   when oMLX rejects the request, including a 400 when the model is
     ///   not loaded.
     public func unloadModel(_ model: String) async throws {
-        _ = try await send(TransportRequest(method: "POST", url: try modelActionURL(model, action: "unload")))
+        _ = try await send(TransportRequest(method: "POST", url: modelActionURL(model, action: "unload")))
     }
 
     // MARK: - EmbeddingsGateway
@@ -315,13 +316,11 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             let request = TransportRequest(
                 method: "POST",
                 url: url("embeddings"),
-                body: ["model": .string(model), "input": .string(text)]
+                body: ["model": .string(model), "input": .string(text)],
             )
             let response = try await send(request)
             guard let first = try Self.decode(OMLXEmbeddingResponse.self, from: response.body).data.first
-            else {
-                throw MojenticError.decoding(message: "oMLX returned no embedding")
-            }
+            else { throw MojenticError.decoding(message: "oMLX returned no embedding") }
             vectors.append(first.embedding)
         }
         return vectors
@@ -337,13 +336,11 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
         stream: Bool,
-        responseFormat: JSONValue?
+        responseFormat: JSONValue?,
     ) -> JSONValue {
         var dict: [String: JSONValue] = [
-            "model": .string(model),
-            "messages": .array(OpenAIMessageAdapter.adapt(messages)),
-            "stream": .bool(stream),
-            "temperature": .number(config.temperature),
+            "model": .string(model), "messages": .array(OpenAIMessageAdapter.adapt(messages)),
+            "stream": .bool(stream), "temperature": .number(config.temperature),
             "max_tokens": .integer(config.maxTokens),
         ]
         if let topP = config.topP {
@@ -369,7 +366,8 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             return try await recoveryChat(body: body, structured: structured, operation: "ordinary") { $0 }
         }
         let response = try await send(
-            TransportRequest(method: "POST", url: url("chat/completions"), body: body))
+            TransportRequest(method: "POST", url: url("chat/completions"), body: body)
+        )
         return try decodeChat(response.body, headers: response.headers, structured: structured)
     }
 
@@ -377,7 +375,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         body: JSONValue,
         structured: Bool,
         operation: String,
-        project: (LLMGatewayResponse) throws -> Result
+        project: (LLMGatewayResponse) throws -> Result,
     ) async throws -> Result {
         guard let recovery else {
             throw MojenticError.invalidArgument(message: "Recovery policy is required")
@@ -389,26 +387,34 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             body: body,
             timeout: configuration.timeout,
             decode: { data, headers in try decodeChat(data, headers: headers, structured: structured) },
-            project: project)
+            project: project,
+        )
     }
 
     private func decodeChat(
-        _ data: Data, headers: [HTTPHeader], structured: Bool
+        _ data: Data,
+        headers: [HTTPHeader],
+        structured: Bool,
     ) throws -> LLMGatewayResponse {
         let wire =
-            try recovery == nil
-            ? Self.decode(OpenAIChatResponse.self, from: data)
-            : JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+            if recovery == nil {
+                try Self.decode(OpenAIChatResponse.self, from: data)
+            } else {
+                try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+            }
         let extras =
-            try recovery == nil
-            ? Self.decode(OMLXChatExtras.self, from: data)
-            : JSONDecoder().decode(OMLXChatExtras.self, from: data)
+            if recovery == nil {
+                try Self.decode(OMLXChatExtras.self, from: data)
+            } else {
+                try JSONDecoder().decode(OMLXChatExtras.self, from: data)
+            }
         var metadata = wire.envelope.metadata ?? [:]
         if let usage = extras.usage {
             metadata["usage"] = usage
         }
         let warnings = headers.filter { $0.name.caseInsensitiveCompare("Warning") == .orderedSame }.map(
-            \.value)
+            \.value
+        )
         if structured, !warnings.isEmpty {
             let warning = warnings.joined(separator: ", ")
             metadata[Self.responseFormatWarningKey] = .string(warning)
@@ -425,7 +431,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             usage: base.usage,
             providerFinishReason: base.providerFinishReason,
             providerModel: base.providerModel,
-            metadata: metadata.isEmpty ? nil : metadata
+            metadata: metadata.isEmpty ? nil : metadata,
         )
     }
 
@@ -448,12 +454,11 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     /// `/v1/models/{model}/{action}`, with the model id percent-encoded as
     /// one path segment.
     private func modelActionURL(_ model: String, action: String) throws -> URL {
-        guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        guard
+            !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             let segment = model.addingPercentEncoding(withAllowedCharacters: Self.unreservedCharacters),
             let url = URL(string: "\(url("models").absoluteString)/\(segment)/\(action)")
-        else {
-            throw MojenticError.invalidArgument(message: "Invalid oMLX model id: '\(model)'")
-        }
+        else { throw MojenticError.invalidArgument(message: "Invalid oMLX model id: '\(model)'") }
         return url
     }
 
@@ -463,9 +468,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     )
 
     private static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        do {
-            return try JSONDecoder().decode(type, from: data)
-        } catch {
+        do { return try JSONDecoder().decode(type, from: data) } catch {
             throw MojenticError.decoding(message: "Failed to decode \(type): \(error.localizedDescription)")
         }
     }
@@ -494,7 +497,9 @@ struct OMLXConfiguration: Sendable, Equatable {
     let timeout: TimeInterval
 
     /// The API root: the host plus `/v1`.
-    var baseURL: URL { host.appendingPathComponent("v1") }
+    var baseURL: URL {
+        host.appendingPathComponent("v1")
+    }
 
     init(host: URL = Self.defaultHost, apiKey: String? = nil, timeout: TimeInterval = Self.defaultTimeout) {
         self.host = host
@@ -512,7 +517,7 @@ struct OMLXConfiguration: Sendable, Equatable {
         host: URL?,
         apiKey: String?,
         timeout: TimeInterval?,
-        environment: [String: String]
+        environment: [String: String],
     ) -> OMLXConfiguration {
         func value(_ name: String) -> String? {
             guard let value = environment[name]?.trimmingCharacters(in: .whitespaces), !value.isEmpty else {
@@ -521,13 +526,13 @@ struct OMLXConfiguration: Sendable, Equatable {
             return value
         }
         let environmentHost = value("OMLX_HOST").flatMap { URL(string: $0) }
-        let environmentTimeout = value("OMLX_TIMEOUT")
-            .flatMap(Double.init)
-            .flatMap { $0 > 0 ? $0 / 1000 : nil }
+        let environmentTimeout = value("OMLX_TIMEOUT").flatMap(Double.init).flatMap {
+            $0 > 0 ? $0 / 1000 : nil
+        }
         return OMLXConfiguration(
             host: host ?? environmentHost ?? defaultHost,
             apiKey: apiKey.map { $0.isEmpty ? nil : $0 } ?? value("OMLX_API_KEY"),
-            timeout: timeout ?? environmentTimeout ?? defaultTimeout
+            timeout: timeout ?? environmentTimeout ?? defaultTimeout,
         )
     }
 }
@@ -547,7 +552,7 @@ struct OMLXKeepAliveFilter: LineStreamingTransport {
     func streamLines(
         url: URL,
         body: some Encodable,
-        headers: [String: String]
+        headers: [String: String],
     ) async throws -> AsyncThrowingStream<String, any Error> {
         let lines = try await base.streamLines(url: url, body: body, headers: headers)
         return AsyncThrowingStream { continuation in
@@ -557,9 +562,7 @@ struct OMLXKeepAliveFilter: LineStreamingTransport {
                         continuation.yield(line)
                     }
                     continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
@@ -583,8 +586,8 @@ extension ResponseFormat {
     /// Whether this format asks for JSON output.
     fileprivate var isStructured: Bool {
         switch self {
-        case .text: return false
-        case .jsonObject, .jsonSchema: return true
+        case .text: false
+        case .jsonObject, .jsonSchema: true
         }
     }
 }
@@ -592,7 +595,5 @@ extension ResponseFormat {
 private struct OMLXEmbeddingResponse: Decodable {
     let data: [Entry]
 
-    struct Entry: Decodable {
-        let embedding: [Float]
-    }
+    struct Entry: Decodable { let embedding: [Float] }
 }

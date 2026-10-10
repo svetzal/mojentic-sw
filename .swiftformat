@@ -1,0 +1,21 @@
+# Align whitespace with the native formatter; all default rules remain enabled.
+--swiftversion 6.1
+--indent 4
+--ifdef indent
+--elseposition same-line
+--wraparguments before-first
+--wrapparameters preserve
+--wrapcollections before-first
+--varattributes preserve
+--extensionacl on-declarations
+--commas multi-element-lists
+--patternlet inline
+--importgrouping alpha
+--ranges no-space
+--emptybraces no-space
+--xcodeindentation disabled
+--wrapconditions preserve
+--indentstrings true
+--funcattributes prev-line
+--typeattributes prev-line
+--complexattributes prev-line

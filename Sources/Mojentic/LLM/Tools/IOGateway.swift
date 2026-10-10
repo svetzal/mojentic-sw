@@ -46,10 +46,14 @@ public actor ScriptedIOGateway: IOGateway {
     }
 
     /// All `print` calls recorded so far.
-    public func recordedOutput() -> [String] { output }
+    public func recordedOutput() -> [String] {
+        output
+    }
 
     /// All prompts seen by `readLine` so far.
-    public func recordedPrompts() -> [String] { prompts }
+    public func recordedPrompts() -> [String] {
+        prompts
+    }
 
     /// Record output without writing anywhere.
     public func print(_ message: String) async {

@@ -1,16 +1,19 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 struct StreamingRecoveryTests {
     @Test(arguments: StreamingBoundary.all, [400, 401, 403, 504])
-    func numericFailuresAndPrivateEvidence(_ boundary: StreamingBoundary, _ status: Int) async throws {
+    func numericFailuresAndPrivateEvidence(
+        _ boundary: StreamingBoundary,
+        _ status: Int,
+    ) async throws {
         let reply = RecoveryReply(
             status: status,
             headers: ["X-Request-ID": "payload-sentinel"],
             body: "credential-sentinel",
-            truncated: status != 504)
+            truncated: status != 504,
+        )
         let server = try RecoveryLoopback(replies: [reply])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder, attempts: 3)
@@ -43,7 +46,8 @@ struct StreamingRecoveryTests {
         let body = try boundary.frame(
             content: kind == "content" ? "é🐈" : "",
             reasoning: kind == "reasoning" ? "想" : "",
-            tool: kind == "tool")
+            tool: kind == "tool",
+        )
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true)])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
@@ -65,12 +69,18 @@ struct StreamingRecoveryTests {
     }
 
     @Test(arguments: StreamingBoundary.all)
-    func captureAfterObservationPreventsDelivery(_ boundary: StreamingBoundary) async throws {
+    func captureAfterObservationPreventsDelivery(
+        _ boundary: StreamingBoundary
+    ) async throws {
         let body = try boundary.frame(content: "é", reasoning: "想", done: true, metrics: true)
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
-        policy.wireObserver = { event in if case .body = event { throw RecoveryCaptureSentinel() } }
+        policy.wireObserver = { event in
+            if case .body = event {
+                throw RecoveryCaptureSentinel()
+            }
+        }
         let seen = RecoveryLocked<[String]>([])
         let failure = try await recoveryFailure {
             try await boundary.consume(boundary.gateway(server, policy), record: seen)
@@ -93,7 +103,8 @@ struct StreamingRecoveryTests {
             tool: true,
             done: true,
             reason: "length",
-            metrics: true)
+            metrics: true,
+        )
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let seen = RecoveryLocked<[String]>([])
@@ -116,12 +127,15 @@ struct StreamingRecoveryTests {
             Issue.record("Expected original finish-validation failure")
         }
         #expect(
-            recorder.events.withLock { $0.suffix(2).map(\.transition) } == [.attemptFailed, .interrupted])
+            recorder.events.withLock { $0.suffix(2).map(\.transition) } == [.attemptFailed, .interrupted]
+        )
         #expect(server.requests.withLock { $0.count } == 1)
     }
 
     @Test(arguments: StreamingBoundary.all)
-    func legacyRemainsSingleSend(_ boundary: StreamingBoundary) async throws {
+    func legacyRemainsSingleSend(
+        _ boundary: StreamingBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "legacy")])
         do {
             try await boundary.consume(boundary.gateway(server, nil))

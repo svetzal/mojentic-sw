@@ -28,7 +28,7 @@ public struct RealtimeSessionConfig: Sendable {
         apiKey: String,
         tools: [any LLMTool] = [],
         vad: VADMode = .server,
-        instructions: String? = nil
+        instructions: String? = nil,
     ) {
         precondition(!apiKey.isEmpty, "Realtime API key must not be empty")
         self.model = model
@@ -50,6 +50,6 @@ public protocol RealtimeGateway: Sendable {
     func openSession(
         _ config: RealtimeSessionConfig,
         tracer: any Tracer,
-        toolRunner: any ToolRunner
+        toolRunner: any ToolRunner,
     ) async throws -> RealtimeSession
 }

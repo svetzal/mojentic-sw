@@ -5,9 +5,7 @@ import Foundation
 #endif
 
 /// Boundary for one evidence-preserving buffered wire send.
-protocol BufferedRecoveryTransport: Sendable {
-    func send(_ request: URLRequest) async -> RecoveryHTTPResult
-}
+protocol BufferedRecoveryTransport: Sendable { func send(_ request: URLRequest) async -> RecoveryHTTPResult }
 
 /// Owns one URLSession task and buffers evidence even when transport fails.
 ///
@@ -37,7 +35,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         semantics: @escaping @Sendable (Data) -> RecoverySemanticProgress,
         didStart: @escaping @Sendable () -> Void,
         mayStart: @escaping @Sendable () -> Bool,
-        stream: RecoveryStreamDecoder? = nil
+        stream: RecoveryStreamDecoder? = nil,
     ) {
         self.identity = identity
         self.observer = observer
@@ -70,8 +68,12 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
                     session.invalidateAndCancel()
                     continuation.resume(
                         returning: RecoveryHTTPResult(
-                            response: nil, body: Data(), cause: cause, dispatched: false
-                        ))
+                            response: nil,
+                            body: Data(),
+                            cause: cause,
+                            dispatched: false,
+                        )
+                    )
                     return
                 }
                 self.continuation = continuation
@@ -94,7 +96,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         _: URLSession,
         dataTask _: URLSessionDataTask,
         didReceive response: URLResponse,
-        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void
+        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void,
     ) {
         launch.lock()
         launch.unlock()
@@ -133,14 +135,14 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
             try observer?(.body(identity, data))
             if stream?.deliver() == true {
                 lock.lock()
-                let task = self.task
+                let task = task
                 lock.unlock()
                 task?.cancel()
             }
         } catch {
             lock.lock()
             captureCause = error
-            let task = self.task
+            let task = task
             lock.unlock()
             task?.cancel()
         }
@@ -151,7 +153,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         task _: URLSessionTask,
         willPerformHTTPRedirection _: HTTPURLResponse,
         newRequest _: URLRequest,
-        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void,
     ) {
         completionHandler(nil)
     }
@@ -159,8 +161,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     func urlSession(
         _: URLSession,
         task _: URLSessionTask,
-        needNewBodyStream completionHandler:
-            @escaping @Sendable (InputStream?) -> Void
+        needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void,
     ) {
         // Refuse body replay by URLSession; all admission belongs to the recovery engine.
         completionHandler(nil)
@@ -175,11 +176,11 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
             body: bytes,
             cause: captureCause ?? error,
             captureFailed: captureCause != nil,
-            observed: observed
+            observed: observed,
         )
-        let continuation = self.continuation
+        let continuation = continuation
         self.continuation = nil
-        self.task = nil
+        task = nil
         lock.unlock()
         continuation?.resume(returning: result)
         session.finishTasksAndInvalidate()

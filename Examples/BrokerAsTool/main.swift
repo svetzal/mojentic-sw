@@ -17,7 +17,7 @@ struct BrokerAsTool {
             model: "gpt-4o-mini",
             name: "summarise_text",
             description: "Summarise the supplied text in one sentence.",
-            systemPrompt: "You are a concise summariser. Reply in one short sentence."
+            systemPrompt: "You are a concise summariser. Reply in one short sentence.",
         )
         let parentBroker = LLMBroker(gateway: gateway)
         let longText = """
@@ -32,7 +32,7 @@ struct BrokerAsTool {
                     .system("Use summarise_text to condense any long passage the user provides."),
                     .user("Please summarise: \(longText)"),
                 ],
-                tools: [summariser]
+                tools: [summariser],
             )
             print(response.content)
         } catch {

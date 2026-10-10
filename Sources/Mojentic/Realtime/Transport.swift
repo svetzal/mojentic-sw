@@ -55,8 +55,8 @@ public actor URLSessionWebSocketTransport: RealtimeTransport {
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        self.task = session.webSocketTask(with: request)
-        self.task.resume()
+        task = session.webSocketTask(with: request)
+        task.resume()
     }
 
     /// Send a text frame.
@@ -71,27 +71,21 @@ public actor URLSessionWebSocketTransport: RealtimeTransport {
 
     /// Stream inbound frames.
     public nonisolated func receive() -> AsyncThrowingStream<TransportFrame, any Error> {
-        let task = self.task
+        let task = task
         return AsyncThrowingStream { continuation in
             let pump = Task {
                 do {
                     while !Task.isCancelled {
                         let message = try await task.receive()
                         switch message {
-                        case .string(let text):
-                            continuation.yield(.text(text))
-                        case .data(let data):
-                            continuation.yield(.data(data))
-                        @unknown default:
-                            continue
+                        case .string(let text): continuation.yield(.text(text))
+                        case .data(let data): continuation.yield(.data(data))
+                        @unknown default: continue
                         }
                     }
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
+                { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { _ in pump.cancel() }
         }
@@ -108,12 +102,7 @@ public actor URLSessionWebSocketTransport: RealtimeTransport {
         if closed {
             throw MojenticError.transport(message: "transport already closed")
         }
-        do {
-            try await task.send(message)
-        } catch is CancellationError {
-            throw MojenticError.cancelled
-        } catch {
-            throw MojenticError.transport(message: error.localizedDescription)
-        }
+        do { try await task.send(message) } catch is CancellationError { throw MojenticError.cancelled } catch
+        { throw MojenticError.transport(message: error.localizedDescription) }
     }
 }

@@ -23,6 +23,7 @@ struct RecoveryReply: Sendable {
 final class RecoveryLoopback: @unchecked Sendable {
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
+    private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
     private let arrival: AsyncStream<Int>.Continuation
     private let socketFD: Int32
@@ -34,7 +35,11 @@ final class RecoveryLoopback: @unchecked Sendable {
     init(
         replies: [RecoveryReply] = [
             RecoveryReply(status: 503, body: "credential-and-payload-sentinel"),
-            RecoveryReply(body: #"{"message":{"content":"recovered","thinking":"reasoning"},"done":true}"#),
+            RecoveryReply(
+                body: #"""
+                    {"message":{"content":"recovered","thinking":"reasoning"},"done":true}
+                    """#
+            ),
         ]
     ) throws {
         self.replies = replies
@@ -70,7 +75,9 @@ final class RecoveryLoopback: @unchecked Sendable {
             defer { close(threadDescriptor) }
             while true {
                 let client = accept(threadDescriptor, nil, nil)
-                if client < 0 { break }
+                if client < 0 {
+                    break
+                }
                 self?.serve(client)
                 close(client)
             }
@@ -96,19 +103,34 @@ final class RecoveryLoopback: @unchecked Sendable {
         requestCondition.lock()
         defer { requestCondition.unlock() }
         while requests.withLock({ $0.count }) < number {
-            if !requestCondition.wait(until: deadline) { return false }
+            if !requestCondition.wait(until: deadline) {
+                return false
+            }
         }
         return true
     }
 
+    /// Observes the client's FIN without releasing a held reply or consuming data.
+    func waitForPeerClose() -> Bool {
+        guard let client = activeClient.withLock({ $0 }) else { return false }
+        var descriptor = pollfd(fd: client, events: Int16(POLLIN), revents: 0)
+        guard poll(&descriptor, 1, 2000) > 0 else { return false }
+        var byte: UInt8 = 0
+        return recv(client, &byte, 1, Int32(MSG_PEEK)) == 0
+    }
+
     private func serve(_ client: Int32) {
+        activeClient.withLock { $0 = client }
+        defer { activeClient.withLock { $0 = nil } }
         var request = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         var boundary: Range<Data.Index>?
         var bodyLength = 0
         while true {
             let count = recv(client, &buffer, buffer.count, 0)
-            if count <= 0 { return }
+            if count <= 0 {
+                return
+            }
             request.append(contentsOf: buffer.prefix(count))
             if boundary == nil, let found = request.range(of: Data("\r\n\r\n".utf8)) {
                 boundary = found
@@ -118,7 +140,9 @@ final class RecoveryLoopback: @unchecked Sendable {
                 }
                 bodyLength = field.flatMap { Int($0.dropFirst(15).trimmingCharacters(in: .whitespaces)) } ?? 0
             }
-            if let boundary, request.count >= boundary.upperBound + bodyLength { break }
+            if let boundary, request.count >= boundary.upperBound + bodyLength {
+                break
+            }
         }
         guard let boundary else { return }
         let body = Data(request[boundary.upperBound...])
@@ -134,16 +158,22 @@ final class RecoveryLoopback: @unchecked Sendable {
         var header =
             "HTTP/1.1 \(reply.status) Fixture\r\nContent-Length: \(data.count + (reply.truncated ? 20 : 0))"
         header += "\r\nConnection: close\r\nContent-Type: application/json\r\n"
-        for (name, value) in reply.headers { header += "\(name): \(value)\r\n" }
+        for (name, value) in reply.headers {
+            header += "\(name): \(value)\r\n"
+        }
         write(Data((header + "\r\n").utf8), to: client)
         let split = reply.splitAt ?? (reply.hold && !reply.truncated ? data.count / 2 : data.count)
         write(Data(data.prefix(split)), to: client)
         arrival.yield(index + 1)
         if reply.hold {
             condition.lock()
-            while !released { condition.wait() }
+            while !released {
+                condition.wait()
+            }
             condition.unlock()
-            if split < data.count { write(Data(data.dropFirst(split)), to: client) }
+            if split < data.count {
+                write(Data(data.dropFirst(split)), to: client)
+            }
         }
     }
 
@@ -160,12 +190,14 @@ final class RecoveryLoopback: @unchecked Sendable {
                         client,
                         bytes.baseAddress?.advanced(by: offset),
                         bytes.count - offset,
-                        Int32(MSG_NOSIGNAL)
+                        Int32(MSG_NOSIGNAL),
                     )
                 #else
                     let count = send(client, bytes.baseAddress?.advanced(by: offset), bytes.count - offset, 0)
                 #endif
-                if count <= 0 { break }
+                if count <= 0 {
+                    break
+                }
                 offset += count
             }
         }

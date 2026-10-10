@@ -24,7 +24,7 @@ public actor RealtimeVoiceBroker {
     public init(
         gateway: any RealtimeGateway,
         tracer: any Tracer = NullTracer(),
-        toolRunner: any ToolRunner = ParallelToolRunner()
+        toolRunner: any ToolRunner = ParallelToolRunner(),
     ) {
         self.gateway = gateway
         self.tracer = tracer

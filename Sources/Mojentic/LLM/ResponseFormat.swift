@@ -81,7 +81,7 @@ public struct LLMGatewayResponse: Sendable, Codable, Hashable {
         usage: Usage? = nil,
         providerFinishReason: String? = nil,
         providerModel: String? = nil,
-        metadata: [String: JSONValue]? = nil
+        metadata: [String: JSONValue]? = nil,
     ) {
         self.content = content
         self.toolCalls = toolCalls
@@ -131,7 +131,7 @@ public struct LLMResponse: Sendable, Codable, Hashable {
         content: String,
         thinking: String? = nil,
         finishReason: FinishReason? = nil,
-        usage: Usage? = nil
+        usage: Usage? = nil,
     ) {
         self.content = content
         self.thinking = thinking

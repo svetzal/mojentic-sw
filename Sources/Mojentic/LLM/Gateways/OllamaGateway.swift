@@ -34,7 +34,7 @@ public struct OllamaGateway: LLMGateway {
     public init(
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
     ) {
         self.init(baseURL: baseURL, client: client, headers: headers, recovery: nil)
     }
@@ -48,7 +48,7 @@ public struct OllamaGateway: LLMGateway {
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
         headers: [String: String] = [:],
-        recovery: CompletionRecoveryPolicy?
+        recovery: CompletionRecoveryPolicy?,
     ) {
         self.init(baseURL: baseURL, client: client, headers: headers, lineTransport: client)
         self.recovery = recovery
@@ -59,13 +59,13 @@ public struct OllamaGateway: LLMGateway {
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
         headers: [String: String] = [:],
-        lineTransport: any LineStreamingTransport
+        lineTransport: any LineStreamingTransport,
     ) {
         self.baseURL = baseURL
         self.client = client
         self.lineTransport = lineTransport
         self.headers = headers
-        self.logger = Logger(label: "mojentic.gateway.ollama")
+        logger = Logger(label: "mojentic.gateway.ollama")
     }
 
     // MARK: - LLMGateway
@@ -75,7 +75,7 @@ public struct OllamaGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         let body = buildChatRequest(
             model: model,
@@ -83,7 +83,7 @@ public struct OllamaGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: false,
-            format: Self.formatPayload(config.responseFormat)
+            format: Self.formatPayload(config.responseFormat),
         )
         if recovery == nil {
             logger.debug("Ollama complete", metadata: ["model": .string(model)])
@@ -92,16 +92,17 @@ public struct OllamaGateway: LLMGateway {
         if let recovery {
             var engine = BufferedRecovery(policy: recovery, provider: "ollama", operation: "ordinary")
             return try await engine.run(
-                url: url, headers: headers, body: body, timeout: client.bufferedRequestTimeout
-            ) { data, _ in
-                try JSONDecoder().decode(OllamaChatResponse.self, from: data).toGatewayResponse()
-            }
+                url: url,
+                headers: headers,
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+            ) { data, _ in try JSONDecoder().decode(OllamaChatResponse.self, from: data).toGatewayResponse() }
         }
         let response = try await client.postJSON(
             url: url,
             body: body,
             headers: headers,
-            responseType: OllamaChatResponse.self
+            responseType: OllamaChatResponse.self,
         )
         return response.toGatewayResponse()
     }
@@ -111,14 +112,9 @@ public struct OllamaGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> JSONValue {
-        try await completeStructured(
-            model: model,
-            messages: messages,
-            schema: schema,
-            config: config
-        ).value
+        try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
     }
 
     /// Run a structured-output completion by forwarding `schema` as `format`,
@@ -127,7 +123,7 @@ public struct OllamaGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
         let body = buildChatRequest(
             model: model,
@@ -135,7 +131,7 @@ public struct OllamaGateway: LLMGateway {
             tools: nil,
             config: config,
             stream: false,
-            format: schema
+            format: schema,
         )
         let url = baseURL.appendingPathComponent("api/chat")
         if let recovery {
@@ -151,13 +147,14 @@ public struct OllamaGateway: LLMGateway {
                 project: { response in
                     let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
                     return StructuredGatewayResponse(value: value, response: response)
-                })
+                },
+            )
         }
         let wire = try await client.postJSON(
             url: url,
             body: body,
             headers: headers,
-            responseType: OllamaChatResponse.self
+            responseType: OllamaChatResponse.self,
         )
         let response = wire.toGatewayResponse()
         let content = response.content
@@ -177,7 +174,7 @@ public struct OllamaGateway: LLMGateway {
         let response = try await client.getJSON(
             url: url,
             headers: headers,
-            responseType: OllamaTagsResponse.self
+            responseType: OllamaTagsResponse.self,
         )
         return response.models.map(\.name).sorted()
     }
@@ -187,7 +184,7 @@ public struct OllamaGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         let body = buildChatRequest(
             model: model,
@@ -195,7 +192,7 @@ public struct OllamaGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: true,
-            format: Self.formatPayload(config.responseFormat)
+            format: Self.formatPayload(config.responseFormat),
         )
         let url = baseURL.appendingPathComponent("api/chat")
         if let recovery {
@@ -205,27 +202,21 @@ public struct OllamaGateway: LLMGateway {
                 url: url,
                 headers: headers,
                 body: body,
-                timeout: client.bufferedRequestTimeout
+                timeout: client.bufferedRequestTimeout,
             )
         }
         let transport = lineTransport
-        let headers = self.headers
+        let headers = headers
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let lines = try await transport.streamLines(
-                        url: url,
-                        body: body,
-                        headers: headers
-                    )
+                    let lines = try await transport.streamLines(url: url, body: body, headers: headers)
                     for try await line in lines {
                         try Task.checkCancellation()
                         guard let data = line.data(using: .utf8) else { continue }
                         let chunk: OllamaStreamChunk
-                        do {
-                            chunk = try JSONDecoder().decode(OllamaStreamChunk.self, from: data)
-                        } catch {
+                        do { chunk = try JSONDecoder().decode(OllamaStreamChunk.self, from: data) } catch {
                             continue
                         }
                         for event in chunk.toEvents() {
@@ -233,23 +224,15 @@ public struct OllamaGateway: LLMGateway {
                         }
                         if chunk.done == true {
                             continuation.yield(
-                                .done(
-                                    finishReason: chunk.toFinishReason(),
-                                    usage: chunk.evidence.usage
-                                )
+                                .done(finishReason: chunk.toFinishReason(), usage: chunk.evidence.usage)
                             )
                         }
                     }
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
+                { continuation.finish(throwing: error) }
             }
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -260,7 +243,7 @@ public struct OllamaGateway: LLMGateway {
     public func completeStreamEvents(
         model: String,
         messages: [LLMMessage],
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
         if let recovery {
             return StreamingRecovery.completionEvents(
@@ -274,8 +257,9 @@ public struct OllamaGateway: LLMGateway {
                     tools: nil,
                     config: config,
                     stream: true,
-                    format: Self.formatPayload(config.responseFormat)
-                ), timeout: client.bufferedRequestTimeout
+                    format: Self.formatPayload(config.responseFormat),
+                ),
+                timeout: client.bufferedRequestTimeout,
             )
         }
         return CompletionEventStreaming.events(
@@ -287,10 +271,10 @@ public struct OllamaGateway: LLMGateway {
                 tools: nil,
                 config: config,
                 stream: true,
-                format: Self.formatPayload(config.responseFormat)
+                format: Self.formatPayload(config.responseFormat),
             ),
             headers: headers,
-            parser: OllamaCompletionEventParser()
+            parser: OllamaCompletionEventParser(),
         )
     }
 
@@ -301,12 +285,9 @@ public struct OllamaGateway: LLMGateway {
     /// Plain text is Ollama's default, so it omits the field.
     static func formatPayload(_ format: ResponseFormat?) -> JSONValue? {
         switch format {
-        case nil, .text:
-            return nil
-        case .jsonObject:
-            return "json"
-        case .jsonSchema(let schema):
-            return schema
+        case nil, .text: nil
+        case .jsonObject: "json"
+        case .jsonSchema(let schema): schema
         }
     }
 
@@ -316,13 +297,13 @@ public struct OllamaGateway: LLMGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
         stream: Bool,
-        format: JSONValue?
+        format: JSONValue?,
     ) -> OllamaChatRequest {
         var options = OllamaOptions(
             temperature: config.temperature,
             numCtx: config.numCtx,
             topP: config.topP,
-            numPredict: config.maxTokens > 0 ? config.maxTokens : nil
+            numPredict: config.maxTokens > 0 ? config.maxTokens : nil,
         )
         // Forward unknown extras verbatim via the rawOptions catch-all.
         options.rawOptions = config.extraOptions.isEmpty ? nil : config.extraOptions
@@ -333,7 +314,7 @@ public struct OllamaGateway: LLMGateway {
             stream: stream,
             think: config.reasoning != nil ? true : nil,
             format: format,
-            tools: tools?.map(OllamaToolDescriptor.init(tool:))
+            tools: tools?.map(OllamaToolDescriptor.init(tool:)),
         )
     }
 }
@@ -386,9 +367,17 @@ private struct OllamaOptions: Encodable {
 
 private struct DynamicKey: CodingKey {
     var stringValue: String
-    var intValue: Int? { nil }
-    init(stringValue: String) { self.stringValue = stringValue }
-    init?(intValue: Int) { nil }
+    var intValue: Int? {
+        nil
+    }
+
+    init(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init?(intValue _: Int) {
+        nil
+    }
 }
 
 private struct OllamaMessage: Encodable {
@@ -407,27 +396,25 @@ private struct OllamaMessage: Encodable {
     init(from message: LLMMessage) {
         switch message.role {
         case .system:
-            self.role = "system"
-            self.content = message.content ?? ""
-            self.toolCalls = nil
-            self.images = nil
+            role = "system"
+            content = message.content ?? ""
+            toolCalls = nil
+            images = nil
         case .user:
-            self.role = "user"
-            self.content = message.content ?? ""
-            self.toolCalls = nil
-            self.images = OllamaMessage.encodeImages(message.images)
+            role = "user"
+            content = message.content ?? ""
+            toolCalls = nil
+            images = OllamaMessage.encodeImages(message.images)
         case .assistant:
-            self.role = "assistant"
-            self.content = message.content ?? ""
-            self.toolCalls = message.toolCalls.map { calls in
-                calls.map(OllamaToolCallEnvelope.init(call:))
-            }
-            self.images = nil
+            role = "assistant"
+            content = message.content ?? ""
+            toolCalls = message.toolCalls.map { calls in calls.map(OllamaToolCallEnvelope.init(call:)) }
+            images = nil
         case .tool:
-            self.role = "tool"
-            self.content = message.content ?? ""
-            self.toolCalls = nil
-            self.images = nil
+            role = "tool"
+            content = message.content ?? ""
+            toolCalls = nil
+            images = nil
         }
     }
 
@@ -436,8 +423,7 @@ private struct OllamaMessage: Encodable {
         var encoded: [String] = []
         for image in images {
             switch image.source {
-            case .data(let base64, _):
-                encoded.append(base64)
+            case .data(let base64, _): encoded.append(base64)
             case .url:
                 // Ollama only accepts inline base64; remote URL images are
                 // not supported by the chat endpoint, so we skip them and
@@ -454,8 +440,8 @@ private struct OllamaToolCallEnvelope: Encodable {
     let function: OllamaToolFunctionCall
 
     init(call: LLMToolCall) {
-        self.type = "function"
-        self.function = OllamaToolFunctionCall(name: call.name, arguments: call.arguments)
+        type = "function"
+        function = OllamaToolFunctionCall(name: call.name, arguments: call.arguments)
     }
 }
 
@@ -469,11 +455,11 @@ private struct OllamaToolDescriptor: Encodable {
     let function: OllamaToolFunction
 
     init(tool: any LLMTool) {
-        self.type = "function"
-        self.function = OllamaToolFunction(
+        type = "function"
+        function = OllamaToolFunction(
             name: tool.descriptor.name,
             description: tool.descriptor.description,
-            parameters: tool.descriptor.parameters
+            parameters: tool.descriptor.parameters,
         )
     }
 }
@@ -510,7 +496,7 @@ struct OllamaChatResponse: Decodable {
             LLMToolCall(
                 id: envelope.id,
                 name: envelope.function.name,
-                arguments: envelope.function.arguments ?? .object([:])
+                arguments: envelope.function.arguments ?? .object([:]),
             )
         }
         return LLMGatewayResponse(
@@ -521,7 +507,7 @@ struct OllamaChatResponse: Decodable {
             usage: evidence.usage,
             providerFinishReason: doneReason,
             providerModel: evidence.model,
-            metadata: evidence.metadata
+            metadata: evidence.metadata,
         )
     }
 }
@@ -550,22 +536,17 @@ struct OllamaResponseToolFunction: Decodable {
     let arguments: JSONValue?
 }
 
-private struct OllamaTagsResponse: Decodable {
-    let models: [OllamaTagEntry]
-}
+private struct OllamaTagsResponse: Decodable { let models: [OllamaTagEntry] }
 
-private struct OllamaTagEntry: Decodable {
-    let name: String
-}
+private struct OllamaTagEntry: Decodable { let name: String }
 
 func mapFinishReason(_ raw: String?, hasToolCalls: Bool) -> FinishReason? {
-    if hasToolCalls { return .toolCalls }
+    if hasToolCalls {
+        return .toolCalls
+    }
     switch raw {
-    case "stop", nil:
-        return raw == nil ? nil : .stop
-    case "length":
-        return .length
-    default:
-        return .other
+    case "stop", nil: return raw == nil ? nil : .stop
+    case "length": return .length
+    default: return .other
     }
 }

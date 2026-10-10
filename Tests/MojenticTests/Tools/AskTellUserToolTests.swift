@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("AskUser + TellUser via ScriptedIOGateway")
 struct AskTellUserToolTests {

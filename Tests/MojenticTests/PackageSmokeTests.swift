@@ -1,6 +1,5 @@
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("Package smoke tests")
 struct PackageSmokeTests {

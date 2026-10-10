@@ -1,14 +1,15 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// Test-only transport that records outbound traffic and exposes a hook
 /// for tests to push inbound JSON events.
 /// Tiny actor-isolated boolean for tests crossing concurrency boundaries.
 private actor SeenFlag {
     var value = false
-    func mark() { value = true }
+    func mark() {
+        value = true
+    }
 }
 
 private actor FakeTransportState {
@@ -28,7 +29,7 @@ private actor FakeTransportState {
             yield(event)
         }
         pending.removeAll()
-        let waiters = self.waiters
+        let waiters = waiters
         self.waiters.removeAll()
         for waiter in waiters {
             waiter.resume()
@@ -44,15 +45,14 @@ private actor FakeTransportState {
     }
 
     func waitForContinuation() async {
-        if continuation != nil { return }
-        await withCheckedContinuation { (waiter: CheckedContinuation<Void, Never>) in
-            waiters.append(waiter)
+        if continuation != nil {
+            return
         }
+        await withCheckedContinuation { (waiter: CheckedContinuation<Void, Never>) in waiters.append(waiter) }
     }
 
     private func yield(_ json: JSONValue) {
-        guard let data = try? JSONEncoder().encode(json),
-            let text = String(data: data, encoding: .utf8)
+        guard let data = try? JSONEncoder().encode(json), let text = String(data: data, encoding: .utf8)
         else { return }
         continuation?.yield(.text(text))
     }
@@ -62,7 +62,9 @@ private actor FakeTransportState {
         continuation?.finish()
     }
 
-    func sentEvents() -> [String] { outbound }
+    func sentEvents() -> [String] {
+        outbound
+    }
 }
 
 private struct FakeTransport: RealtimeTransport {
@@ -79,10 +81,8 @@ private struct FakeTransport: RealtimeTransport {
         // state actor in a fire-and-forget task. Tests that need the
         // continuation to be live before pushing should `await
         // state.waitForContinuation()` first.
-        let state = self.state
-        return AsyncThrowingStream { continuation in
-            Task { await state.setContinuation(continuation) }
-        }
+        let state = state
+        return AsyncThrowingStream { continuation in Task { await state.setContinuation(continuation) } }
     }
 
     func close() async {
@@ -91,11 +91,7 @@ private struct FakeTransport: RealtimeTransport {
 }
 
 private struct SleepyTool: LLMTool {
-    let descriptor = ToolDescriptor(
-        name: "slow_tool",
-        description: "sleep",
-        parameters: ["type": "object"]
-    )
+    let descriptor = ToolDescriptor(name: "slow_tool", description: "sleep", parameters: ["type": "object"])
 
     func execute(arguments _: JSONValue) async throws -> JSONValue {
         try await Task.sleep(for: .milliseconds(200))
@@ -113,7 +109,7 @@ struct RealtimeSessionTests {
             tools: [],
             tracer: NullTracer(),
             toolRunner: SerialToolRunner(),
-            vad: .manual
+            vad: .manual,
         )
         await session.start()
         try await session.commit()
@@ -126,14 +122,16 @@ struct RealtimeSessionTests {
     }
 
     @Test("interrupt() emits interrupted event and cancels in-flight tool batch")
-    func interruptCancelsBatch() async throws {
+    func interruptCancelsBatch()
+        async throws
+    {
         let state = FakeTransportState()
         let session = RealtimeSession(
             transport: FakeTransport(state: state),
             tools: [SleepyTool()],
             tracer: NullTracer(),
             toolRunner: SerialToolRunner(),
-            vad: .server
+            vad: .server,
         )
         await session.start()
         await state.waitForContinuation()
@@ -154,28 +152,15 @@ struct RealtimeSessionTests {
         }
 
         // Push a synthetic turn that requests slow_tool and completes.
+        await state.push(["type": "response.created", "response": ["id": "turn_1"]])
         await state.push([
-            "type": "response.created",
-            "response": ["id": "turn_1"],
+            "type": "response.output_item.added", "response_id": "turn_1",
+            "item": ["type": "function_call", "call_id": "call_1", "name": "slow_tool"],
         ])
         await state.push([
-            "type": "response.output_item.added",
-            "response_id": "turn_1",
-            "item": [
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "slow_tool",
-            ],
+            "type": "response.function_call_arguments.delta", "call_id": "call_1", "delta": "{}",
         ])
-        await state.push([
-            "type": "response.function_call_arguments.delta",
-            "call_id": "call_1",
-            "delta": "{}",
-        ])
-        await state.push([
-            "type": "response.done",
-            "response": ["id": "turn_1"],
-        ])
+        await state.push(["type": "response.done", "response": ["id": "turn_1"]])
 
         // Give the session a tick to start the tool batch, then interrupt.
         try await Task.sleep(for: .milliseconds(50))
@@ -194,7 +179,7 @@ struct RealtimeSessionTests {
             tools: [],
             tracer: NullTracer(),
             toolRunner: SerialToolRunner(),
-            vad: .server
+            vad: .server,
         )
         await session.start()
         try await session.send(audio: AudioFrame(samples: [1, 2, 3]))

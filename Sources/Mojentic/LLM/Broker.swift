@@ -43,12 +43,12 @@ public actor LLMBroker {
     public init(
         gateway: any LLMGateway,
         tracer: any Tracer = NullTracer(),
-        toolRunner: any ToolRunner = SerialToolRunner()
+        toolRunner: any ToolRunner = SerialToolRunner(),
     ) {
         self.gateway = gateway
         self.tracer = tracer
         self.toolRunner = toolRunner
-        self.logger = Logger(label: "mojentic.broker")
+        logger = Logger(label: "mojentic.broker")
     }
 
     // MARK: - Non-streaming completion
@@ -64,7 +64,7 @@ public actor LLMBroker {
         messages: [LLMMessage],
         tools: [any LLMTool] = [],
         config: CompletionConfig = CompletionConfig(),
-        context: TracerContext = TracerContext()
+        context: TracerContext = TracerContext(),
     ) async throws -> LLMResponse {
         try await completeRecursive(
             model: model,
@@ -72,7 +72,7 @@ public actor LLMBroker {
             tools: tools,
             config: config,
             remaining: config.maxToolIterations,
-            context: context
+            context: context,
         )
     }
 
@@ -82,10 +82,14 @@ public actor LLMBroker {
         messages: [LLMMessage],
         tools: [any LLMTool] = [],
         config: CompletionConfig = CompletionConfig(),
-        context: TracerContext = TracerContext()
+        context: TracerContext = TracerContext(),
     ) async throws -> LLMGatewayResponse {
         try await requestResponse(
-            model: model, messages: messages, tools: tools, config: config, context: context
+            model: model,
+            messages: messages,
+            tools: tools,
+            config: config,
+            context: context,
         ).0
     }
 
@@ -94,7 +98,7 @@ public actor LLMBroker {
         messages: [LLMMessage],
         tools: [any LLMTool],
         config: CompletionConfig,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> (LLMGatewayResponse, TracerContext) {
         try Task.checkCancellation()
         let callPayload = LLMCallPayload(
@@ -102,7 +106,7 @@ public actor LLMBroker {
             parentId: context.parentId,
             model: model,
             messages: messages,
-            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name)
+            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name),
         )
         await tracer.recordLLMCall(callPayload)
         let clock = ContinuousClock()
@@ -111,7 +115,7 @@ public actor LLMBroker {
             model: model,
             messages: messages,
             tools: tools.isEmpty ? nil : tools,
-            config: config
+            config: config,
         )
         let duration = start.duration(to: clock.now)
         let responsePayload = LLMResponsePayload(
@@ -119,7 +123,7 @@ public actor LLMBroker {
             parentId: callPayload.id,
             duration: duration,
             model: model,
-            response: response
+            response: response,
         )
         await tracer.recordLLMResponse(responsePayload)
 
@@ -132,38 +136,40 @@ public actor LLMBroker {
         tools: [any LLMTool],
         config: CompletionConfig,
         remaining: Int?,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> LLMResponse {
         if let remaining, remaining <= 0 {
             throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
         }
         let (response, toolContext) = try await requestResponse(
-            model: model, messages: messages, tools: tools, config: config, context: context)
+            model: model,
+            messages: messages,
+            tools: tools,
+            config: config,
+            context: context,
+        )
 
         if !response.toolCalls.isEmpty {
             let dispatched = try await dispatch(
                 toolCalls: response.toolCalls,
                 tools: tools,
-                context: toolContext
+                context: toolContext,
             )
-            let nextMessages = appendToolExchange(
-                to: messages,
-                pairs: dispatched
-            )
+            let nextMessages = appendToolExchange(to: messages, pairs: dispatched)
             return try await completeRecursive(
                 model: model,
                 messages: nextMessages,
                 tools: tools,
                 config: config,
                 remaining: remaining.map { $0 - 1 },
-                context: context
+                context: context,
             )
         }
         return LLMResponse(
             content: response.content,
             thinking: response.thinking,
             finishReason: response.finishReason,
-            usage: response.usage
+            usage: response.usage,
         )
     }
 
@@ -178,7 +184,7 @@ public actor LLMBroker {
         messages: [LLMMessage],
         responseType: T.Type,
         config: CompletionConfig = CompletionConfig(),
-        context: TracerContext = TracerContext()
+        context: TracerContext = TracerContext(),
     ) async throws -> T {
         try Task.checkCancellation()
         let schema = try JSONSchemaGenerator.schema(for: responseType)
@@ -187,7 +193,7 @@ public actor LLMBroker {
             parentId: context.parentId,
             model: model,
             messages: messages,
-            tools: nil
+            tools: nil,
         )
         await tracer.recordLLMCall(callPayload)
         let clock = ContinuousClock()
@@ -196,7 +202,7 @@ public actor LLMBroker {
             model: model,
             messages: messages,
             schema: schema,
-            config: config
+            config: config,
         )
         let duration = start.duration(to: clock.now)
         await tracer.recordLLMResponse(
@@ -205,25 +211,21 @@ public actor LLMBroker {
                 parentId: callPayload.id,
                 duration: duration,
                 model: model,
-                response: structured.response
+                response: structured.response,
             )
         )
         let raw = structured.value
         let data: Data
-        do {
-            data = try JSONEncoder().encode(raw)
-        } catch {
+        do { data = try JSONEncoder().encode(raw) } catch {
             throw MojenticError.structuredDecoding(
                 typeName: String(describing: responseType),
-                message: "Could not re-encode JSON for decoding: \(error.localizedDescription)"
+                message: "Could not re-encode JSON for decoding: \(error.localizedDescription)",
             )
         }
-        do {
-            return try JSONDecoder().decode(responseType, from: data)
-        } catch {
+        do { return try JSONDecoder().decode(responseType, from: data) } catch {
             throw MojenticError.structuredDecoding(
                 typeName: String(describing: responseType),
-                message: error.localizedDescription
+                message: error.localizedDescription,
             )
         }
     }
@@ -240,9 +242,22 @@ public actor LLMBroker {
         messages: [LLMMessage],
         tools: [any LLMTool] = [],
         config: CompletionConfig = CompletionConfig(),
-        context: TracerContext = TracerContext()
+        context: TracerContext = TracerContext(),
     ) -> AsyncThrowingStream<StreamEvent, any Error> {
-        AsyncThrowingStream { continuation in
+        if RecoveryCancellationScope.current != nil {
+            return RecoveryScopedStreaming.throwing { deliver in
+                try await self.streamRecursive(
+                    model: model,
+                    messages: messages,
+                    tools: tools,
+                    config: config,
+                    remaining: config.maxToolIterations,
+                    context: context,
+                    deliver: deliver,
+                )
+            }
+        }
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.streamRecursive(
@@ -252,14 +267,11 @@ public actor LLMBroker {
                         config: config,
                         remaining: config.maxToolIterations,
                         context: context,
-                        continuation: continuation
+                        deliver: { continuation.yield($0) },
                     )
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
+                { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
@@ -272,7 +284,7 @@ public actor LLMBroker {
         config: CompletionConfig,
         remaining: Int?,
         context: TracerContext,
-        continuation: AsyncThrowingStream<StreamEvent, any Error>.Continuation
+        deliver: @escaping @Sendable (StreamEvent) async throws -> Void,
     ) async throws {
         if let remaining, remaining <= 0 {
             throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
@@ -283,7 +295,7 @@ public actor LLMBroker {
             parentId: context.parentId,
             model: model,
             messages: messages,
-            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name)
+            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name),
         )
         await tracer.recordLLMCall(callPayload)
         var accumulatedContent = ""
@@ -298,22 +310,21 @@ public actor LLMBroker {
             model: model,
             messages: messages,
             tools: tools.isEmpty ? nil : tools,
-            config: config
+            config: config,
         )
         for try await event in upstream {
             try Task.checkCancellation()
             switch event {
             case .textDelta(let delta):
                 accumulatedContent += delta
-                continuation.yield(.textDelta(delta))
-            case .progress, .metrics:
-                break
+                try await deliver(.textDelta(delta))
+            case .progress, .metrics: break
             case .thinkingDelta(let delta):
                 accumulatedThinking += delta
-                continuation.yield(.thinkingDelta(delta))
+                try await deliver(.thinkingDelta(delta))
             case .toolCallRequest(let call):
                 accumulatedCalls.append(call)
-                continuation.yield(.toolCallRequested(call))
+                try await deliver(.toolCallRequested(call))
             case .done(let reason, let reportedUsage):
                 finishReason = reason
                 usage = reportedUsage
@@ -330,8 +341,8 @@ public actor LLMBroker {
                 toolCalls: accumulatedCalls,
                 thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
                 finishReason: finishReason,
-                usage: usage
-            )
+                usage: usage,
+            ),
         )
         await tracer.recordLLMResponse(responsePayload)
 
@@ -340,17 +351,15 @@ public actor LLMBroker {
             let dispatched = try await dispatch(
                 toolCalls: accumulatedCalls,
                 tools: tools,
-                context: toolContext
+                context: toolContext,
             )
             for (call, outcome) in dispatched {
-                let result: JSONValue
-                switch outcome.kind {
-                case .success(let value):
-                    result = value
-                case .failure(let message):
-                    result = ["error": .string(message)]
-                }
-                continuation.yield(.toolCallResult(callId: call.id ?? outcome.id, result: result))
+                let result: JSONValue =
+                    switch outcome.kind {
+                    case .success(let value): value
+                    case .failure(let message): ["error": .string(message)]
+                    }
+                try await deliver(.toolCallResult(callId: call.id ?? outcome.id, result: result))
             }
             let nextMessages = appendToolExchange(to: messages, pairs: dispatched)
             try await streamRecursive(
@@ -360,7 +369,7 @@ public actor LLMBroker {
                 config: config,
                 remaining: remaining.map { $0 - 1 },
                 context: context,
-                continuation: continuation
+                deliver: deliver,
             )
             return
         }
@@ -369,9 +378,9 @@ public actor LLMBroker {
             content: accumulatedContent,
             thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
             finishReason: finishReason,
-            usage: usage
+            usage: usage,
         )
-        continuation.yield(.done(response))
+        try await deliver(.done(response))
     }
 
     // MARK: - Tool dispatch
@@ -379,30 +388,28 @@ public actor LLMBroker {
     private func dispatch(
         toolCalls: [LLMToolCall],
         tools: [any LLMTool],
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> [(LLMToolCall, ToolCallOutcome)] {
         var executions: [ToolCallExecution] = []
         var dispatched: [LLMToolCall] = []
         for (index, call) in toolCalls.enumerated() {
             let id = call.id ?? "call-\(index)"
             dispatched.append(call)
-            executions.append(
-                ToolCallExecution(id: id, name: call.name, arguments: call.arguments)
-            )
+            executions.append(ToolCallExecution(id: id, name: call.name, arguments: call.arguments))
         }
         guard !executions.isEmpty else { return [] }
         let outcomes = try await toolRunner.runBatch(
             executions,
             tools: tools,
             tracer: tracer,
-            context: context
+            context: context,
         )
         return Array(zip(dispatched, outcomes))
     }
 
     private func appendToolExchange(
         to messages: [LLMMessage],
-        pairs: [(LLMToolCall, ToolCallOutcome)]
+        pairs: [(LLMToolCall, ToolCallOutcome)],
     ) -> [LLMMessage] {
         var next = messages
         for (call, outcome) in pairs {
@@ -414,18 +421,14 @@ public actor LLMBroker {
     }
 
     private func serialise(outcome: ToolCallOutcome) -> String {
-        let value: JSONValue
-        switch outcome.kind {
-        case .success(let result):
-            value = result
-        case .failure(let message):
-            value = ["error": .string(message)]
-        }
+        let value: JSONValue =
+            switch outcome.kind {
+            case .success(let result): result
+            case .failure(let message): ["error": .string(message)]
+            }
         do {
             let data = try JSONEncoder().encode(value)
             return String(data: data, encoding: .utf8) ?? ""
-        } catch {
-            return "{}"
-        }
+        } catch { return "{}" }
     }
 }

@@ -19,11 +19,9 @@ public struct AskUserTool: LLMTool {
             name: "ask_user",
             description: "Ask the end user a question and return the line they reply with.",
             parameters: [
-                "type": "object",
-                "properties": ["question": ["type": "string"]],
-                "required": ["question"],
+                "type": "object", "properties": ["question": ["type": "string"]], "required": ["question"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 

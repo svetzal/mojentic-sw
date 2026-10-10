@@ -28,18 +28,28 @@ struct OllamaResponseEvidence: Decodable {
         return Usage(
             promptTokens: promptEvalCount,
             completionTokens: evalCount,
-            totalTokens: (promptEvalCount ?? 0) + (evalCount ?? 0)
+            totalTokens: (promptEvalCount ?? 0) + (evalCount ?? 0),
         )
     }
 
     /// Reported timestamps and durations; `nil` when none were reported.
     var metadata: [String: JSONValue]? {
         var fields: [String: JSONValue] = [:]
-        if let createdAt { fields["created_at"] = .string(createdAt) }
-        if let totalDuration { fields["total_duration"] = .integer(totalDuration) }
-        if let loadDuration { fields["load_duration"] = .integer(loadDuration) }
-        if let promptEvalDuration { fields["prompt_eval_duration"] = .integer(promptEvalDuration) }
-        if let evalDuration { fields["eval_duration"] = .integer(evalDuration) }
+        if let createdAt {
+            fields["created_at"] = .string(createdAt)
+        }
+        if let totalDuration {
+            fields["total_duration"] = .integer(totalDuration)
+        }
+        if let loadDuration {
+            fields["load_duration"] = .integer(loadDuration)
+        }
+        if let promptEvalDuration {
+            fields["prompt_eval_duration"] = .integer(promptEvalDuration)
+        }
+        if let evalDuration {
+            fields["eval_duration"] = .integer(evalDuration)
+        }
         return fields.isEmpty ? nil : fields
     }
 }

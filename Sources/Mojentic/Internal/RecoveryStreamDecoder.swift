@@ -26,6 +26,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         var name: String?
         var arguments = ""
     }
+
     private var legacy = OpenAILegacyStreamParser(surfacesReasoning: true)
     private var openAI = OpenAICompletionEventParser()
     private var evidence = CompletionEvidence()
@@ -46,10 +47,16 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return RecoveryStreamSnapshot(
-            progress: progress, terminal: terminal, failure: failure, evidence: evidence)
+            progress: progress,
+            terminal: terminal,
+            failure: failure,
+            evidence: evidence,
+        )
     }
 
-    func finish() { continuation.finish() }
+    func finish() {
+        continuation.finish()
+    }
 
     func observe(_ data: Data, status: Int?) -> RecoverySemanticProgress {
         lock.lock()
@@ -74,7 +81,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     func deliver() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        for event in pending { continuation.yield(event) }
+        for event in pending {
+            continuation.yield(event)
+        }
         pending.removeAll()
         return terminal
     }
@@ -86,7 +95,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         switch event {
         case .textDelta(let text): progress.delivered.contentBytes += text.utf8.count
         case .thinkingDelta(let text):
-            if !singleTurn { progress.delivered.reasoningBytes += text.utf8.count }
+            if !singleTurn {
+                progress.delivered.reasoningBytes += text.utf8.count
+            }
         case .toolCallRequest:
             progress.delivered.toolFragments += 1
             progress.delivered.completedToolCalls += 1
@@ -111,7 +122,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             guard let object = try JSONDecoder().decode(JSONValue.self, from: data).objectValue else {
                 throw MojenticError.invalidStreamEvent(message: "Expected object")
             }
-            if let error = object["error"] { throw MojenticError.providerError(status: nil, detail: error) }
+            if let error = object["error"] {
+                throw MojenticError.providerError(status: nil, detail: error)
+            }
             if provider == "ollama" {
                 try parseOllama(data)
             } else {
@@ -126,7 +139,8 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         let chunk = try JSONDecoder().decode(OllamaStreamChunk.self, from: data)
         if let calls = chunk.message?.toolCalls {
             for call in calls {
-                guard !call.function.name.isEmpty,
+                guard
+                    !call.function.name.isEmpty,
                     call.function.arguments.map({ $0.objectValue != nil }) ?? true
                 else { throw invalidFrame() }
             }
@@ -134,10 +148,12 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         // Validate every field before accepting semantic or metric evidence.
         let frame = chunk.evidence
         for count in [
-            frame.promptEvalCount, frame.evalCount, frame.totalDuration,
-            frame.loadDuration, frame.promptEvalDuration, frame.evalDuration,
+            frame.promptEvalCount, frame.evalCount, frame.totalDuration, frame.loadDuration,
+            frame.promptEvalDuration, frame.evalDuration,
         ] {
-            if let count, count < 0 { throw invalidFrame() }
+            if let count, count < 0 {
+                throw invalidFrame()
+            }
         }
         guard !(frame.promptEvalCount ?? 0).addingReportingOverflow(frame.evalCount ?? 0).overflow else {
             throw invalidFrame()
@@ -148,7 +164,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             usage: frame.usage ?? evidence.usage,
             providerModel: frame.model ?? evidence.providerModel,
             metadata: frame.metadata.map { (evidence.metadata ?? [:]).merging($0) { _, new in new } }
-                ?? evidence.metadata
+                ?? evidence.metadata,
         )
         observeSemantic(events)
         let rejected = chunk.done == true && chunk.doneReason != "stop"
@@ -164,7 +180,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         pending.append(.progress(progress))
         let numeric = frame.metadata?.filter { $0.value.intValue != nil }
         let metrics = CompletionEvidence(usage: frame.usage, metadata: numeric)
-        if metrics != CompletionEvidence() { pending.append(.metrics(metrics)) }
+        if metrics != CompletionEvidence() {
+            pending.append(.metrics(metrics))
+        }
         if singleTurn, !rejected, progress.observed.toolFragments > 0 {
             throw MojenticError.unexpectedToolCalls
         }
@@ -183,7 +201,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         let frame = try JSONDecoder().decode(OpenAIStreamEvidence.self, from: data)
         let chunk = try JSONDecoder().decode(OpenAIStreamChunk.self, from: data)
         for count in [frame.usage?.promptTokens, frame.usage?.completionTokens, frame.usage?.totalTokens] {
-            if let count, count < 0 { throw invalidFrame() }
+            if let count, count < 0 {
+                throw invalidFrame()
+            }
         }
         guard case .array(let choices)? = object["choices"] else {
             throw MojenticError.invalidStreamEvent(message: "Missing choices")
@@ -205,15 +225,21 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
                     // Validate the legacy accumulator's typed wire shape as well.
                     _ = try JSONDecoder().decode(OpenAIStreamChunk.self, from: data)
                     progress.observed.toolFragments += fragments.count
-                    if singleTurn, !fragments.isEmpty { throw MojenticError.unexpectedToolCalls }
+                    if singleTurn, !fragments.isEmpty {
+                        throw MojenticError.unexpectedToolCalls
+                    }
                 }
             }
         }
         for choice in chunk.choices {
             for fragment in choice.delta.toolCalls ?? [] {
                 var builder = fragments[fragment.index] ?? ToolBuilder()
-                if let id = fragment.id { builder.id = id }
-                if let name = fragment.function?.name { builder.name = name }
+                if let id = fragment.id {
+                    builder.id = id
+                }
+                if let name = fragment.function?.name {
+                    builder.name = name
+                }
                 builder.arguments += fragment.function?.arguments ?? ""
                 fragments[fragment.index] = builder
             }
@@ -223,25 +249,31 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             finishReason: reason ?? evidence.finishReason,
             usage: frame.usage?.toUsage() ?? evidence.usage,
             providerModel: frame.model ?? evidence.providerModel,
-            metadata: frame.envelope.metadata ?? evidence.metadata
+            metadata: frame.envelope.metadata ?? evidence.metadata,
         )
         let events = legacy.consume(line: line)
         observeSemantic(events)
         pending += events
         // The no-tool evidence parser supplies only provider-reported fields.
         let reported = openAI.consume(line: line)
-        if singleTurn, let partial = openAI.partialEvidence { evidence = partial }
-        if singleTurn, case .error(let error)? = reported.last { throw error }
+        if singleTurn, let partial = openAI.partialEvidence {
+            evidence = partial
+        }
+        if singleTurn, case .error(let error)? = reported.last {
+            throw error
+        }
     }
 
     private func finishOpenAI(_ line: String) {
         let final = legacy.finish()
         let reason = final.compactMap { event -> FinishReason? in
-            if case .done(let reason, _) = event { return reason }
+            if case .done(let reason, _) = event {
+                return reason
+            }
             return nil
         }.last
         terminal = true
-        if reason != .stop && reason != .toolCalls {
+        if reason != .stop, reason != .toolCalls {
             failure = .incompleteCompletion(evidence)
             return
         }
@@ -251,13 +283,18 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
                 failure = error
                 return
             }
-            if case .completed(let value)? = result.last { evidence = value }
+            if case .completed(let value)? = result.last {
+                evidence = value
+            }
         }
         var calls: [LLMToolCall] = []
         for index in fragments.keys.sorted() {
-            guard let builder = fragments[index], let name = builder.name, !name.isEmpty,
+            guard
+                let builder = fragments[index], let name = builder.name, !name.isEmpty,
                 let arguments = try? JSONDecoder().decode(
-                    JSONValue.self, from: Data((builder.arguments.isEmpty ? "{}" : builder.arguments).utf8)),
+                    JSONValue.self,
+                    from: Data((builder.arguments.isEmpty ? "{}" : builder.arguments).utf8),
+                ),
                 arguments.objectValue != nil
             else {
                 fail(invalidFrame())
@@ -282,7 +319,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         }
     }
 
-    private func invalidFrame() -> MojenticError { .invalidStreamEvent(message: "Malformed provider frame") }
+    private func invalidFrame() -> MojenticError {
+        .invalidStreamEvent(message: "Malformed provider frame")
+    }
 
     private func fail(_ error: MojenticError) {
         terminal = true

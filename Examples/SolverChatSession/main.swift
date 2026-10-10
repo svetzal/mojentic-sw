@@ -15,7 +15,7 @@ struct SolverChatSession {
         let solver = IterativeProblemSolver(
             broker: broker,
             model: "gpt-4o-mini",
-            maxIterations: 3
+            maxIterations: 3,
         )
         print("Solver-backed session. Blank line to quit.")
         while true {

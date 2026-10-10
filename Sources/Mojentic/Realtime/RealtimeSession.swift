@@ -42,20 +42,18 @@ public actor RealtimeSession {
         tools: [any LLMTool],
         tracer: any Tracer,
         toolRunner: any ToolRunner,
-        vad: VADMode
+        vad: VADMode,
     ) {
         self.transport = transport
         self.tools = tools
         self.tracer = tracer
         self.toolRunner = toolRunner
         self.vad = vad
-        self.logger = Logger(label: "mojentic.realtime.session")
-        let (neutralStream, neutralContinuation) =
-            AsyncThrowingStream<RealtimeEvent, any Error>.makeStream()
+        logger = Logger(label: "mojentic.realtime.session")
+        let (neutralStream, neutralContinuation) = AsyncThrowingStream<RealtimeEvent, any Error>.makeStream()
         self.neutralStream = neutralStream
         self.neutralContinuation = neutralContinuation
-        let (rawStream, rawContinuation) =
-            AsyncThrowingStream<JSONValue, any Error>.makeStream()
+        let (rawStream, rawContinuation) = AsyncThrowingStream<JSONValue, any Error>.makeStream()
         self.rawStream = rawStream
         self.rawContinuation = rawContinuation
     }
@@ -64,22 +62,23 @@ public actor RealtimeSession {
     ///
     /// The gateway calls this immediately after constructing the session.
     public func start() {
-        let transport = self.transport
+        let transport = transport
         let weakSelf = WeakSession(session: self)
         Task {
             do {
                 for try await frame in transport.receive() {
                     guard let session = weakSelf.session else { break }
-                    if case .text(let text) = frame, let data = text.data(using: .utf8),
-                        let value = try? JSONDecoder().decode(JSONValue.self, from: data)
-                    {
-                        await session.absorb(rawEvent: value)
+                    if case .text(let text) = frame {
+                        let value = text.data(using: .utf8).flatMap {
+                            try? JSONDecoder().decode(JSONValue.self, from: $0)
+                        }
+                        if let value {
+                            await session.absorb(rawEvent: value)
+                        }
                     }
                 }
                 await weakSelf.session?.finalise(reason: .server)
-            } catch {
-                await weakSelf.session?.finaliseWithError(error)
-            }
+            } catch { await weakSelf.session?.finaliseWithError(error) }
         }
     }
 
@@ -100,10 +99,7 @@ public actor RealtimeSession {
     /// Append one audio frame to the input buffer.
     public func send(audio frame: AudioFrame) async throws {
         let payload = AudioCodec.base64Encode(frame)
-        let event: JSONValue = [
-            "type": "input_audio_buffer.append",
-            "audio": .string(payload),
-        ]
+        let event: JSONValue = ["type": "input_audio_buffer.append", "audio": .string(payload)]
         try await sendJSON(event)
     }
 
@@ -112,11 +108,8 @@ public actor RealtimeSession {
         let userItem: JSONValue = [
             "type": "conversation.item.create",
             "item": [
-                "type": "message",
-                "role": "user",
-                "content": [
-                    ["type": "input_text", "text": .string(text)]
-                ],
+                "type": "message", "role": "user",
+                "content": [["type": "input_text", "text": .string(text)]],
             ],
         ]
         try await sendJSON(userItem)
@@ -145,10 +138,7 @@ public actor RealtimeSession {
     /// Send a `session.update` payload — useful immediately after open to
     /// configure instructions, modalities, tools, and turn-detection.
     public func update(session payload: JSONValue) async throws {
-        try await sendJSON([
-            "type": "session.update",
-            "session": payload,
-        ])
+        try await sendJSON(["type": "session.update", "session": payload])
     }
 
     /// Gracefully close the session.
@@ -190,8 +180,7 @@ public actor RealtimeSession {
 
     private func handle(mapped event: RealtimeEvent, raw: JSONValue) {
         switch event {
-        case .sessionCreated(let id):
-            sessionId = id
+        case .sessionCreated(let id): sessionId = id
         case .responseStarted(let turnId):
             currentTurnId = turnId
             pendingCalls.removeAll()
@@ -203,10 +192,8 @@ public actor RealtimeSession {
                 call.args += delta
                 pendingCalls[callId] = call
             }
-        case .responseDone(let turnId, _):
-            scheduleToolBatch(turnId: turnId)
-        default:
-            break
+        case .responseDone(let turnId, _): scheduleToolBatch(turnId: turnId)
+        default: break
         }
         neutralContinuation.yield(event)
         _ = raw
@@ -218,66 +205,48 @@ public actor RealtimeSession {
             return
         }
         let calls = pendingCalls.values.map { call -> ToolCallExecution in
-            let parsed: JSONValue
-            if let data = call.args.data(using: .utf8),
-                let value = try? JSONDecoder().decode(JSONValue.self, from: data)
-            {
-                parsed = value
-            } else {
-                parsed = .object([:])
-            }
+            let parsed =
+                call.args.data(using: .utf8).flatMap {
+                    try? JSONDecoder().decode(JSONValue.self, from: $0)
+                } ?? .object([:])
             return ToolCallExecution(id: call.id, name: call.name, arguments: parsed)
         }
         pendingCalls.removeAll()
-        let runner = self.toolRunner
-        let tools = self.tools
-        let tracer = self.tracer
-        let neutralContinuation = self.neutralContinuation
+        let runner = toolRunner
+        let tools = tools
+        let tracer = tracer
+        let neutralContinuation = neutralContinuation
         let context = TracerContext(correlationId: UUID(), parentId: nil)
         batchTask = Task { [weak self] in
             do {
                 for call in calls {
                     neutralContinuation.yield(
-                        .toolCallDispatched(
-                            callId: call.id,
-                            name: call.name,
-                            arguments: call.arguments
-                        )
+                        .toolCallDispatched(callId: call.id, name: call.name, arguments: call.arguments)
                     )
                 }
                 let outcomes = try await runner.runBatch(
                     calls,
                     tools: tools,
                     tracer: tracer,
-                    context: context
+                    context: context,
                 )
                 for outcome in outcomes {
                     switch outcome.kind {
                     case .success(let value):
                         neutralContinuation.yield(
-                            .toolCallResult(
-                                callId: outcome.id,
-                                name: outcome.name,
-                                result: value
-                            )
+                            .toolCallResult(callId: outcome.id, name: outcome.name, result: value)
                         )
                     case .failure(let message):
                         neutralContinuation.yield(
-                            .toolCallFailed(
-                                callId: outcome.id,
-                                name: outcome.name,
-                                message: message
-                            )
+                            .toolCallFailed(callId: outcome.id, name: outcome.name, message: message)
                         )
                     }
                 }
                 guard let self else { return }
-                await self.submitToolOutputs(outcomes, turnId: turnId)
+                await submitToolOutputs(outcomes, turnId: turnId)
             } catch is CancellationError {
                 // Cancelled — interrupt() already yielded the .interrupted event.
-            } catch {
-                neutralContinuation.yield(.errorOccurred(String(describing: error)))
-            }
+            } catch { neutralContinuation.yield(.errorOccurred(String(describing: error))) }
         }
     }
 
@@ -288,25 +257,18 @@ public actor RealtimeSession {
             let event: JSONValue = [
                 "type": "conversation.item.create",
                 "item": [
-                    "type": "function_call_output",
-                    "call_id": .string(outcome.id),
+                    "type": "function_call_output", "call_id": .string(outcome.id),
                     "output": .string(payload),
                 ],
             ]
             do {
                 try await sendJSON(event)
                 submitted.append(outcome.id)
-            } catch {
-                neutralContinuation.yield(.errorOccurred(String(describing: error)))
-            }
+            } catch { neutralContinuation.yield(.errorOccurred(String(describing: error))) }
         }
         if !submitted.isEmpty {
-            neutralContinuation.yield(
-                .toolBatchSubmitted(turnId: turnId, callIds: submitted)
-            )
-            do {
-                try await sendJSON(["type": "response.create"])
-            } catch {
+            neutralContinuation.yield(.toolBatchSubmitted(turnId: turnId, callIds: submitted))
+            do { try await sendJSON(["type": "response.create"]) } catch {
                 neutralContinuation.yield(.errorOccurred(String(describing: error)))
             }
         }
@@ -322,18 +284,13 @@ public actor RealtimeSession {
     }
 
     private nonisolated func serialise(outcome: ToolCallOutcome) -> String {
-        let value: JSONValue
-        switch outcome.kind {
-        case .success(let result):
-            value = result
-        case .failure(let message):
-            value = ["error": .string(message)]
-        }
-        guard let data = try? JSONEncoder().encode(value),
-            let text = String(data: data, encoding: .utf8)
-        else {
-            return "{}"
-        }
+        let value: JSONValue =
+            switch outcome.kind {
+            case .success(let result): result
+            case .failure(let message): ["error": .string(message)]
+            }
+        guard let data = try? JSONEncoder().encode(value), let text = String(data: data, encoding: .utf8)
+        else { return "{}" }
         return text
     }
 }

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("AnthropicModelRegistry")
 struct AnthropicModelRegistryTests {

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// Records what the broker asked of a scripted events gateway.
 private actor EventsGatewayLog {
@@ -10,18 +9,27 @@ private actor EventsGatewayLog {
     private(set) var terminated = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    func recordRequest(_ config: CompletionConfig) { requests.append(config) }
-    func recordOtherCall() { otherCalls += 1 }
+    func recordRequest(_ config: CompletionConfig) {
+        requests.append(config)
+    }
+
+    func recordOtherCall() {
+        otherCalls += 1
+    }
 
     func recordTermination() {
         terminated = true
         let pending = waiters
         waiters = []
-        for waiter in pending { waiter.resume() }
+        for waiter in pending {
+            waiter.resume()
+        }
     }
 
     func waitForTermination() async {
-        if terminated { return }
+        if terminated {
+            return
+        }
         await withCheckedContinuation { waiters.append($0) }
     }
 }
@@ -36,7 +44,7 @@ private struct ScriptedEventsGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         await log.recordOtherCall()
         return LLMGatewayResponse(content: "")
@@ -46,16 +54,20 @@ private struct ScriptedEventsGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
-    ) async throws -> JSONValue { .null }
+        config _: CompletionConfig,
+    ) async throws -> JSONValue {
+        .null
+    }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { $0.finish() }
     }
@@ -63,18 +75,20 @@ private struct ScriptedEventsGateway: LLMGateway {
     func completeStreamEvents(
         model _: String,
         messages _: [LLMMessage],
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
-        let script = self.script
-        let holdOpen = self.holdOpen
-        let log = self.log
+        let script = script
+        let holdOpen = holdOpen
+        let log = log
         return AsyncStream { continuation in
             continuation.onTermination = { _ in Task { await log.recordTermination() } }
             Task { await log.recordRequest(config) }
             for event in script {
                 continuation.yield(event)
             }
-            if !holdOpen { continuation.finish() }
+            if !holdOpen {
+                continuation.finish()
+            }
         }
     }
 }
@@ -87,7 +101,7 @@ private struct LegacyOnlyGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         await log.recordOtherCall()
         return LLMGatewayResponse(content: "")
@@ -97,21 +111,23 @@ private struct LegacyOnlyGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> JSONValue {
         await log.recordOtherCall()
         return .null
     }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
-        let log = self.log
+        let log = log
         return AsyncThrowingStream { continuation in
             Task {
                 await log.recordOtherCall()
@@ -125,14 +141,14 @@ private let stopEvidence = CompletionEvidence(
     finishReason: "stop",
     usage: Usage(promptTokens: 4, completionTokens: 2, totalTokens: 6),
     providerModel: "qwen3:8b",
-    metadata: ["total_duration": .integer(100)]
+    metadata: ["total_duration": .integer(100)],
 )
 
 private let lengthEvidence = CompletionEvidence(
     finishReason: "length",
     usage: Usage(promptTokens: 4, completionTokens: 9, totalTokens: 13),
     providerModel: "qwen3:8b",
-    metadata: ["eval_duration": .integer(30)]
+    metadata: ["eval_duration": .integer(30)],
 )
 
 private func tracedBroker(_ gateway: any LLMGateway) -> (LLMBroker, EventStore) {
@@ -157,7 +173,9 @@ struct BrokerStreamEventsTests {
     }
 
     @Test("an incomplete completion is the terminal error, carrying its evidence")
-    func incompleteCompletion() async {
+    func incompleteCompletion()
+        async
+    {
         let gateway = ScriptedEventsGateway(script: [
             .content("Partial"), .error(.incompleteCompletion(lengthEvidence)),
         ])
@@ -195,7 +213,9 @@ struct BrokerStreamEventsTests {
     }
 
     @Test("stopping consumption early cancels the gateway request", .timeLimit(.minutes(1)))
-    func cancels() async {
+    func cancels()
+        async
+    {
         let gateway = ScriptedEventsGateway(script: [.content("Hi")], holdOpen: true)
         let (broker, _) = tracedBroker(gateway)
         for await event in broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")]) {
@@ -211,8 +231,9 @@ struct BrokerStreamEventsTests {
         let gateway = ScriptedEventsGateway(script: [.content("Hi")], holdOpen: true)
         let (broker, store) = tracedBroker(gateway)
         let context = TracerContext()
-        for await _ in broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context)
-        {
+        for await _ in broker.generateStreamEvents(
+            model: "qwen3", messages: [.user("hi")], context: context,
+        ) {
             break
         }
         await gateway.log.waitForTermination()
@@ -220,7 +241,10 @@ struct BrokerStreamEventsTests {
         try? await Task.sleep(for: .milliseconds(50))
         let events = await store.events(correlatedTo: context.correlationId)
         #expect(events.count == 1)
-        if case .llmCall? = events.first {} else { Issue.record("expected only the llmCall, got \(events)") }
+        if case .llmCall? = events.first {
+        } else {
+            Issue.record("expected only the llmCall, got \(events)")
+        }
     }
 
     @Test("cancelling the consuming task cancels the gateway request", .timeLimit(.minutes(1)))
@@ -237,14 +261,15 @@ struct BrokerStreamEventsTests {
     }
 
     @Test("the tracer records the call and the response with reported evidence")
-    func tracesCompletion() async throws {
+    func tracesCompletion() async {
         let gateway = ScriptedEventsGateway(script: [
             .content("Hel"), .content("lo"), .completed(stopEvidence),
         ])
         let (broker, store) = tracedBroker(gateway)
         let context = TracerContext()
         _ = await collect(
-            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context))
+            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context)
+        )
 
         let events = await store.events(correlatedTo: context.correlationId)
         #expect(events.count == 2)
@@ -270,10 +295,13 @@ struct BrokerStreamEventsTests {
         let (broker, store) = tracedBroker(gateway)
         let context = TracerContext()
         _ = await collect(
-            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context))
+            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context)
+        )
 
         let responses = await store.events(correlatedTo: context.correlationId).compactMap { event in
-            if case .llmResponse(let payload) = event { return payload }
+            if case .llmResponse(let payload) = event {
+                return payload
+            }
             return nil
         }
         let response = try #require(responses.first)
@@ -294,7 +322,9 @@ struct BrokerStreamEventsTests {
         )
 
         let responses = await store.events(correlatedTo: context.correlationId).compactMap { event in
-            if case .llmResponse(let payload) = event { return payload }
+            if case .llmResponse(let payload) = event {
+                return payload
+            }
             return nil
         }
         let response = try #require(responses.first)
@@ -302,7 +332,9 @@ struct BrokerStreamEventsTests {
     }
 
     @Test("the tracer records partial evidence for an incomplete stream")
-    func tracesIncompleteStream() async throws {
+    func tracesIncompleteStream()
+        async throws
+    {
         let partial = CompletionEvidence(usage: Usage(promptTokens: 4), providerModel: "qwen3:8b")
         let gateway = ScriptedEventsGateway(script: [.content("Par"), .error(.incompleteStream(partial))])
         let (broker, store) = tracedBroker(gateway)
@@ -312,7 +344,9 @@ struct BrokerStreamEventsTests {
         )
 
         let responses = await store.events(correlatedTo: context.correlationId).compactMap { event in
-            if case .llmResponse(let payload) = event { return payload }
+            if case .llmResponse(let payload) = event {
+                return payload
+            }
             return nil
         }
         let response = try #require(responses.first)
@@ -330,10 +364,13 @@ struct BrokerStreamEventsTests {
         let (broker, store) = tracedBroker(gateway)
         let context = TracerContext()
         _ = await collect(
-            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context))
+            broker.generateStreamEvents(model: "qwen3", messages: [.user("hi")], context: context)
+        )
 
         let responses = await store.events(correlatedTo: context.correlationId).compactMap { event in
-            if case .llmResponse(let payload) = event { return payload }
+            if case .llmResponse(let payload) = event {
+                return payload
+            }
             return nil
         }
         let response = try #require(responses.first)

@@ -1,31 +1,34 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 struct StreamingRecoveryProtocolTests {
     @Test(arguments: StreamingBoundary.all, ["text", "tools", "done", "reason"])
     func malformedFramesHaveNoTelemetry(_ boundary: StreamingBoundary, _ field: String) async throws {
-        let payload: String
-        if boundary.omlx {
-            switch field {
-            case "text": payload = #"{"choices":[{"delta":{"content":123}}]}"#
-            case "tools": payload = #"{"choices":[{"delta":{"tool_calls":"bad"}}]}"#
-            case "done": payload = #"{"choices":"bad","usage":{"completion_tokens":12}}"#
-            default:
-                payload = #"{"choices":[{"delta":{},"finish_reason":123}],"usage":{"completion_tokens":12}}"#
+        let payload =
+            if boundary.omlx {
+                switch field {
+                case "text": #"{"choices":[{"delta":{"content":123}}]}"#
+                case "tools": #"{"choices":[{"delta":{"tool_calls":"bad"}}]}"#
+                case "done": #"{"choices":"bad","usage":{"completion_tokens":12}}"#
+                default:
+                    #"""
+                    {"choices":[{"delta":{},"finish_reason":123}],"usage":{"completion_tok\#
+                    ens":12}}
+                    """#
+                }
+            } else {
+                switch field {
+                case "text": #"{"message":{"content":123},"eval_count":12}"#
+                case "tools":
+                    #"""
+                    {"message":{"tool_calls":[{"function":{"name":"x","arguments":"bad"}}]\#
+                    },"eval_count":12}
+                    """#
+                case "done": #"{"message":{},"done":"true","eval_count":12}"#
+                default: #"{"message":{},"done_reason":123,"eval_count":12}"#
+                }
             }
-        } else {
-            switch field {
-            case "text": payload = #"{"message":{"content":123},"eval_count":12}"#
-            case "tools":
-                payload =
-                    #"{"message":{"tool_calls":[{"function":{"name":"x","arguments":"bad"}}]},"#
-                    + #""eval_count":12}"#
-            case "done": payload = #"{"message":{},"done":"true","eval_count":12}"#
-            default: payload = #"{"message":{},"done_reason":123,"eval_count":12}"#
-            }
-        }
         let body = boundary.omlx ? "data: \(payload)\n\n" : payload + "\n"
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
         let seen = RecoveryLocked<[String]>([])
@@ -41,16 +44,22 @@ struct StreamingRecoveryProtocolTests {
     }
 
     @Test(arguments: StreamingBoundary.all)
-    func invalidMetricCountsAreTypedFailures(_ boundary: StreamingBoundary) async throws {
+    func invalidMetricCountsAreTypedFailures(
+        _ boundary: StreamingBoundary
+    ) async throws {
         let body =
-            boundary.omlx
-            ? "data: {\"choices\":[],\"usage\":{\"completion_tokens\":-1}}\n\n"
-            : "{\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":\(Int.max),\"eval_count\":1}\n"
+            if boundary.omlx {
+                "data: {\"choices\":[],\"usage\":{\"completion_tokens\":-1}}\n\n"
+            } else {
+                "{\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":\(Int.max),\"eval_count\":1}\n"
+            }
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
         let seen = RecoveryLocked<[String]>([])
         let failure = try await recoveryFailure {
             try await boundary.consume(
-                boundary.gateway(server, recoveryPolicy(RecoveryRecorder())), record: seen)
+                boundary.gateway(server, recoveryPolicy(RecoveryRecorder())),
+                record: seen,
+            )
         }
         #expect(failure.outcome == .malformedResponse)
         #expect(seen.withLock { $0.isEmpty })
@@ -58,16 +67,20 @@ struct StreamingRecoveryProtocolTests {
     }
 
     @Test(arguments: StreamingBoundary.all)
-    func safeFormattingAndTelemetryExcludeEchoes(_ boundary: StreamingBoundary) async throws {
+    func safeFormattingAndTelemetryExcludeEchoes(
+        _ boundary: StreamingBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(body: try boundary.frame(content: "é", done: true, metrics: true))
+            RecoveryReply(body: boundary.frame(content: "é", done: true, metrics: true))
         ])
         let recorder = RecoveryRecorder()
         let gateway = boundary.gateway(server, recoveryPolicy(recorder))
         if boundary.single {
             for await event in try gateway.completeStreamEvents(
-                model: "fixture", messages: [], config: .init())
-            {
+                model: "fixture",
+                messages: [],
+                config: .init(),
+            ) {
                 #expect(!String(describing: event).contains("sentinel"))
                 #expect(!String(reflecting: event).contains("sentinel"))
                 if case .metrics(let evidence) = event {
@@ -77,8 +90,9 @@ struct StreamingRecoveryProtocolTests {
                 }
             }
         } else {
-            for try await event in gateway.stream(model: "fixture", messages: [], tools: nil, config: .init())
-            {
+            for try await event in gateway.stream(
+                model: "fixture", messages: [], tools: nil, config: .init(),
+            ) {
                 #expect(!String(describing: event).contains("sentinel"))
                 #expect(!String(reflecting: event).contains("sentinel"))
             }
@@ -88,7 +102,9 @@ struct StreamingRecoveryProtocolTests {
     }
 
     @Test(arguments: StreamingBoundary.all)
-    func missingTerminalIsNeverSuccess(_ boundary: StreamingBoundary) async throws {
+    func missingTerminalIsNeverSuccess(
+        _ boundary: StreamingBoundary
+    ) async throws {
         let body = boundary.omlx ? ": keepalive\n\n" : "\n"
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()

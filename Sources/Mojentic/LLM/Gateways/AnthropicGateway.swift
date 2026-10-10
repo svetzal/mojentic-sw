@@ -50,7 +50,7 @@ import Logging
             baseURL: URL = AnthropicGateway.defaultBaseURL,
             apiVersion: String = AnthropicGateway.defaultAPIVersion,
             client: HTTPClient = HTTPClient(),
-            registry: AnthropicModelRegistry = .shared
+            registry: AnthropicModelRegistry = .shared,
         ) {
             precondition(!apiKey.isEmpty, "Anthropic API key must not be empty")
             self.apiKey = apiKey
@@ -58,7 +58,7 @@ import Logging
             self.apiVersion = apiVersion
             self.client = client
             self.registry = registry
-            self.logger = Logger(label: "mojentic.gateway.anthropic")
+            logger = Logger(label: "mojentic.gateway.anthropic")
         }
 
         // MARK: - LLMGateway
@@ -68,7 +68,7 @@ import Logging
             model: String,
             messages: [LLMMessage],
             tools: [any LLMTool]?,
-            config: CompletionConfig
+            config: CompletionConfig,
         ) async throws -> LLMGatewayResponse {
             let body = buildRequest(
                 model: model,
@@ -76,13 +76,13 @@ import Logging
                 tools: tools,
                 config: config,
                 stream: false,
-                extraSystemSuffix: nil
+                extraSystemSuffix: nil,
             )
             let response = try await client.postJSON(
                 url: baseURL.appendingPathComponent("messages"),
                 body: body,
                 headers: authHeaders(),
-                responseType: AnthropicMessageResponse.self
+                responseType: AnthropicMessageResponse.self,
             )
             return response.toGatewayResponse()
         }
@@ -93,14 +93,10 @@ import Logging
             model: String,
             messages: [LLMMessage],
             schema: JSONValue,
-            config: CompletionConfig
+            config: CompletionConfig,
         ) async throws -> JSONValue {
-            try await completeStructured(
-                model: model,
-                messages: messages,
-                schema: schema,
-                config: config
-            ).value
+            try await completeStructured(model: model, messages: messages, schema: schema, config: config)
+                .value
         }
 
         /// Run a structured-output completion, keeping the provider's usage,
@@ -109,16 +105,10 @@ import Logging
             model: String,
             messages: [LLMMessage],
             schema: JSONValue,
-            config: CompletionConfig
+            config: CompletionConfig,
         ) async throws -> StructuredGatewayResponse {
-            let serialisedSchema: String
-            if let data = try? JSONEncoder().encode(schema),
-                let text = String(data: data, encoding: .utf8)
-            {
-                serialisedSchema = text
-            } else {
-                serialisedSchema = "{}"
-            }
+            let encodedSchema = try? JSONEncoder().encode(schema)
+            let serialisedSchema = encodedSchema.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
             let suffix = """
                 Respond with ONLY a single JSON object matching the schema below. \
                 Do not include any prose, code fences, or explanation. \
@@ -130,13 +120,13 @@ import Logging
                 tools: nil,
                 config: config,
                 stream: false,
-                extraSystemSuffix: suffix
+                extraSystemSuffix: suffix,
             )
             let response = try await client.postJSON(
                 url: baseURL.appendingPathComponent("messages"),
                 body: body,
                 headers: authHeaders(),
-                responseType: AnthropicMessageResponse.self
+                responseType: AnthropicMessageResponse.self,
             )
             let text = response.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
             let payload = Self.extractJSONPayload(from: text)
@@ -161,7 +151,7 @@ import Logging
             model: String,
             messages: [LLMMessage],
             tools: [any LLMTool]?,
-            config: CompletionConfig
+            config: CompletionConfig,
         ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
             let body = buildRequest(
                 model: model,
@@ -169,20 +159,16 @@ import Logging
                 tools: tools,
                 config: config,
                 stream: true,
-                extraSystemSuffix: nil
+                extraSystemSuffix: nil,
             )
             let url = baseURL.appendingPathComponent("messages")
-            let client = self.client
+            let client = client
             let headers = authHeaders()
 
             return AsyncThrowingStream { continuation in
                 let task = Task {
                     do {
-                        let lines = try await client.streamLines(
-                            url: url,
-                            body: body,
-                            headers: headers
-                        )
+                        let lines = try await client.streamLines(url: url, body: body, headers: headers)
                         var accumulator = AnthropicStreamAccumulator()
                         for try await line in lines {
                             try Task.checkCancellation()
@@ -192,10 +178,14 @@ import Logging
                             // the payload's `type` field.
                             let trimmed = line.trimmingCharacters(in: .whitespaces)
                             guard trimmed.hasPrefix("data:") else { continue }
-                            let payload = String(trimmed.dropFirst("data:".count))
-                                .trimmingCharacters(in: .whitespaces)
-                            if payload.isEmpty || payload == "[DONE]" { continue }
-                            guard let data = payload.data(using: .utf8),
+                            let payload = String(trimmed.dropFirst("data:".count)).trimmingCharacters(
+                                in: .whitespaces
+                            )
+                            if payload.isEmpty || payload == "[DONE]" {
+                                continue
+                            }
+                            guard
+                                let data = payload.data(using: .utf8),
                                 let value = try? JSONDecoder().decode(JSONValue.self, from: data)
                             else { continue }
                             for event in accumulator.absorb(value) {
@@ -206,17 +196,12 @@ import Logging
                             continuation.yield(.toolCallRequest(call))
                         }
                         continuation.yield(
-                            .done(
-                                finishReason: accumulator.finishReason,
-                                usage: accumulator.usage
-                            )
+                            .done(finishReason: accumulator.finishReason, usage: accumulator.usage)
                         )
                         continuation.finish()
                     } catch is CancellationError {
                         continuation.finish(throwing: MojenticError.cancelled)
-                    } catch {
-                        continuation.finish(throwing: error)
-                    }
+                    } catch { continuation.finish(throwing: error) }
                 }
                 continuation.onTermination = { _ in task.cancel() }
             }
@@ -225,10 +210,7 @@ import Logging
         // MARK: - Helpers
 
         private func authHeaders() -> [String: String] {
-            [
-                "x-api-key": apiKey,
-                "anthropic-version": apiVersion,
-            ]
+            ["x-api-key": apiKey, "anthropic-version": apiVersion]
         }
 
         private func buildRequest(
@@ -237,15 +219,13 @@ import Logging
             tools: [any LLMTool]?,
             config: CompletionConfig,
             stream: Bool,
-            extraSystemSuffix: String?
+            extraSystemSuffix: String?,
         ) -> JSONValue {
             let capabilities = registry.capabilities(for: model)
             let adapted = AnthropicMessageAdapter.adapt(messages)
             var dict: [String: JSONValue] = [
-                "model": .string(model),
-                "messages": .array(adapted.messages),
-                "max_tokens": .integer(max(1, config.maxTokens)),
-                "stream": .bool(stream),
+                "model": .string(model), "messages": .array(adapted.messages),
+                "max_tokens": .integer(max(1, config.maxTokens)), "stream": .bool(stream),
                 "temperature": .number(config.temperature),
             ]
             if let topP = config.topP {
@@ -263,8 +243,7 @@ import Logging
             }
             if capabilities.supportsExtendedThinking, config.reasoning != nil {
                 dict["thinking"] = [
-                    "type": "enabled",
-                    "budget_tokens": .integer(max(1024, config.maxTokens / 4)),
+                    "type": "enabled", "budget_tokens": .integer(max(1024, config.maxTokens / 4)),
                 ]
             }
             for (key, value) in config.extraOptions {
@@ -275,8 +254,7 @@ import Logging
 
         private func toolDescriptor(for tool: any LLMTool) -> JSONValue {
             [
-                "name": .string(tool.descriptor.name),
-                "description": .string(tool.descriptor.description),
+                "name": .string(tool.descriptor.name), "description": .string(tool.descriptor.description),
                 "input_schema": tool.descriptor.parameters,
             ]
         }
@@ -287,8 +265,7 @@ import Logging
             if trimmed.hasPrefix("```") {
                 let withoutLeading = trimmed.drop(while: { $0 == "`" })
                 let afterFence = withoutLeading.drop(while: { $0 != "\n" })
-                let withoutLeadingNewline =
-                    afterFence.first == "\n" ? afterFence.dropFirst() : afterFence
+                let withoutLeadingNewline = afterFence.first == "\n" ? afterFence.dropFirst() : afterFence
                 let fenceClosed = withoutLeadingNewline.reversed().drop(while: { $0 == "`" })
                 let inner = String(fenceClosed.reversed())
                 return inner.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -328,13 +305,11 @@ import Logging
                         LLMToolCall(
                             id: block.id,
                             name: block.name ?? "",
-                            arguments: block.input ?? .object([:])
+                            arguments: block.input ?? .object([:]),
                         )
                     )
-                case "thinking":
-                    thinking = (thinking ?? "") + (block.thinking ?? "")
-                default:
-                    continue
+                case "thinking": thinking = (thinking ?? "") + (block.thinking ?? "")
+                default: continue
                 }
             }
             return LLMGatewayResponse(
@@ -345,21 +320,19 @@ import Logging
                 usage: usage?.toUsage(),
                 providerFinishReason: stopReason,
                 providerModel: model,
-                metadata: id.map { ["id": .string($0)] }
+                metadata: id.map { ["id": .string($0)] },
             )
         }
 
         private static func mapStopReason(_ raw: String?, hasToolCalls: Bool) -> FinishReason? {
-            if hasToolCalls { return .toolCalls }
+            if hasToolCalls {
+                return .toolCalls
+            }
             switch raw {
-            case "end_turn":
-                return .stop
-            case "max_tokens":
-                return .length
-            case nil:
-                return nil
-            default:
-                return .other
+            case "end_turn": return .stop
+            case "max_tokens": return .length
+            case nil: return nil
+            default: return .other
             }
         }
     }
@@ -386,7 +359,7 @@ import Logging
             Usage(
                 promptTokens: inputTokens,
                 completionTokens: outputTokens,
-                totalTokens: (inputTokens ?? 0) + (outputTokens ?? 0)
+                totalTokens: (inputTokens ?? 0) + (outputTokens ?? 0),
             )
         }
     }
@@ -411,18 +384,15 @@ import Logging
         }
 
         mutating func absorb(_ value: JSONValue) -> [GatewayStreamEvent] {
-            guard let object = value.objectValue,
-                let type = object["type"]?.stringValue
-            else { return [] }
+            guard let object = value.objectValue, let type = object["type"]?.stringValue else { return [] }
             switch type {
             case "content_block_start":
-                guard let index = object["index"]?.intValue,
-                    let block = object["content_block"]?.objectValue
+                guard let index = object["index"]?.intValue, let block = object["content_block"]?.objectValue
                 else { return [] }
                 if block["type"]?.stringValue == "tool_use" {
                     pendingTools[index] = ToolBuilder(
                         id: block["id"]?.stringValue ?? "",
-                        name: block["name"]?.stringValue ?? ""
+                        name: block["name"]?.stringValue ?? "",
                     )
                 }
                 return []
@@ -440,16 +410,14 @@ import Logging
                     }
                     return []
                 case "input_json_delta":
-                    if let index = object["index"]?.intValue,
-                        var builder = pendingTools[index],
-                        let chunk = delta["partial_json"]?.stringValue
-                    {
-                        builder.inputBuffer += chunk
-                        pendingTools[index] = builder
+                    if let index = object["index"]?.intValue, var builder = pendingTools[index] {
+                        if let chunk = delta["partial_json"]?.stringValue {
+                            builder.inputBuffer += chunk
+                            pendingTools[index] = builder
+                        }
                     }
                     return []
-                default:
-                    return []
+                default: return []
                 }
             case "message_delta":
                 if let stop = object["delta"]?.objectValue?["stop_reason"]?.stringValue {
@@ -459,48 +427,37 @@ import Logging
                     usage = AnthropicStreamAccumulator.mapUsage(usagePayload, previous: usage)
                 }
                 return []
-            case "message_stop":
-                return []
-            default:
-                return []
+            case "message_stop": return []
+            default: return []
             }
         }
 
         func finishedToolCalls() -> [LLMToolCall] {
             pendingTools.keys.sorted().compactMap { index -> LLMToolCall? in
                 guard let builder = pendingTools[index] else { return nil }
-                let arguments: JSONValue
-                if let data = (builder.inputBuffer.isEmpty ? "{}" : builder.inputBuffer)
-                    .data(using: .utf8),
-                    let value = try? JSONDecoder().decode(JSONValue.self, from: data)
-                {
-                    arguments = value
-                } else {
-                    arguments = .object([:])
-                }
+                let input = builder.inputBuffer.isEmpty ? "{}" : builder.inputBuffer
+                let arguments =
+                    input.data(using: .utf8).flatMap {
+                        try? JSONDecoder().decode(JSONValue.self, from: $0)
+                    } ?? .object([:])
                 return LLMToolCall(id: builder.id, name: builder.name, arguments: arguments)
             }
         }
 
         private static func mapStop(_ raw: String) -> FinishReason {
             switch raw {
-            case "end_turn": return .stop
-            case "max_tokens": return .length
-            case "tool_use": return .toolCalls
-            default: return .other
+            case "end_turn": .stop
+            case "max_tokens": .length
+            case "tool_use": .toolCalls
+            default: .other
             }
         }
 
         private static func mapUsage(_ payload: [String: JSONValue], previous: Usage?) -> Usage {
             let prompt = payload["input_tokens"]?.intValue ?? previous?.promptTokens
             let completion = payload["output_tokens"]?.intValue ?? previous?.completionTokens
-            let total: Int? =
-                (prompt ?? 0) + (completion ?? 0) > 0 ? (prompt ?? 0) + (completion ?? 0) : nil
-            return Usage(
-                promptTokens: prompt,
-                completionTokens: completion,
-                totalTokens: total
-            )
+            let total: Int? = (prompt ?? 0) + (completion ?? 0) > 0 ? (prompt ?? 0) + (completion ?? 0) : nil
+            return Usage(promptTokens: prompt, completionTokens: completion, totalTokens: total)
         }
     }
 

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("EventStore")
 struct EventStoreTests {
@@ -10,13 +9,7 @@ struct EventStoreTests {
         let store = EventStore()
         let root = UUID()
         let first = TracerEvent.llmCall(
-            LLMCallPayload(
-                correlationId: root,
-                parentId: nil,
-                model: "test",
-                messages: [],
-                tools: nil
-            )
+            LLMCallPayload(correlationId: root, parentId: nil, model: "test", messages: [], tools: nil)
         )
         let second = TracerEvent.llmResponse(
             LLMResponsePayload(
@@ -24,7 +17,7 @@ struct EventStoreTests {
                 parentId: first.id,
                 duration: .milliseconds(5),
                 model: "test",
-                response: LLMGatewayResponse(content: "ok")
+                response: LLMGatewayResponse(content: "ok"),
             )
         )
         await store.record(first)
@@ -41,28 +34,18 @@ struct EventStoreTests {
         let root = UUID()
         await store.record(
             .llmCall(
-                LLMCallPayload(
-                    correlationId: root,
-                    parentId: nil,
-                    model: "a",
-                    messages: [],
-                    tools: nil
-                )
+                LLMCallPayload(correlationId: root, parentId: nil, model: "a", messages: [], tools: nil)
             )
         )
         await store.record(
             .llmCall(
-                LLMCallPayload(
-                    correlationId: root,
-                    parentId: nil,
-                    model: "b",
-                    messages: [],
-                    tools: nil
-                )
+                LLMCallPayload(correlationId: root, parentId: nil, model: "b", messages: [], tools: nil)
             )
         )
         let aOnly = await store.events { event in
-            if case .llmCall(let payload) = event { return payload.model == "a" }
+            if case .llmCall(let payload) = event {
+                return payload.model == "a"
+            }
             return false
         }
         #expect(aOnly.count == 1)
@@ -74,13 +57,7 @@ struct EventStoreTests {
         let root = UUID()
         let other = UUID()
         let parent = TracerEvent.llmCall(
-            LLMCallPayload(
-                correlationId: root,
-                parentId: nil,
-                model: "parent",
-                messages: [],
-                tools: nil
-            )
+            LLMCallPayload(correlationId: root, parentId: nil, model: "parent", messages: [], tools: nil)
         )
         let child = TracerEvent.toolCall(
             ToolCallPayload(
@@ -88,7 +65,7 @@ struct EventStoreTests {
                 parentId: parent.id,
                 callId: "1",
                 name: "echo",
-                arguments: .object([:])
+                arguments: .object([:]),
             )
         )
         // A grand-child whose own correlationId matches the root via parent chain.
@@ -98,7 +75,7 @@ struct EventStoreTests {
                 parentId: child.id,
                 model: "nested",
                 messages: [],
-                tools: nil
+                tools: nil,
             )
         )
         let unrelated = TracerEvent.llmCall(
@@ -107,7 +84,7 @@ struct EventStoreTests {
                 parentId: nil,
                 model: "unrelated",
                 messages: [],
-                tools: nil
+                tools: nil,
             )
         )
         await store.record(parent)
@@ -132,7 +109,7 @@ struct EventStoreTests {
                 parentId: nil,
                 duration: .milliseconds(42),
                 model: "x",
-                response: LLMGatewayResponse(content: "")
+                response: LLMGatewayResponse(content: ""),
             )
         )
         await store.record(response)

@@ -1,17 +1,12 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("AnthropicMessageAdapter")
 struct AnthropicMessageAdapterTests {
     @Test("system messages are extracted into the top-level `system` field")
     func systemExtraction() {
-        let adapted = AnthropicMessageAdapter.adapt([
-            .system("be brief"),
-            .system("be polite"),
-            .user("hi"),
-        ])
+        let adapted = AnthropicMessageAdapter.adapt([.system("be brief"), .system("be polite"), .user("hi")])
         #expect(adapted.system == "be brief\n\npolite" || adapted.system == "be brief\n\nbe polite")
         #expect(adapted.messages.count == 1)
         #expect(adapted.messages.first?.objectValue?["role"]?.stringValue == "user")
@@ -28,11 +23,8 @@ struct AnthropicMessageAdapterTests {
     @Test("multimodal user message becomes a content blocks array with image source")
     func multimodalUser() {
         let image = ImageContent(base64: "abc", mimeType: "image/png")
-        let adapted = AnthropicMessageAdapter.adapt([
-            .user(text: "describe", images: [image])
-        ])
-        guard case .array(let blocks) = adapted.messages.first?.objectValue?["content"] ?? .null
-        else {
+        let adapted = AnthropicMessageAdapter.adapt([.user(text: "describe", images: [image])])
+        guard case .array(let blocks) = adapted.messages.first?.objectValue?["content"] ?? .null else {
             Issue.record("expected content blocks array")
             return
         }
@@ -49,14 +41,11 @@ struct AnthropicMessageAdapterTests {
     func assistantToolCalls() {
         let call = LLMToolCall(id: "call_1", name: "lookup", arguments: ["q": "swift"])
         let adapted = AnthropicMessageAdapter.adapt([.assistant(toolCalls: [call])])
-        guard case .array(let blocks) = adapted.messages.first?.objectValue?["content"] ?? .null
-        else {
+        guard case .array(let blocks) = adapted.messages.first?.objectValue?["content"] ?? .null else {
             Issue.record("expected content blocks array")
             return
         }
-        let toolBlock = blocks.first { block in
-            block.objectValue?["type"]?.stringValue == "tool_use"
-        }
+        let toolBlock = blocks.first { block in block.objectValue?["type"]?.stringValue == "tool_use" }
         #expect(toolBlock?.objectValue?["id"]?.stringValue == "call_1")
         #expect(toolBlock?.objectValue?["name"]?.stringValue == "lookup")
         let input = toolBlock?.objectValue?["input"]?.objectValue
@@ -65,9 +54,7 @@ struct AnthropicMessageAdapterTests {
 
     @Test("tool result messages become role=user with tool_result block")
     func toolResultRewriting() {
-        let adapted = AnthropicMessageAdapter.adapt([
-            .tool(callId: "call_1", content: "the answer is 42")
-        ])
+        let adapted = AnthropicMessageAdapter.adapt([.tool(callId: "call_1", content: "the answer is 42")])
         let first = adapted.messages.first?.objectValue
         #expect(first?["role"]?.stringValue == "user")
         guard case .array(let blocks) = first?["content"] ?? .null else {

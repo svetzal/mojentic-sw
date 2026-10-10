@@ -15,7 +15,7 @@ struct ReActExample {
             broker: broker,
             model: "gpt-4o-mini",
             tools: [CurrentDateTimeTool(), DateResolverTool()],
-            maxSteps: 6
+            maxSteps: 6,
         )
         do {
             let outcome = try await agent.run("What day was last Tuesday?")

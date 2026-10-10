@@ -1,16 +1,17 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 struct StreamingRecoveryProofTests {
     @Test(arguments: [false, true])
     func publicHTTPRecovery(omlx: Bool) async throws {
         let success =
-            omlx
-            ? "data: {\"choices\":[{\"delta\":{\"content\":\"é\"},\"finish_reason\":\"stop\"}]}\n\n"
-                + "data: [DONE]\n\n"
-            : "{\"message\":{\"content\":\"é\"},\"done\":true,\"done_reason\":\"stop\"}\n"
+            if omlx {
+                "data: {\"choices\":[{\"delta\":{\"content\":\"é\"},\"finish_reason\":\"stop\"}]}\n\n"
+                    + "data: [DONE]\n\n"
+            } else {
+                "{\"message\":{\"content\":\"é\"},\"done\":true,\"done_reason\":\"stop\"}\n"
+            }
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(status: 503, body: "credential-sentinel"), RecoveryReply(body: success),
         ])
@@ -18,13 +19,17 @@ struct StreamingRecoveryProofTests {
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder)
         policy.reportObserver = { report in reports.withLock { $0.append(report) } }
-        let gateway = RecoveryBoundary(omlx: omlx, structured: false)
-            .gateway(server, policy: policy)
+        let gateway = RecoveryBoundary(omlx: omlx, structured: false).gateway(server, policy: policy)
         var content = ""
         for try await event in gateway.stream(
-            model: "fixture", messages: [.user("payload-sentinel")], tools: nil, config: .init()
+            model: "fixture",
+            messages: [.user("payload-sentinel")],
+            tools: nil,
+            config: .init(),
         ) {
-            if case .textDelta(let text) = event { content += text }
+            if case .textDelta(let text) = event {
+                content += text
+            }
         }
         #expect(content == "é")
         let requests = recorder.requests.withLock { $0 }
@@ -38,9 +43,10 @@ struct StreamingRecoveryProofTests {
         let events = recorder.events.withLock { $0 }
         #expect(
             events.map(\.transition.rawValue) == [
-                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed",
-                "delayScheduled", "retryStarted", "attemptStarted", "attemptSucceeded",
-            ])
+                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed", "delayScheduled",
+                "retryStarted", "attemptStarted", "attemptSucceeded",
+            ]
+        )
         #expect(events.first(where: { $0.transition == .attemptFailed })?.status == 503)
         #expect(events.last?.progress.delivered.contentBytes == 2)
         #expect(server.requests.withLock { $0.count } == 2)

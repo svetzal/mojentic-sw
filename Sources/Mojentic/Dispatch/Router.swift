@@ -13,7 +13,7 @@ public actor Router {
     public init() {}
 
     /// Subscribe `agent` to events of type `eventType`.
-    public func subscribe<E: Event>(_ agent: any BaseAgent, to eventType: E.Type) {
+    public func subscribe(_ agent: any BaseAgent, to eventType: (some Event).Type) {
         let key = ObjectIdentifier(eventType)
         var current = subscribers[key] ?? []
         if !current.contains(where: { $0 === agent }) {

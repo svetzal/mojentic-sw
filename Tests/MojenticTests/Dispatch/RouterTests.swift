@@ -1,10 +1,11 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
 private actor NoopAgent: BaseAgent {
-    func handle(_ event: any Event) async throws -> [any Event] { [] }
+    func handle(_: any Event) async throws -> [any Event] {
+        []
+    }
 }
 
 @Suite("Router")

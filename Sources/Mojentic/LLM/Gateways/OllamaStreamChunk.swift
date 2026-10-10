@@ -36,7 +36,7 @@ struct OllamaStreamChunk: Decodable {
                         LLMToolCall(
                             id: call.id ?? "call-\(index)",
                             name: call.function.name,
-                            arguments: call.function.arguments ?? .object([:])
+                            arguments: call.function.arguments ?? .object([:]),
                         )
                     )
                 )

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// A comparable rendering of ``CompletionStreamEvent`` for assertions.
 enum SeenEvent: Equatable {
@@ -61,7 +60,9 @@ func parse(_ lines: [String], with initial: some CompletionEventParser) -> [Seen
     for line in lines {
         let events = parser.consume(line: line)
         seen += events.map(SeenEvent.init)
-        if parser.isTerminal { break }
+        if parser.isTerminal {
+            break
+        }
     }
     return seen
 }

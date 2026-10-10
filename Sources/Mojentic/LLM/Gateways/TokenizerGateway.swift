@@ -58,12 +58,10 @@ public struct ApproximateTokenizerGateway: TokenizerGateway {
             if let calls = message.toolCalls {
                 for call in calls {
                     total += Self.estimate(text: call.name, charactersPerToken: charactersPerToken)
-                    if let data = try? JSONEncoder().encode(call.arguments),
-                        let serialised = String(data: data, encoding: .utf8)
-                    {
-                        total += Self.estimate(
-                            text: serialised, charactersPerToken: charactersPerToken
-                        )
+                    let data = try? JSONEncoder().encode(call.arguments)
+                    let serialised = data.flatMap { String(data: $0, encoding: .utf8) }
+                    if let serialised {
+                        total += Self.estimate(text: serialised, charactersPerToken: charactersPerToken)
                     }
                 }
             }

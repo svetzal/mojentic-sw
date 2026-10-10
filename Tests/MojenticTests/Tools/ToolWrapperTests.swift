@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private actor SingleResponseGatewayState {
     var responses: [LLMGatewayResponse]
@@ -24,7 +23,7 @@ private struct SingleResponseGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         try await state.next()
     }
@@ -33,16 +32,20 @@ private struct SingleResponseGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
-    ) async throws -> JSONValue { .object([:]) }
+        config _: CompletionConfig,
+    ) async throws -> JSONValue {
+        .object([:])
+    }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { continuation in continuation.finish() }
     }
@@ -51,7 +54,9 @@ private struct SingleResponseGateway: LLMGateway {
 @Suite("ToolWrapper")
 struct ToolWrapperTests {
     @Test("nested broker call's tracer events nest under the parent context")
-    func nestedTracerLinkage() async throws {
+    func nestedTracerLinkage()
+        async throws
+    {
         let store = EventStore()
         let tracer = EventStoreTracer(store: store)
         // Outer broker calls the wrapper tool; inner broker simulates the wrapped call.
@@ -65,16 +70,12 @@ struct ToolWrapperTests {
             broker: summariserBroker,
             model: "summariser",
             name: "summarise",
-            description: "summarise input"
+            description: "summarise input",
         )
         let parentToolCall = LLMToolCall(id: "1", name: "summarise", arguments: ["input": "long text"])
         let parentGateway = SingleResponseGateway(
             state: SingleResponseGatewayState(responses: [
-                LLMGatewayResponse(
-                    content: "",
-                    toolCalls: [parentToolCall],
-                    finishReason: .toolCalls
-                ),
+                LLMGatewayResponse(content: "", toolCalls: [parentToolCall], finishReason: .toolCalls),
                 LLMGatewayResponse(content: "done", finishReason: .stop),
             ])
         )
@@ -84,7 +85,7 @@ struct ToolWrapperTests {
             model: "parent",
             messages: [.user("please summarise this")],
             tools: [wrapper],
-            context: outerContext
+            context: outerContext,
         )
 
         let events = await store.events(correlatedTo: outerContext.correlationId)

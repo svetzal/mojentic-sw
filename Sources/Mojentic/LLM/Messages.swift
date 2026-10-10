@@ -53,13 +53,13 @@ public struct ImageContent: Sendable, Codable, Hashable {
 
     /// Create an `ImageContent` carrying a remote URL.
     public init(url: URL, detail: String? = nil) {
-        self.source = .url(url)
+        source = .url(url)
         self.detail = detail
     }
 
     /// Create an `ImageContent` carrying inline base64-encoded data.
     public init(base64: String, mimeType: String, detail: String? = nil) {
-        self.source = .data(base64: base64, mimeType: mimeType)
+        source = .data(base64: base64, mimeType: mimeType)
         self.detail = detail
     }
 
@@ -68,9 +68,7 @@ public struct ImageContent: Sendable, Codable, Hashable {
     /// Throws `MojenticError.invalidArgument` if the file cannot be read.
     public static func loadingFromDisk(at path: URL, mimeType: String? = nil) throws -> ImageContent {
         let data: Data
-        do {
-            data = try Data(contentsOf: path)
-        } catch {
+        do { data = try Data(contentsOf: path) } catch {
             throw MojenticError.invalidArgument(
                 message: "Could not read image at \(path.path): \(error.localizedDescription)"
             )
@@ -81,11 +79,11 @@ public struct ImageContent: Sendable, Codable, Hashable {
 
     private static func inferMimeType(from path: URL) -> String {
         switch path.pathExtension.lowercased() {
-        case "png": return "image/png"
-        case "jpg", "jpeg": return "image/jpeg"
-        case "gif": return "image/gif"
-        case "webp": return "image/webp"
-        default: return "image/jpeg"
+        case "png": "image/png"
+        case "jpg", "jpeg": "image/jpeg"
+        case "gif": "image/gif"
+        case "webp": "image/webp"
+        default: "image/jpeg"
         }
     }
 }
@@ -128,7 +126,7 @@ public struct LLMMessage: Sendable, Codable, Hashable {
         content: String? = nil,
         images: [ImageContent]? = nil,
         toolCalls: [LLMToolCall]? = nil,
-        toolCallId: String? = nil
+        toolCallId: String? = nil,
     ) {
         self.role = role
         self.content = content

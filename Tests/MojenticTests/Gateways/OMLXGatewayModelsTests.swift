@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("oMLX gateway models")
 struct OMLXModelsTests {
@@ -19,13 +18,13 @@ struct OMLXModelsTests {
 
     @Test("the models fixture lists the served model")
     func modelsFixture() async throws {
-        let transport = FakeRequestTransport(try .fixture("models.json"))
+        let transport = try FakeRequestTransport(.fixture("models.json"))
         #expect(try await omlxGateway(transport).availableModels() == [omlxFixtureModel])
     }
 
     @Test("load posts to /v1/models/{id}/load with the configured timeout")
     func load() async throws {
-        let transport = FakeRequestTransport(try .fixture("model_load.json"))
+        let transport = try FakeRequestTransport(.fixture("model_load.json"))
         let gateway = omlxGateway(transport, configuration: OMLXConfiguration(timeout: 1200))
         try await gateway.loadModel(omlxFixtureModel)
         let request = try await transport.onlyRequest()
@@ -36,7 +35,7 @@ struct OMLXModelsTests {
 
     @Test("unload posts to /v1/models/{id}/unload")
     func unload() async throws {
-        let transport = FakeRequestTransport(try .fixture("model_unload.json"))
+        let transport = try FakeRequestTransport(.fixture("model_unload.json"))
         try await omlxGateway(transport).unloadModel(omlxFixtureModel)
         let request = try await transport.onlyRequest()
         #expect(request.method == "POST")
@@ -45,7 +44,7 @@ struct OMLXModelsTests {
 
     @Test("the model id is percent-encoded as one path segment")
     func encodedModelID() async throws {
-        let transport = FakeRequestTransport(try .fixture("model_load.json"))
+        let transport = try FakeRequestTransport(.fixture("model_load.json"))
         try await omlxGateway(transport).loadModel("mlx-community/Qwen 3?")
         let request = try await transport.onlyRequest()
         #expect(
@@ -55,23 +54,19 @@ struct OMLXModelsTests {
 
     @Test("unloading a model that is not loaded is a provider error")
     func unloadNotLoaded() async throws {
-        let transport = FakeRequestTransport(try .fixture("error_model_not_loaded.json", status: 400))
-        let failure = await httpFailure {
-            try await omlxGateway(transport).unloadModel(omlxFixtureModel)
-        }
+        let transport = try FakeRequestTransport(.fixture("error_model_not_loaded.json", status: 400))
+        let failure = await httpFailure { try await omlxGateway(transport).unloadModel(omlxFixtureModel) }
         #expect(failure?.status == 400)
         #expect(failure?.body.contains("invalid_request_error") == true)
     }
 
     @Test("a blank model id is rejected before any request", arguments: ["", " ", "\n\t"])
-    func emptyModelID(_ model: String) async throws {
+    func emptyModelID(
+        _ model: String
+    ) async throws {
         let transport = FakeRequestTransport()
-        await #expect(throws: MojenticError.self) {
-            try await omlxGateway(transport).loadModel(model)
-        }
-        await #expect(throws: MojenticError.self) {
-            try await omlxGateway(transport).unloadModel(model)
-        }
+        await #expect(throws: MojenticError.self) { try await omlxGateway(transport).loadModel(model) }
+        await #expect(throws: MojenticError.self) { try await omlxGateway(transport).unloadModel(model) }
         #expect(await transport.recorder.requests.isEmpty)
     }
 }
@@ -79,10 +74,15 @@ struct OMLXModelsTests {
 @Suite("oMLX gateway embeddings")
 struct OMLXEmbeddingsTests {
     private let embedding =
-        #"{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.5,-0.25]}]}"#
+        #"""
+        {"object":"list","data":[{"object":"embedding","index":0,"embedding":[\#
+        0.5,-0.25]}]}
+        """#
 
     @Test("one request per text with model and input, returning data[0].embedding")
-    func requestShape() async throws {
+    func requestShape()
+        async throws
+    {
         let transport = FakeRequestTransport(.success(Data(embedding.utf8)))
         let vector = try await omlxGateway(transport).embed(text: "hello", model: "bge-small")
         #expect(vector == [0.5, -0.25])
@@ -104,9 +104,8 @@ struct OMLXEmbeddingsTests {
     @Test("a missing model is an argument error before any request", arguments: ["", "  ", "\n"])
     func missingModel(model: String) async throws {
         let transport = FakeRequestTransport(.success(Data(embedding.utf8)))
-        await #expect {
-            _ = try await omlxGateway(transport).embed(text: "hello", model: model)
-        } throws: { error in
+        let gateway = omlxGateway(transport)
+        await #expect { _ = try await gateway.embed(text: "hello", model: model) } throws: { error in
             guard case MojenticError.invalidArgument = error else { return false }
             return true
         }
@@ -115,7 +114,7 @@ struct OMLXEmbeddingsTests {
 
     @Test("a chat model is a provider error")
     func notAnEmbeddingModel() async throws {
-        let transport = FakeRequestTransport(try .fixture("error_not_embedding_model.json", status: 400))
+        let transport = try FakeRequestTransport(.fixture("error_not_embedding_model.json", status: 400))
         let failure = await httpFailure {
             _ = try await omlxGateway(transport).embed(text: "hello", model: omlxFixtureModel)
         }

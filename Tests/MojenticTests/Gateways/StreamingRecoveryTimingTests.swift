@@ -1,14 +1,13 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 struct StreamingRecoveryTimingTests {
     @Test(arguments: StreamingBoundary.all, ["2", "Thu, 01 Jan 1970 00:00:03 GMT", "invalid"])
     func retryAfterPreservesPolicy(_ boundary: StreamingBoundary, _ header: String) async throws {
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": header], body: "busy"),
-            RecoveryReply(body: try boundary.frame(content: "ok", done: true)),
+            RecoveryReply(body: boundary.frame(content: "ok", done: true)),
         ])
         let recorder = RecoveryRecorder()
         let sleeps = RecoveryLocked<[TimeInterval]>([])
@@ -23,7 +22,10 @@ struct StreamingRecoveryTimingTests {
     }
 
     @Test(arguments: StreamingBoundary.all, [false, true])
-    func retryAfterRefusal(_ boundary: StreamingBoundary, _ budget: Bool) async throws {
+    func retryAfterRefusal(
+        _ boundary: StreamingBoundary,
+        _ budget: Bool,
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": "31"], body: "busy")
         ])
@@ -44,11 +46,14 @@ struct StreamingRecoveryTimingTests {
     }
 
     @Test(arguments: StreamingBoundary.all, [false, true])
-    func keepaliveAdmissionRemainsPending(_ boundary: StreamingBoundary, _ allow: Bool) async throws {
+    func keepaliveAdmissionRemainsPending(
+        _ boundary: StreamingBoundary,
+        _ allow: Bool,
+    ) async throws {
         let keepalive = boundary.omlx ? ": still alive\n\n" : "\n"
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(body: keepalive, truncated: true),
-            RecoveryReply(body: try boundary.frame(content: "ok", done: true)),
+            RecoveryReply(body: boundary.frame(content: "ok", done: true)),
         ])
         let recorder = RecoveryRecorder()
         let pending = AsyncStream<Void>.makeStream()

@@ -40,7 +40,7 @@ public actor ReActAgent {
         model: String,
         tools: [any LLMTool],
         maxSteps: Int = 8,
-        systemPrompt: String = ReActAgent.defaultSystemPrompt
+        systemPrompt: String = ReActAgent.defaultSystemPrompt,
     ) {
         precondition(maxSteps > 0, "maxSteps must be positive")
         self.broker = broker
@@ -52,28 +52,22 @@ public actor ReActAgent {
 
     /// Run the ReAct loop against `question`.
     public func run(_ question: String) async throws -> Outcome {
-        let messages: [LLMMessage] = [
-            .system(systemPrompt),
-            .user(question),
-        ]
+        let messages: [LLMMessage] = [.system(systemPrompt), .user(question)]
         let config = CompletionConfig(maxToolIterations: maxSteps)
         do {
             let response = try await broker.complete(
                 model: model,
                 messages: messages,
                 tools: tools,
-                config: config
+                config: config,
             )
             let answer = Self.extractFinalAnswer(from: response.content)
             return Outcome(answer: answer, converged: true)
-        } catch MojenticError.toolDepthExceeded {
-            return Outcome(answer: "", converged: false)
-        }
+        } catch MojenticError.toolDepthExceeded { return Outcome(answer: "", converged: false) }
     }
 
     private static func extractFinalAnswer(from text: String) -> String {
         guard let range = text.range(of: "Final Answer:") else { return text }
-        let answer = text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-        return answer
+        return text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

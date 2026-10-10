@@ -46,7 +46,9 @@ public struct ToolCallOutcome: Sendable, Hashable, Codable {
 
     /// True when the tool returned a successful result.
     public var ok: Bool {
-        if case .success = kind { return true }
+        if case .success = kind {
+            return true
+        }
         return false
     }
 }
@@ -66,7 +68,7 @@ public protocol ToolRunner: Sendable {
         _ calls: [ToolCallExecution],
         tools: [any LLMTool],
         tracer: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> [ToolCallOutcome]
 }
 
@@ -77,14 +79,9 @@ extension ToolRunner {
     /// ``TracerContext`` and a ``NullTracer``.
     public func runBatch(
         _ calls: [ToolCallExecution],
-        tools: [any LLMTool]
+        tools: [any LLMTool],
     ) async throws -> [ToolCallOutcome] {
-        try await runBatch(
-            calls,
-            tools: tools,
-            tracer: NullTracer(),
-            context: TracerContext()
-        )
+        try await runBatch(calls, tools: tools, tracer: NullTracer(), context: TracerContext())
     }
 }
 
@@ -100,7 +97,7 @@ public protocol TracerContextAwareTool: LLMTool {
     func executeWithContext(
         arguments: JSONValue,
         tracer: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> JSONValue
 }
 
@@ -119,20 +116,13 @@ public actor SerialToolRunner: ToolRunner {
         _ calls: [ToolCallExecution],
         tools: [any LLMTool],
         tracer: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> [ToolCallOutcome] {
         var outcomes: [ToolCallOutcome] = []
         outcomes.reserveCapacity(calls.count)
         for call in calls {
             try Task.checkCancellation()
-            outcomes.append(
-                await Self.execute(
-                    call: call,
-                    tools: tools,
-                    tracer: tracer,
-                    context: context
-                )
-            )
+            await outcomes.append(Self.execute(call: call, tools: tools, tracer: tracer, context: context))
         }
         return outcomes
     }
@@ -141,13 +131,13 @@ public actor SerialToolRunner: ToolRunner {
         call: ToolCallExecution,
         tools: [any LLMTool],
         tracer: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async -> ToolCallOutcome {
         guard let tool = tools.first(where: { $0.matches(call.name) }) else {
             return ToolCallOutcome(
                 id: call.id,
                 name: call.name,
-                kind: .failure(message: "Tool '\(call.name)' not found")
+                kind: .failure(message: "Tool '\(call.name)' not found"),
             )
         }
         let callPayload = ToolCallPayload(
@@ -155,7 +145,7 @@ public actor SerialToolRunner: ToolRunner {
             parentId: context.parentId,
             callId: call.id,
             name: call.name,
-            arguments: call.arguments
+            arguments: call.arguments,
         )
         await tracer.recordToolCall(callPayload)
         let clock = ContinuousClock()
@@ -163,28 +153,28 @@ public actor SerialToolRunner: ToolRunner {
         let childContext = context.child(parent: callPayload.id)
         let outcome: ToolCallOutcome
         do {
-            let result: JSONValue
-            if let aware = tool as? any TracerContextAwareTool {
-                result = try await aware.executeWithContext(
-                    arguments: call.arguments,
-                    tracer: tracer,
-                    context: childContext
-                )
-            } else {
-                result = try await tool.execute(arguments: call.arguments)
-            }
+            let result: JSONValue =
+                if let aware = tool as? any TracerContextAwareTool {
+                    try await aware.executeWithContext(
+                        arguments: call.arguments,
+                        tracer: tracer,
+                        context: childContext,
+                    )
+                } else {
+                    try await tool.execute(arguments: call.arguments)
+                }
             outcome = ToolCallOutcome(id: call.id, name: call.name, kind: .success(result))
         } catch is CancellationError {
             outcome = ToolCallOutcome(
                 id: call.id,
                 name: call.name,
-                kind: .failure(message: "Tool batch cancelled")
+                kind: .failure(message: "Tool batch cancelled"),
             )
         } catch {
             outcome = ToolCallOutcome(
                 id: call.id,
                 name: call.name,
-                kind: .failure(message: String(describing: error))
+                kind: .failure(message: String(describing: error)),
             )
         }
         let duration = start.duration(to: clock.now)
@@ -193,7 +183,7 @@ public actor SerialToolRunner: ToolRunner {
                 correlationId: context.correlationId,
                 parentId: callPayload.id,
                 duration: duration,
-                outcome: outcome
+                outcome: outcome,
             )
         )
         return outcome

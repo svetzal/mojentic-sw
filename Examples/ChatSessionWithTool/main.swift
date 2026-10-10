@@ -15,7 +15,7 @@ struct ChatSessionWithTool {
             broker: broker,
             model: "gpt-4o-mini",
             systemPrompt: "Use the time and date tools whenever the user asks about now or relative dates.",
-            tools: [CurrentDateTimeTool(), DateResolverTool()]
+            tools: [CurrentDateTimeTool(), DateResolverTool()],
         )
 
         print("Chat session with tools ready. Try 'what is next Friday'. Blank line to quit.")

@@ -24,7 +24,7 @@ public actor IterativeProblemSolver {
         maxIterations: Int = 3,
         tools: [any LLMTool] = [],
         memory: SharedWorkingMemory? = nil,
-        config: CompletionConfig = CompletionConfig()
+        config: CompletionConfig = CompletionConfig(),
     ) {
         precondition(maxIterations > 0, "maxIterations must be positive")
         self.broker = broker
@@ -71,7 +71,7 @@ public actor IterativeProblemSolver {
             model: model,
             systemPrompt: systemPrompt,
             tools: tools,
-            config: config
+            config: config,
         )
         var iterations = 0
         var lastReply = ""
@@ -96,15 +96,12 @@ public actor IterativeProblemSolver {
                 + "without commenting on the process by which you achieved it."
         )
         if let memory {
-            await memory.set(
-                "iterative_solver.last_summary",
-                to: .string(summary.content)
-            )
+            await memory.set("iterative_solver.last_summary", to: .string(summary.content))
         }
         return Outcome(
             summary: summary.content.isEmpty ? lastReply : summary.content,
             iterations: iterations,
-            stopReason: stopReason
+            stopReason: stopReason,
         )
     }
 

@@ -27,7 +27,7 @@ struct OMLXChat {
                 messages: [
                     .system("You are a concise assistant."),
                     .user("In one sentence, why is the sky blue?"),
-                ]
+                ],
             )
             if let thinking = response.thinking {
                 print("Thinking:\n\(thinking)\n")

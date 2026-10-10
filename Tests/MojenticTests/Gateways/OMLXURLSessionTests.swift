@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -17,9 +16,13 @@ import Testing
 final class OMLXStubURLProtocol: URLProtocol {
     static let apiKey = "stub-key"
 
-    override static func canInit(with _: URLRequest) -> Bool { true }
+    override static func canInit(with _: URLRequest) -> Bool {
+        true
+    }
 
-    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         let reply = Self.route(request)
@@ -28,7 +31,11 @@ final class OMLXStubURLProtocol: URLProtocol {
             guard
                 let url = request.url,
                 let response = HTTPURLResponse(
-                    url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers)
+                    url: url,
+                    statusCode: reply.status,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: reply.headers,
+                )
             else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badURL))
                 return
@@ -36,9 +43,7 @@ final class OMLXStubURLProtocol: URLProtocol {
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: body)
             client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
-        }
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
 
     override func stopLoading() {}
@@ -54,16 +59,14 @@ final class OMLXStubURLProtocol: URLProtocol {
             return Reply(status: 401, fixture: "error_model_not_found.json")
         }
         switch (request.httpMethod ?? "GET", request.url?.path ?? "") {
-        case ("GET", "/v1/models"):
-            return Reply(status: 200, fixture: "models.json")
+        case ("GET", "/v1/models"): return Reply(status: 200, fixture: "models.json")
         case ("POST", "/v1/chat/completions"):
             var reply = Reply(status: 200, fixture: "chat_json_schema.json")
             reply.headers["Warning"] = #"199 omlx "grammar not enforced""#
             return reply
         case ("POST", "/v1/models/\(omlxFixtureModel)/unload"):
             return Reply(status: 400, fixture: "error_model_not_loaded.json")
-        default:
-            return Reply(status: 404, fixture: "error_model_not_found.json")
+        default: return Reply(status: 404, fixture: "error_model_not_found.json")
         }
     }
 }
@@ -75,11 +78,11 @@ struct OMLXURLSessionTests {
     private func gateway(apiKey: String = OMLXStubURLProtocol.apiKey) throws -> OMLXGateway {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [OMLXStubURLProtocol.self]
-        return OMLXGateway(
-            host: try #require(URLComponents(string: host)?.url),
+        return try OMLXGateway(
+            host: #require(URLComponents(string: host)?.url),
             apiKey: apiKey,
             timeout: 5,
-            session: URLSession(configuration: configuration)
+            session: URLSession(configuration: configuration),
         )
     }
 
@@ -94,7 +97,7 @@ struct OMLXURLSessionTests {
             model: omlxFixtureModel,
             messages: [.user("Ada, 36")],
             schema: ["type": "object"],
-            config: CompletionConfig()
+            config: CompletionConfig(),
         )
         #expect(response.value == ["name": "Ada", "age": .integer(36)])
         #expect(response.response.metadata?["response_format_warning"] == #"199 omlx "grammar not enforced""#)

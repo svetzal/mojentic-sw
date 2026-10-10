@@ -38,12 +38,9 @@ public enum AnthropicMessageAdapter {
                 if let content = message.content, !content.isEmpty {
                     systemFragments.append(content)
                 }
-            case .user:
-                output.append(adaptUser(message))
-            case .assistant:
-                output.append(adaptAssistant(message))
-            case .tool:
-                output.append(adaptToolResult(message))
+            case .user: output.append(adaptUser(message))
+            case .assistant: output.append(adaptAssistant(message))
+            case .tool: output.append(adaptToolResult(message))
             }
         }
         let system = systemFragments.isEmpty ? nil : systemFragments.joined(separator: "\n\n")
@@ -55,10 +52,7 @@ public enum AnthropicMessageAdapter {
     private static func adaptUser(_ message: LLMMessage) -> JSONValue {
         let images = message.images ?? []
         if images.isEmpty {
-            return [
-                "role": "user",
-                "content": .string(message.content ?? ""),
-            ]
+            return ["role": "user", "content": .string(message.content ?? "")]
         }
         var parts: [JSONValue] = []
         if let text = message.content, !text.isEmpty {
@@ -67,30 +61,16 @@ public enum AnthropicMessageAdapter {
         for image in images {
             parts.append(imageBlock(for: image))
         }
-        return [
-            "role": "user",
-            "content": .array(parts),
-        ]
+        return ["role": "user", "content": .array(parts)]
     }
 
     private static func imageBlock(for image: ImageContent) -> JSONValue {
         switch image.source {
-        case .url(let url):
-            return [
-                "type": "image",
-                "source": [
-                    "type": "url",
-                    "url": .string(url.absoluteString),
-                ],
-            ]
+        case .url(let url): ["type": "image", "source": ["type": "url", "url": .string(url.absoluteString)]]
         case .data(let base64, let mimeType):
-            return [
+            [
                 "type": "image",
-                "source": [
-                    "type": "base64",
-                    "media_type": .string(mimeType),
-                    "data": .string(base64),
-                ],
+                "source": ["type": "base64", "media_type": .string(mimeType), "data": .string(base64)],
             ]
         }
     }
@@ -103,31 +83,20 @@ public enum AnthropicMessageAdapter {
         if let calls = message.toolCalls {
             for call in calls {
                 blocks.append([
-                    "type": "tool_use",
-                    "id": .string(call.id ?? ""),
-                    "name": .string(call.name),
+                    "type": "tool_use", "id": .string(call.id ?? ""), "name": .string(call.name),
                     "input": call.arguments,
                 ])
             }
         }
-        let content: JSONValue =
-            blocks.isEmpty ? .string(message.content ?? "") : .array(blocks)
-        return [
-            "role": "assistant",
-            "content": content,
-        ]
+        let content: JSONValue = blocks.isEmpty ? .string(message.content ?? "") : .array(blocks)
+        return ["role": "assistant", "content": content]
     }
 
     private static func adaptToolResult(_ message: LLMMessage) -> JSONValue {
         let id = message.toolCallId ?? ""
         let block: JSONValue = [
-            "type": "tool_result",
-            "tool_use_id": .string(id),
-            "content": .string(message.content ?? ""),
+            "type": "tool_result", "tool_use_id": .string(id), "content": .string(message.content ?? ""),
         ]
-        return [
-            "role": "user",
-            "content": .array([block]),
-        ]
+        return ["role": "user", "content": .array([block])]
     }
 }

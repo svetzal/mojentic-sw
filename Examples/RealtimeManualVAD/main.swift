@@ -17,7 +17,7 @@ struct RealtimeManualVAD {
                     model: "gpt-4o-realtime-preview",
                     apiKey: key,
                     vad: .manual,
-                    instructions: "Reply with one short sentence."
+                    instructions: "Reply with one short sentence.",
                 )
             )
             // Pretend we have one 20ms frame of silence; in a real app this
@@ -26,7 +26,9 @@ struct RealtimeManualVAD {
             try await session.send(audio: silence)
             try await session.commit()
             for try await event in session.events() {
-                if case .responseDone = event { break }
+                if case .responseDone = event {
+                    break
+                }
                 if case .textDelta(_, let delta) = event {
                     print(delta, terminator: "")
                 }

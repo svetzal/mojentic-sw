@@ -21,7 +21,7 @@ public struct DateResolverTool: LLMTool {
     /// Create a date resolver, optionally injecting a clock and calendar.
     public init(
         now: @escaping @Sendable () -> Date = { Date() },
-        calendar: Calendar = Calendar(identifier: .gregorian)
+        calendar: Calendar = Calendar(identifier: .gregorian),
     ) {
         self.now = now
         var cal = calendar
@@ -33,50 +33,43 @@ public struct DateResolverTool: LLMTool {
     public var descriptor: ToolDescriptor {
         ToolDescriptor(
             name: "resolve_date",
-            description:
-                "Resolve a natural-language relative date (e.g. 'tomorrow', 'next Friday') "
+            description: "Resolve a natural-language relative date (e.g. 'tomorrow', 'next Friday') "
                 + "to an absolute ISO-8601 date. If no reference date is provided the current date is used.",
             parameters: [
                 "type": "object",
                 "properties": [
                     "relative_date": [
-                        "type": "string",
-                        "description": "The natural-language relative date expression.",
+                        "type": "string", "description": "The natural-language relative date expression.",
                     ],
                     "reference_date": [
                         "type": "string",
-                        "description":
-                            "Optional ISO-8601 (YYYY-MM-DD) reference date. Defaults to today.",
+                        "description": "Optional ISO-8601 (YYYY-MM-DD) reference date. Defaults to today.",
                     ],
                 ],
-                "required": ["relative_date"],
-                "additionalProperties": false,
-            ]
+                "required": ["relative_date"], "additionalProperties": false,
+            ],
         )
     }
 
     /// Execute the resolver against `arguments`.
     public func execute(arguments: JSONValue) async throws -> JSONValue {
-        guard let object = arguments.objectValue,
-            let relative = object["relative_date"]?.stringValue
-        else {
-            throw MojenticError.invalidArgument(
-                message: "resolve_date requires a 'relative_date' string"
-            )
+        guard let object = arguments.objectValue, let relative = object["relative_date"]?.stringValue else {
+            throw MojenticError.invalidArgument(message: "resolve_date requires a 'relative_date' string")
         }
         let reference = object["reference_date"]?.stringValue.flatMap(Self.parseISODate)
         let resolved = try resolve(relative: relative, reference: reference ?? now())
         let iso = Self.formatISODate(resolved, calendar: calendar)
         return [
-            "relative_date": .string(relative),
-            "resolved_date": .string(iso),
+            "relative_date": .string(relative), "resolved_date": .string(iso),
             "summary": .string("The date on '\(relative)' is \(iso)"),
         ]
     }
 
     private func resolve(relative: String, reference: Date) throws -> Date {
         let normalised = relative.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalised == "today" { return reference }
+        if normalised == "today" {
+            return reference
+        }
         if normalised == "tomorrow" {
             return try addDays(1, to: reference)
         }
@@ -89,9 +82,7 @@ public struct DateResolverTool: LLMTool {
         if let target = matchWeekday(normalised, reference: reference) {
             return target
         }
-        throw MojenticError.invalidArgument(
-            message: "Could not resolve relative date '\(relative)'"
-        )
+        throw MojenticError.invalidArgument(message: "Could not resolve relative date '\(relative)'")
     }
 
     private func addDays(_ days: Int, to date: Date) throws -> Date {
@@ -116,8 +107,7 @@ public struct DateResolverTool: LLMTool {
     private func matchWeekday(_ text: String, reference: Date) -> Date? {
         // Match "next <weekday>" / "last <weekday>".
         let weekdays: [String: Int] = [
-            "sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4,
-            "thursday": 5, "friday": 6, "saturday": 7,
+            "sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4, "thursday": 5, "friday": 6, "saturday": 7,
         ]
         let parts = text.split(separator: " ").map(String.init)
         guard parts.count == 2, let target = weekdays[parts[1]] else { return nil }
@@ -131,8 +121,7 @@ public struct DateResolverTool: LLMTool {
         case "last":
             let diff = (current - target + 7) % 7
             delta = diff == 0 ? -7 : -diff
-        default:
-            return nil
+        default: return nil
         }
         return calendar.date(byAdding: .day, value: delta, to: reference)
     }

@@ -14,7 +14,9 @@ public actor SharedWorkingMemory {
 
     /// Read a value from the optionally-scoped namespace.
     public func get(_ key: String, scope: UUID? = nil) -> JSONValue? {
-        if let scope { return scoped[scope]?[key] }
+        if let scope {
+            return scoped[scope]?[key]
+        }
         return globalStore[key]
     }
 
@@ -35,9 +37,7 @@ public actor SharedWorkingMemory {
     @discardableResult
     public func delete(_ key: String, scope: UUID? = nil) -> Bool {
         if let scope {
-            guard var bucket = scoped[scope], bucket.removeValue(forKey: key) != nil else {
-                return false
-            }
+            guard var bucket = scoped[scope], bucket.removeValue(forKey: key) != nil else { return false }
             scoped[scope] = bucket
             return true
         }
@@ -46,7 +46,9 @@ public actor SharedWorkingMemory {
 
     /// Return a value-type snapshot of the optionally-scoped namespace.
     public func snapshot(scope: UUID? = nil) -> [String: JSONValue] {
-        if let scope { return scoped[scope] ?? [:] }
+        if let scope {
+            return scoped[scope] ?? [:]
+        }
         return globalStore
     }
 }

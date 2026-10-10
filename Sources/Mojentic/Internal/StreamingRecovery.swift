@@ -8,10 +8,14 @@ enum StreamingRecovery {
         url: URL,
         headers: [String: String],
         body: some Encodable & Sendable,
-        timeout: TimeInterval?
+        timeout: TimeInterval?,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         let delivery = RecoveryDelivery<GatewayStreamEvent>()
+        let scope = RecoveryCancellationScope.current
+        let producerID = UUID()
+        scope?.prepare(producerID)
         let task = Task {
+            defer { scope?.remove(producerID) }
             do {
                 let evidence = try await run(
                     policy: policy,
@@ -19,17 +23,19 @@ enum StreamingRecovery {
                     endpoint: (url, headers),
                     body: body,
                     timeout: timeout,
-                    singleTurn: false
+                    singleTurn: false,
                 ) { event in try await delivery.send(event) }
                 try Task.checkCancellation()
                 try await delivery.send(
                     .done(
                         finishReason: evidence.finishReason.map { FinishReason(rawValue: $0) ?? .other },
-                        usage: evidence.usage
-                    ))
+                        usage: evidence.usage,
+                    )
+                )
                 delivery.finish()
             } catch { delivery.finish(error) }
         }
+        scope?.register(task, id: producerID)
         let owner = RecoveryProducer(task)
         return AsyncThrowingStream(unfolding: {
             try await withTaskCancellationHandler {
@@ -47,10 +53,14 @@ enum StreamingRecovery {
         url: URL,
         headers: [String: String],
         body: some Encodable & Sendable,
-        timeout: TimeInterval?
+        timeout: TimeInterval?,
     ) -> AsyncStream<CompletionStreamEvent> {
         let delivery = RecoveryDelivery<CompletionStreamEvent>()
+        let scope = RecoveryCancellationScope.current
+        let producerID = UUID()
+        scope?.prepare(producerID)
         let task = Task {
+            defer { scope?.remove(producerID) }
             do {
                 let evidence = try await run(
                     policy: policy,
@@ -58,7 +68,7 @@ enum StreamingRecovery {
                     endpoint: (url, headers),
                     body: body,
                     timeout: timeout,
-                    singleTurn: true
+                    singleTurn: true,
                 ) { event in
                     let output: CompletionStreamEvent
                     switch event {
@@ -71,25 +81,22 @@ enum StreamingRecovery {
                 }
                 try Task.checkCancellation()
                 try await delivery.send(.completed(evidence))
-            } catch let error as RecoveryError {
-                delivery.terminal(.error(.recovery(error)))
-            } catch {
+            } catch let error as RecoveryError { delivery.terminal(.error(.recovery(error))) } catch {
                 delivery.terminal(
-                    .error(
-                        Task.isCancelled ? .cancelled : .requestFailed(message: "Recovery setup failed")
-                    ))
+                    .error(Task.isCancelled ? .cancelled : .requestFailed(message: "Recovery setup failed"))
+                )
             }
             delivery.finish()
         }
+        scope?.register(task, id: producerID)
         let owner = RecoveryProducer(task)
         return AsyncStream(
-            unfolding: {
-                do { return try await delivery.next() } catch { return nil }
-            },
+            unfolding: { do { return try await delivery.next() } catch { return nil } },
             onCancel: {
                 delivery.cancel()
                 owner.task.cancel()
-            })
+            },
+        )
     }
 
     private static func run(
@@ -99,7 +106,7 @@ enum StreamingRecovery {
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
         singleTurn: Bool,
-        deliver: @escaping @Sendable (GatewayStreamEvent) async throws -> Void
+        deliver: @escaping @Sendable (GatewayStreamEvent) async throws -> Void,
     ) async throws -> CompletionEvidence {
         var engine = BufferedRecovery(policy: policy, provider: provider, operation: "streaming")
         try engine.validatePolicy()
@@ -112,36 +119,15 @@ enum StreamingRecovery {
         }
         for number in 1...policy.maximumAttempts {
             let decoder = RecoveryStreamDecoder(provider: provider, singleTurn: singleTurn)
-            let result = try await withThrowingTaskGroup(of: RecoveryHTTPResult?.self) { group in
-                group.addTask {
-                    for await event in decoder.events {
-                        if Task.isCancelled { break }
-                        do {
-                            let output: GatewayStreamEvent
-                            if case .progress(var progress) = event {
-                                progress.delivered = decoder.snapshot().progress.delivered
-                                output = .progress(progress)
-                            } else {
-                                output = event
-                            }
-                            try await deliver(output)
-                            decoder.delivered(output)
-                        } catch { break }
-                    }
-                    return nil
-                }
-                let result = try await engine.dispatch(
-                    url: endpoint.0,
-                    headers: endpoint.1,
-                    bytes: bytes,
-                    timeout: timeout,
-                    number: number,
-                    stream: decoder
-                )
-                decoder.finish()
-                while try await group.next() != nil {}
-                return result
-            }
+            let result = try await dispatch(
+                engine: &engine,
+                endpoint: endpoint,
+                bytes: bytes,
+                timeout: timeout,
+                number: number,
+                decoder: decoder,
+                deliver: deliver,
+            )
             engine.wire = result
             let snapshot = decoder.snapshot()
             let progress = snapshot.progress
@@ -150,23 +136,31 @@ enum StreamingRecovery {
             engine.progress.headersReceived = result.response != nil
             if Task.isCancelled {
                 throw engine.terminal(
-                    result.cause ?? CancellationError(), outcome: .cancelled, category: .cancellation)
+                    result.cause ?? CancellationError(),
+                    outcome: .cancelled,
+                    category: .cancellation,
+                )
             }
             if result.captureFailed {
                 throw engine.terminal(
-                    result.cause ?? CancellationError(), outcome: .captureFailed, category: .capture
+                    result.cause ?? CancellationError(),
+                    outcome: .captureFailed,
+                    category: .capture,
                 )
             }
             if let parserFailure = snapshot.failure {
                 let outcome: RecoveryTransition =
-                    progress.observed == RecoverySemanticProgress()
-                    ? .malformedResponse : .interrupted
-                let category: RecoveryCategory
-                if case .providerError = parserFailure {
-                    category = .providerResponse
-                } else {
-                    category = .protocolFailure
-                }
+                    if progress.observed == RecoverySemanticProgress() {
+                        .malformedResponse
+                    } else {
+                        .interrupted
+                    }
+                let category: RecoveryCategory =
+                    if case .providerError = parserFailure {
+                        .providerResponse
+                    } else {
+                        .protocolFailure
+                    }
                 throw engine.terminal(parserFailure, outcome: outcome, category: category)
             }
             if snapshot.terminal {
@@ -185,14 +179,62 @@ enum StreamingRecovery {
             let failure = engine.makeFailure(
                 category: category,
                 cause: result.cause ?? status.map { RecoveryHTTPStatusFailure(status: $0) }
-                    ?? MojenticError.incompleteStream(evidence), reason: "requestFailed"
+                    ?? MojenticError.incompleteStream(evidence),
+                reason: "requestFailed",
             )
             engine.history.append(failure)
             engine.emit(.attemptFailed, category: category)
-            if engine.started == nil { engine.started = policy.timing.monotonic() }
-            if progress.observed != RecoverySemanticProgress() { throw engine.finish(.interrupted, failure) }
+            if engine.started == nil {
+                engine.started = policy.timing.monotonic()
+            }
+            if progress.observed != RecoverySemanticProgress() {
+                throw engine.finish(.interrupted, failure)
+            }
             try await engine.admit(failure, next: number + 1)
         }
         preconditionFailure("Attempt loop always returns or terminates")
+    }
+
+    private static func dispatch(
+        engine: inout BufferedRecovery,
+        endpoint: (URL, [String: String]),
+        bytes: Data,
+        timeout: TimeInterval?,
+        number: Int,
+        decoder: RecoveryStreamDecoder,
+        deliver: @escaping @Sendable (GatewayStreamEvent) async throws -> Void,
+    ) async throws -> RecoveryHTTPResult {
+        try await withThrowingTaskGroup(of: RecoveryHTTPResult?.self) { group in
+            group.addTask {
+                for await event in decoder.events {
+                    if Task.isCancelled {
+                        break
+                    }
+                    do {
+                        let output: GatewayStreamEvent
+                        if case .progress(var progress) = event {
+                            progress.delivered = decoder.snapshot().progress.delivered
+                            output = .progress(progress)
+                        } else {
+                            output = event
+                        }
+                        try await deliver(output)
+                        decoder.delivered(output)
+                    } catch { break }
+                }
+                return nil
+            }
+            let result = try await engine.dispatch(
+                url: endpoint.0,
+                headers: endpoint.1,
+                bytes: bytes,
+                timeout: timeout,
+                number: number,
+                stream: decoder,
+            )
+            decoder.finish()
+            while try await group.next() != nil {}
+            return result
+        }
     }
 }

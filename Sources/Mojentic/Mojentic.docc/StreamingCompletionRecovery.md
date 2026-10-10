@@ -99,3 +99,35 @@ through the caller-owned ``CompletionRecoveryPolicy/wireObserver`` hook. This is
 body capture, not raw HTTP framing or TLS capture. A throwing capture hook is terminal
 and cannot authorize a resend. No recovery deadline limits an already admitted,
 healthy generation; budgets apply to admission and backoff.
+
+## Cancellation while the consumer is paused
+
+Create and consume the stream inside ``withRecoveryStreamCancellation(operation:)``
+when cancellation must close local HTTP resources while the consumer awaits work
+outside `next()`:
+
+```swift
+try await withRecoveryStreamCancellation {
+    for try await event in gateway.stream(
+        model: model, messages: messages, tools: nil, config: config
+    ) {
+        try await consume(event)
+    }
+}
+```
+
+The scope registers recovery producers and is inherited by broker and chat session
+relays. Its cancellation handler stays active while `consume` is paused, and scope
+exit cancels unfinished producers. Scoped broker/session relays apply backpressure
+instead of draining provider terminal events into an unbounded consumer buffer.
+Cancellation keeps the actual failed attempt and emits `attemptFailed` followed by
+one `cancelled` event, with no retry or success. Reports describe delivery at the
+gateway boundary; a relay receiving a value does not establish final application
+delivery.
+
+Existing stream signatures remain compatible. A bare `AsyncStream` only receives
+consumer cancellation during iteration; keeping a stream alive while awaiting
+unrelated work does not install a cancellation handler for that work. Migrate the
+consumer operation to this scope for the paused-consumer guarantee. Create streams
+inside the scope, and use a separate scope inside detached tasks. Local cleanup
+still provides no evidence that a remote request stopped.

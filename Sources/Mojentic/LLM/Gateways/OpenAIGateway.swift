@@ -37,14 +37,14 @@ public struct OpenAIGateway: LLMGateway {
         apiKey: String,
         baseURL: URL = OpenAIGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
-        registry: OpenAIModelRegistry = .shared
+        registry: OpenAIModelRegistry = .shared,
     ) {
         self.init(
             apiKey: apiKey,
             baseURL: baseURL,
             client: client,
             registry: registry,
-            lineTransport: client
+            lineTransport: client,
         )
     }
 
@@ -54,7 +54,7 @@ public struct OpenAIGateway: LLMGateway {
         baseURL: URL = OpenAIGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
         registry: OpenAIModelRegistry = .shared,
-        lineTransport: any LineStreamingTransport
+        lineTransport: any LineStreamingTransport,
     ) {
         precondition(!apiKey.isEmpty, "OpenAI API key must not be empty")
         self.apiKey = apiKey
@@ -62,7 +62,7 @@ public struct OpenAIGateway: LLMGateway {
         self.client = client
         self.lineTransport = lineTransport
         self.registry = registry
-        self.logger = Logger(label: "mojentic.gateway.openai")
+        logger = Logger(label: "mojentic.gateway.openai")
     }
 
     // MARK: - LLMGateway
@@ -72,7 +72,7 @@ public struct OpenAIGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         let body = buildRequest(
             model: model,
@@ -80,14 +80,14 @@ public struct OpenAIGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: false,
-            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload),
         )
         let url = baseURL.appendingPathComponent("chat/completions")
         let response = try await client.postJSON(
             url: url,
             body: body,
             headers: authHeaders(),
-            responseType: OpenAIChatResponse.self
+            responseType: OpenAIChatResponse.self,
         )
         return response.toGatewayResponse()
     }
@@ -97,14 +97,9 @@ public struct OpenAIGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> JSONValue {
-        try await completeStructured(
-            model: model,
-            messages: messages,
-            schema: schema,
-            config: config
-        ).value
+        try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
     }
 
     /// Run a structured-output completion using `response_format`, keeping
@@ -113,36 +108,32 @@ public struct OpenAIGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
         let capabilities = registry.capabilities(for: model)
-        let responseFormat: JSONValue
-        if capabilities.supportsJSONSchema {
-            responseFormat = [
-                "type": "json_schema",
-                "json_schema": [
-                    "name": "Response",
-                    "schema": schema,
-                    "strict": true,
-                ],
-            ]
-        } else {
-            responseFormat = ["type": "json_object"]
-        }
+        let responseFormat: JSONValue =
+            if capabilities.supportsJSONSchema {
+                [
+                    "type": "json_schema",
+                    "json_schema": ["name": "Response", "schema": schema, "strict": true],
+                ]
+            } else {
+                ["type": "json_object"]
+            }
         let body = buildRequest(
             model: model,
             messages: messages,
             tools: nil,
             config: config,
             stream: false,
-            responseFormat: responseFormat
+            responseFormat: responseFormat,
         )
         let url = baseURL.appendingPathComponent("chat/completions")
         let wire = try await client.postJSON(
             url: url,
             body: body,
             headers: authHeaders(),
-            responseType: OpenAIChatResponse.self
+            responseType: OpenAIChatResponse.self,
         )
         let response = wire.toGatewayResponse()
         let content = response.content
@@ -162,7 +153,7 @@ public struct OpenAIGateway: LLMGateway {
         let response = try await client.getJSON(
             url: url,
             headers: authHeaders(),
-            responseType: OpenAIModelListResponse.self
+            responseType: OpenAIModelListResponse.self,
         )
         return response.data.map(\.id).sorted()
     }
@@ -173,7 +164,7 @@ public struct OpenAIGateway: LLMGateway {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         let body = buildRequest(
             model: model,
@@ -181,14 +172,14 @@ public struct OpenAIGateway: LLMGateway {
             tools: tools,
             config: config,
             stream: true,
-            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload),
         )
         return OpenAILegacyStreaming.events(
             transport: lineTransport,
             url: baseURL.appendingPathComponent("chat/completions"),
             body: body,
             headers: authHeaders(),
-            parser: OpenAILegacyStreamParser()
+            parser: OpenAILegacyStreamParser(),
         )
     }
 
@@ -200,7 +191,7 @@ public struct OpenAIGateway: LLMGateway {
     public func completeStreamEvents(
         model: String,
         messages: [LLMMessage],
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
         var body = buildRequest(
             model: model,
@@ -208,7 +199,7 @@ public struct OpenAIGateway: LLMGateway {
             tools: nil,
             config: config,
             stream: true,
-            responseFormat: config.responseFormat.map(Self.responseFormatPayload)
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload),
         )
         if case .object(var fields) = body {
             fields["stream_options"] = ["include_usage": true]
@@ -219,7 +210,7 @@ public struct OpenAIGateway: LLMGateway {
             url: baseURL.appendingPathComponent("chat/completions"),
             body: body,
             headers: authHeaders(),
-            parser: OpenAICompletionEventParser()
+            parser: OpenAICompletionEventParser(),
         )
     }
 
@@ -228,15 +219,10 @@ public struct OpenAIGateway: LLMGateway {
     /// Map a configured ``ResponseFormat`` onto OpenAI's `response_format` payload.
     static func responseFormatPayload(_ format: ResponseFormat) -> JSONValue {
         switch format {
-        case .text:
-            return ["type": "text"]
-        case .jsonObject:
-            return ["type": "json_object"]
+        case .text: ["type": "text"]
+        case .jsonObject: ["type": "json_object"]
         case .jsonSchema(let schema):
-            return [
-                "type": "json_schema",
-                "json_schema": ["name": "response", "schema": schema],
-            ]
+            ["type": "json_schema", "json_schema": ["name": "response", "schema": schema]]
         }
     }
 
@@ -250,12 +236,11 @@ public struct OpenAIGateway: LLMGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
         stream: Bool,
-        responseFormat: JSONValue?
+        responseFormat: JSONValue?,
     ) -> JSONValue {
         let capabilities = registry.capabilities(for: model)
         var dict: [String: JSONValue] = [
-            "model": .string(model),
-            "messages": .array(OpenAIMessageAdapter.adapt(messages)),
+            "model": .string(model), "messages": .array(OpenAIMessageAdapter.adapt(messages)),
             "stream": .bool(stream),
         ]
         if capabilities.supportsTemperatureControl {
@@ -303,10 +288,18 @@ struct OpenAIResponseEnvelope: Decodable {
     /// Reported fields as a metadata map; `nil` when none were reported.
     var metadata: [String: JSONValue]? {
         var fields: [String: JSONValue] = [:]
-        if let id { fields["id"] = .string(id) }
-        if let created { fields["created"] = .integer(created) }
-        if let systemFingerprint { fields["system_fingerprint"] = .string(systemFingerprint) }
-        if let serviceTier { fields["service_tier"] = .string(serviceTier) }
+        if let id {
+            fields["id"] = .string(id)
+        }
+        if let created {
+            fields["created"] = .integer(created)
+        }
+        if let systemFingerprint {
+            fields["system_fingerprint"] = .string(systemFingerprint)
+        }
+        if let serviceTier {
+            fields["service_tier"] = .string(serviceTier)
+        }
         return fields.isEmpty ? nil : fields
     }
 }
@@ -366,7 +359,7 @@ struct OpenAIChatResponse: Decodable {
             usage: usage?.toUsage(),
             providerFinishReason: choice?.finishReason,
             providerModel: model,
-            metadata: envelope.metadata
+            metadata: envelope.metadata,
         )
     }
 }
@@ -381,11 +374,10 @@ struct OpenAIToolCall: Decodable {
     }
 
     static func decodeArguments(_ raw: String) -> JSONValue {
-        guard let data = raw.data(using: .utf8),
+        guard
+            let data = raw.data(using: .utf8),
             let value = try? JSONDecoder().decode(JSONValue.self, from: data)
-        else {
-            return .object([:])
-        }
+        else { return .object([:]) }
         return value
     }
 }
@@ -402,11 +394,7 @@ struct OpenAIUsage: Decodable {
     }
 
     func toUsage() -> Usage {
-        Usage(
-            promptTokens: promptTokens,
-            completionTokens: completionTokens,
-            totalTokens: totalTokens
-        )
+        Usage(promptTokens: promptTokens, completionTokens: completionTokens, totalTokens: totalTokens)
     }
 }
 
@@ -414,7 +402,5 @@ struct OpenAIUsage: Decodable {
 struct OpenAIModelListResponse: Decodable {
     let data: [Entry]
 
-    struct Entry: Decodable {
-        let id: String
-    }
+    struct Entry: Decodable { let id: String }
 }

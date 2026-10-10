@@ -26,11 +26,11 @@ struct CodingFileTool {
                 messages: [
                     .system(
                         "You are a code-reading assistant. Use the available file tools to read the file the user names, "
-                        + "then summarise what it does in 3 sentences."
+                            + "then summarise what it does in 3 sentences."
                     ),
                     .user("Summarise the file at '\(path)' relative to the sandbox."),
                 ],
-                tools: tools
+                tools: tools,
             )
             print(response.content)
         } catch {

@@ -39,7 +39,7 @@ public protocol LLMGateway: Sendable {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> LLMGatewayResponse
 
     /// Issue a structured-output completion request and return raw JSON
@@ -48,7 +48,7 @@ public protocol LLMGateway: Sendable {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> JSONValue
 
     /// Issue a structured-output completion and return the decoded JSON
@@ -62,7 +62,7 @@ public protocol LLMGateway: Sendable {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse
 
     /// List models available on the provider.
@@ -75,7 +75,7 @@ public protocol LLMGateway: Sendable {
         model: String,
         messages: [LLMMessage],
         tools: [any LLMTool]?,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error>
 
     /// Issue one streaming request for a single turn, with no tools, and
@@ -89,7 +89,7 @@ public protocol LLMGateway: Sendable {
     func completeStreamEvents(
         model: String,
         messages: [LLMMessage],
-        config: CompletionConfig
+        config: CompletionConfig,
     ) throws(MojenticError) -> AsyncStream<CompletionStreamEvent>
 }
 
@@ -101,7 +101,7 @@ extension LLMGateway {
     public func completeStreamEvents(
         model _: String,
         messages _: [LLMMessage],
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) throws(MojenticError) -> AsyncStream<CompletionStreamEvent> {
         throw .streamEventsUnsupported
     }
@@ -114,14 +114,9 @@ extension LLMGateway {
         model: String,
         messages: [LLMMessage],
         schema: JSONValue,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
-        let value = try await completeJSON(
-            model: model,
-            messages: messages,
-            schema: schema,
-            config: config
-        )
+        let value = try await completeJSON(model: model, messages: messages, schema: schema, config: config)
         let content = (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         return StructuredGatewayResponse(value: value, response: LLMGatewayResponse(content: content))
     }

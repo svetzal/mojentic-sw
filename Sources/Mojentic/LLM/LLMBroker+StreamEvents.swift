@@ -14,7 +14,8 @@ extension LLMBroker {
     /// not an answer.
     ///
     /// The broker sends one request, forces `maxToolIterations` to zero, and
-    /// never recurses; an enabled gateway may recover that one request. Stopping consumption (breaking the loop,
+    /// never recurses; an enabled gateway may recover that one request. Stopping consumption (breaking the
+    /// loop,
     /// dropping the stream or cancelling the task) cancels the request.
     ///
     /// The tracer records the call once the gateway accepts the request, and
@@ -32,18 +33,29 @@ extension LLMBroker {
         model: String,
         messages: [LLMMessage],
         config: CompletionConfig = CompletionConfig(),
-        context: TracerContext = TracerContext()
+        context: TracerContext = TracerContext(),
     ) -> AsyncStream<CompletionStreamEvent> {
-        AsyncStream { continuation in
-            let task = Task {
-                let terminal = await self.relayStreamEvents(
+        if RecoveryCancellationScope.current != nil {
+            return RecoveryScopedStreaming.completion { deliver in
+                try await self.relayStreamEvents(
                     model: model,
                     messages: messages,
                     config: config,
                     context: context,
-                    continuation: continuation
+                    deliver: deliver,
                 )
-                continuation.yield(terminal)
+            }
+        }
+        return AsyncStream { continuation in
+            let task = Task {
+                let terminal = try? await self.relayStreamEvents(
+                    model: model,
+                    messages: messages,
+                    config: config,
+                    context: context,
+                    deliver: { continuation.yield($0) },
+                )
+                continuation.yield(terminal ?? .error(.cancelled))
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -57,8 +69,8 @@ extension LLMBroker {
         messages: [LLMMessage],
         config: CompletionConfig,
         context: TracerContext,
-        continuation: AsyncStream<CompletionStreamEvent>.Continuation
-    ) async -> CompletionStreamEvent {
+        deliver: @escaping @Sendable (CompletionStreamEvent) async throws -> Void,
+    ) async throws -> CompletionStreamEvent {
         var singleTurn = config
         singleTurn.maxToolIterations = 0
         let upstream: AsyncStream<CompletionStreamEvent>
@@ -66,17 +78,15 @@ extension LLMBroker {
             upstream = try gateway.completeStreamEvents(
                 model: model,
                 messages: messages,
-                config: singleTurn
+                config: singleTurn,
             )
-        } catch {
-            return .error(error)
-        }
+        } catch { return .error(error) }
         let callPayload = LLMCallPayload(
             correlationId: context.correlationId,
             parentId: context.parentId,
             model: model,
             messages: messages,
-            tools: nil
+            tools: nil,
         )
         await tracer.recordLLMCall(callPayload)
         let clock = ContinuousClock()
@@ -86,11 +96,11 @@ extension LLMBroker {
         for await event in upstream {
             if case .content(let text) = event {
                 content += text
-                continuation.yield(event)
+                try await deliver(event)
                 continue
             }
             if !event.isTerminal {
-                continuation.yield(event)
+                try await deliver(event)
                 continue
             }
             terminal = event
@@ -106,7 +116,7 @@ extension LLMBroker {
                 parentId: callPayload.id,
                 duration: start.duration(to: clock.now),
                 model: model,
-                response: Self.tracedResponse(content: content, terminal: outcome)
+                response: Self.tracedResponse(content: content, terminal: outcome),
             )
         )
         return outcome
@@ -114,24 +124,21 @@ extension LLMBroker {
 
     private static func tracedResponse(
         content: String,
-        terminal: CompletionStreamEvent
+        terminal: CompletionStreamEvent,
     ) -> LLMGatewayResponse {
-        let evidence: CompletionEvidence?
-        switch terminal {
-        case .completed(let reported), .error(.incompleteCompletion(let reported)):
-            evidence = reported
-        case .error(.incompleteStream(let reported)):
-            evidence = reported
-        default:
-            evidence = nil
-        }
+        let evidence: CompletionEvidence? =
+            switch terminal {
+            case .completed(let reported), .error(.incompleteCompletion(let reported)): reported
+            case .error(.incompleteStream(let reported)): reported
+            default: nil
+            }
         return LLMGatewayResponse(
             content: content,
             finishReason: evidence?.finishReason.map { FinishReason(rawValue: $0) ?? .other },
             usage: evidence?.usage,
             providerFinishReason: evidence?.finishReason,
             providerModel: evidence?.providerModel,
-            metadata: evidence?.metadata
+            metadata: evidence?.metadata,
         )
     }
 }

@@ -17,7 +17,7 @@ struct RealtimeToolCall {
                     model: "gpt-4o-realtime-preview",
                     apiKey: key,
                     tools: [CurrentDateTimeTool()],
-                    instructions: "When the user asks the time, call the get_current_datetime tool."
+                    instructions: "When the user asks the time, call the get_current_datetime tool.",
                 )
             )
             try await session.send(text: "What time is it right now?")

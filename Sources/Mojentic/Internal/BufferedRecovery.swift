@@ -21,7 +21,7 @@ struct BufferedRecovery {
         headers: [String: String],
         body: some Encodable,
         timeout: TimeInterval?,
-        decode: @Sendable (Data, [HTTPHeader]) throws -> LLMGatewayResponse
+        decode: @Sendable (Data, [HTTPHeader]) throws -> LLMGatewayResponse,
     ) async throws -> LLMGatewayResponse {
         try await run(
             url: url,
@@ -29,7 +29,7 @@ struct BufferedRecovery {
             body: body,
             timeout: timeout,
             decode: decode,
-            project: { $0 }
+            project: { $0 },
         )
     }
 
@@ -39,7 +39,7 @@ struct BufferedRecovery {
         body: some Encodable,
         timeout: TimeInterval?,
         decode: @Sendable (Data, [HTTPHeader]) throws -> LLMGatewayResponse,
-        project: (LLMGatewayResponse) throws -> Result
+        project: (LLMGatewayResponse) throws -> Result,
     ) async throws -> Result {
         try validatePolicy()
         let bytes: Data
@@ -50,7 +50,7 @@ struct BufferedRecovery {
             throw terminal(
                 error,
                 outcome: Task.isCancelled ? .cancelled : .encoding,
-                category: .protocolFailure
+                category: .protocolFailure,
             )
         }
         for number in 1...policy.maximumAttempts {
@@ -59,7 +59,7 @@ struct BufferedRecovery {
                 headers: headers,
                 bytes: bytes,
                 timeout: timeout,
-                number: number
+                number: number,
             )
             wire = result
             progress.headersReceived = result.response != nil
@@ -73,23 +73,25 @@ struct BufferedRecovery {
                 do {
                     decoded = try decode(
                         result.body,
-                        result.headers.map { HTTPHeader(name: $0.key, value: $0.value) }
+                        result.headers.map { HTTPHeader(name: $0.key, value: $0.value) },
                     )
-                    if let decoded { observe(decoded) }
+                    if let decoded {
+                        observe(decoded)
+                    }
                 } catch { decodeCause = error }
             }
             if result.captureFailed {
                 throw terminal(
                     result.cause ?? CancellationError(),
                     outcome: .captureFailed,
-                    category: .capture
+                    category: .capture,
                 )
             }
             if Task.isCancelled {
                 throw terminal(
                     result.cause ?? CancellationError(),
                     outcome: .cancelled,
-                    category: .cancellation
+                    category: .cancellation,
                 )
             }
             if successfulStatus, result.cause == nil, let decoded {
@@ -101,7 +103,7 @@ struct BufferedRecovery {
                     throw terminal(
                         error,
                         outcome: Task.isCancelled ? .cancelled : .malformedResponse,
-                        category: .protocolFailure
+                        category: .protocolFailure,
                     )
                 }
                 progress.delivered = progress.observed
@@ -122,9 +124,11 @@ struct BufferedRecovery {
                 category: category,
                 cause: result.cause ?? decodeCause
                     ?? result.response.map { RecoveryHTTPStatusFailure(status: $0.statusCode) },
-                reason: "requestFailed"
+                reason: "requestFailed",
             )
-            if started == nil { started = policy.timing.monotonic() }
+            if started == nil {
+                started = policy.timing.monotonic()
+            }
             history.append(failure)
             emit(.attemptFailed, category: category)
             try await admit(failure, next: number + 1)
@@ -138,7 +142,7 @@ struct BufferedRecovery {
         bytes: Data,
         timeout: TimeInterval?,
         number: Int,
-        stream: RecoveryStreamDecoder? = nil
+        stream: RecoveryStreamDecoder? = nil,
     ) async throws -> RecoveryHTTPResult {
         // Request capture is pre-dispatch; its failure consumes no wire attempt.
         let candidate = RecoveryIdentity(logicalID: logicalID, attemptID: UUID(), wireNumber: number)
@@ -151,15 +155,19 @@ struct BufferedRecovery {
                 error,
                 outcome: Task.isCancelled ? .cancelled : .captureFailed,
                 category: .capture,
-                recordAttempt: false
+                recordAttempt: false,
             )
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = bytes
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-        if let timeout { request.timeoutInterval = timeout }
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        if let timeout {
+            request.timeoutInterval = timeout
+        }
         let previous = self
         // Capture can run arbitrary caller code. Keep the failed actual attempt until
         // its proposed successor has passed the final cancellation and limit checks.
@@ -168,7 +176,11 @@ struct BufferedRecovery {
         }
         if Task.isCancelled {
             throw terminal(
-                CancellationError(), outcome: .cancelled, category: .cancellation, recordAttempt: false)
+                CancellationError(),
+                outcome: .cancelled,
+                category: .cancellation,
+                recordAttempt: false,
+            )
         }
         progress = RecoveryProgress()
         wire = nil
@@ -179,10 +191,12 @@ struct BufferedRecovery {
             semantics: { [provider] data in Self.semanticEvidence(data, provider: provider) },
             didStart: { [current = self] in
                 current.emit(number == 1 ? .attemptStarted : .retryStarted)
-                if number > 1 { current.emit(.attemptStarted) }
+                if number > 1 {
+                    current.emit(.attemptStarted)
+                }
             },
             mayStart: { [current = previous] in number == 1 || current.withinLimits(delay: 0) },
-            stream: stream
+            stream: stream,
         )
         let result = await transport.send(request)
         if !result.dispatched {
@@ -191,7 +205,11 @@ struct BufferedRecovery {
                 throw finish(.limitRefused, failure)
             }
             throw terminal(
-                CancellationError(), outcome: .cancelled, category: .cancellation, recordAttempt: false)
+                CancellationError(),
+                outcome: .cancelled,
+                category: .cancellation,
+                recordAttempt: false,
+            )
         }
         return result
     }
@@ -229,13 +247,9 @@ struct BufferedRecovery {
             try await policy.timing.sleep(delay)
             try Task.checkCancellation()
             guard withinLimits(delay: 0) else { throw finish(.limitRefused, failure) }
-        } catch let error as RecoveryError {
-            throw error
-        } catch is RecoveryAdmissionLimit {
+        } catch let error as RecoveryError { throw error } catch is RecoveryAdmissionLimit {
             throw finish(.limitRefused, failure)
-        } catch {
-            throw terminal(error, outcome: .cancelled, category: .cancellation, recordAttempt: false)
-        }
+        } catch { throw terminal(error, outcome: .cancelled, category: .cancellation, recordAttempt: false) }
     }
 
     private func admissionDecision(
@@ -243,7 +257,7 @@ struct BufferedRecovery {
     ) async throws -> RecoveryAdmission? {
         let now = policy.timing.monotonic()
         let ends = [policy.deadline, policy.budget.flatMap { budget in started.map { $0 + budget } }]
-            .compactMap { $0 }
+            .compactMap(\.self)
         guard let end = ends.min() else {
             var iterator = stream.makeAsyncIterator()
             return await iterator.next()
@@ -269,14 +283,18 @@ struct BufferedRecovery {
             logicalID: logicalID,
             identity: identity,
             progress: progress,
-            history: history
+            history: history,
         )
     }
 
     private func withinLimits(delay: TimeInterval) -> Bool {
         let now = policy.timing.monotonic()
-        if let budget = policy.budget, let started, now - started + delay >= budget { return false }
-        if let deadline = policy.deadline, now + delay >= deadline { return false }
+        if let budget = policy.budget, let started, now - started + delay >= budget {
+            return false
+        }
+        if let deadline = policy.deadline, now + delay >= deadline {
+            return false
+        }
         return true
     }
 
@@ -294,23 +312,26 @@ struct BufferedRecovery {
 
     private var currentPhase: RecoveryPhase? {
         guard progress.headersReceived else { return nil }
-        if operation == "streaming" { return .streaming }
+        if operation == "streaming" {
+            return .streaming
+        }
         return wire?.cause == nil ? .decoding : .receiving
     }
+}
 
-    func makeFailure(
-        category: RecoveryCategory,
-        cause: (any Error)?,
-        reason: String
-    ) -> RecoveryFailure {
+extension BufferedRecovery {
+    func makeFailure(category: RecoveryCategory, cause: (any Error)?, reason: String) -> RecoveryFailure {
         let status = wire?.response?.statusCode
         let permanent = status.map { [400, 401, 403].contains($0) } ?? false
-        let eligible =
-            !permanent && progress.observed == RecoverySemanticProgress()
-            && policy.retryableCategories.contains(category)
-            && (category == .http
-                ? status.map(policy.retryableStatuses.contains) == true
-                : [.transport, .clientTimeout].contains(category))
+        let eligibleCategory =
+            if category == .http {
+                status.map(policy.retryableStatuses.contains) == true
+            } else {
+                [.transport, .clientTimeout].contains(category)
+            }
+        let unobserved = progress.observed == RecoverySemanticProgress()
+        let selected = policy.retryableCategories.contains(category)
+        let eligible = !permanent && unobserved && selected && eligibleCategory
         return RecoveryFailure(
             logicalID: logicalID,
             identity: identity,
@@ -327,18 +348,22 @@ struct BufferedRecovery {
             evidence: RecoveryEvidence(
                 headers: wire?.headers ?? [:],
                 body: wire?.body ?? Data(),
-                cause: cause
-            )
+                cause: cause,
+            ),
         )
     }
 
     private func classificationReason(
         _ category: RecoveryCategory,
         permanent: Bool,
-        eligible: Bool
+        eligible: Bool,
     ) -> String {
-        if permanent { return "permanentHTTPStatus" }
-        if progress.observed != RecoverySemanticProgress() { return "observedSemanticOutput" }
+        if permanent {
+            return "permanentHTTPStatus"
+        }
+        if progress.observed != RecoverySemanticProgress() {
+            return "observedSemanticOutput"
+        }
         switch category {
         case .http: return eligible ? "selectedHTTPStatus" : "unselectedHTTPStatus"
         case .transport: return eligible ? "transientTransport" : "nonTransientTransport"
@@ -355,17 +380,19 @@ struct BufferedRecovery {
             return .absent
         }
         let trimmed = value.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty, trimmed.allSatisfy({ $0.isASCII && $0.isNumber }),
-            let seconds = Double(trimmed), seconds.isFinite
-        {
-            return .seconds(seconds)
+        if !trimmed.isEmpty, trimmed.allSatisfy({ $0.isASCII && $0.isNumber }) {
+            if let seconds = Double(trimmed), seconds.isFinite {
+                return .seconds(seconds)
+            }
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
         formatter.isLenient = false
-        if let date = formatter.date(from: trimmed) { return .date(date) }
+        if let date = formatter.date(from: trimmed) {
+            return .date(date)
+        }
         return .invalid
     }
 
@@ -373,13 +400,13 @@ struct BufferedRecovery {
         _ cause: any Error,
         outcome: RecoveryTransition,
         category: RecoveryCategory,
-        recordAttempt: Bool = true
+        recordAttempt: Bool = true,
     ) -> RecoveryError {
         let cancelled = Task.isCancelled || category == .cancellation
         let failure = makeFailure(
             category: cancelled ? .cancellation : category,
             cause: cause,
-            reason: cancelled ? "callerCancelled" : outcome.rawValue
+            reason: cancelled ? "callerCancelled" : outcome.rawValue,
         )
         if recordAttempt, identity != nil {
             history.append(failure)
@@ -393,9 +420,11 @@ struct BufferedRecovery {
         // A cancellation never replaces the already recorded actual failure.
         let outcome = Task.isCancelled ? RecoveryTransition.cancelled : outcome
         let failure =
-            outcome == .cancelled
-            ? makeFailure(category: .cancellation, cause: CancellationError(), reason: "callerCancelled")
-            : failure
+            if outcome == .cancelled {
+                makeFailure(category: .cancellation, cause: CancellationError(), reason: "callerCancelled")
+            } else {
+                failure
+            }
         emit(outcome, category: failure.category)
         policy.reportObserver?(report())
         return RecoveryError(logicalID: logicalID, outcome: outcome, failure: failure, history: history)
@@ -404,7 +433,7 @@ struct BufferedRecovery {
     func emit(
         _ transition: RecoveryTransition,
         category: RecoveryCategory? = nil,
-        delay: TimeInterval? = nil
+        delay: TimeInterval? = nil,
     ) {
         policy.observer?(
             RecoveryEvent(
@@ -424,7 +453,7 @@ struct BufferedRecovery {
                 },
                 reason: category.map {
                     makeFailure(category: $0, cause: wire?.cause, reason: "requestFailed").reason
-                }
+                },
             )
         )
     }
@@ -434,14 +463,10 @@ private struct RecoveryAdmissionLimit: Error {}
 
 extension BufferedRecovery {
     func validatePolicy() throws {
-        guard policy.maximumAttempts > 0,
-            policy.baseDelay.isFinite, policy.baseDelay >= 0,
+        guard
+            policy.maximumAttempts > 0, policy.baseDelay.isFinite, policy.baseDelay >= 0,
             policy.delayCeiling.isFinite, policy.delayCeiling >= 0,
-            policy.budget.map({ $0.isFinite && $0 >= 0 }) ?? true,
-            policy.deadline.map(\.isFinite) ?? true
-        else {
-            throw MojenticError.invalidArgument(message: "Invalid buffered recovery limits")
-        }
+            policy.budget.map({ $0.isFinite && $0 >= 0 }) ?? true, policy.deadline.map(\.isFinite) ?? true
+        else { throw MojenticError.invalidArgument(message: "Invalid buffered recovery limits") }
     }
-
 }

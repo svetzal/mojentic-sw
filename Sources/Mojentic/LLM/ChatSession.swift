@@ -34,23 +34,25 @@ public actor ChatSession {
         systemPrompt: String? = nil,
         tools: [any LLMTool] = [],
         config: CompletionConfig = CompletionConfig(),
-        contextWindowManager: (any ContextWindowManager)? = nil
+        contextWindowManager: (any ContextWindowManager)? = nil,
     ) {
         self.broker = broker
         self.model = model
         self.systemPrompt = systemPrompt
         self.tools = tools
         self.config = config
-        self.contextManager = contextWindowManager
+        contextManager = contextWindowManager
         if let systemPrompt {
-            self.history = [LLMMessage.system(systemPrompt)]
+            history = [LLMMessage.system(systemPrompt)]
         } else {
-            self.history = []
+            history = []
         }
     }
 
     /// Returns a snapshot of the current conversation history.
-    public func messages() -> [LLMMessage] { history }
+    public func messages() -> [LLMMessage] {
+        history
+    }
 
     /// Reset the history.
     ///
@@ -74,7 +76,7 @@ public actor ChatSession {
                 model: model,
                 messages: trimmed,
                 tools: tools,
-                config: config
+                config: config,
             )
             history.append(LLMMessage.assistant(response.content))
             return response
@@ -97,7 +99,7 @@ public actor ChatSession {
                 model: model,
                 messages: trimmed,
                 tools: tools,
-                config: config
+                config: config,
             )
             history.append(LLMMessage.assistant(response.content))
             return response
@@ -118,16 +120,18 @@ public actor ChatSession {
     /// On stream error or cancellation the partial assistant turn is **not**
     /// committed — the convo state stays consistent.
     public nonisolated func stream(_ text: String) -> AsyncThrowingStream<StreamEvent, any Error> {
-        AsyncThrowingStream { continuation in
+        if RecoveryCancellationScope.current != nil {
+            return RecoveryScopedStreaming.throwing { deliver in
+                try await self.runStream(text: text, deliver: deliver)
+            }
+        }
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runStream(text: text, continuation: continuation)
+                    try await self.runStream(text: text, deliver: { continuation.yield($0) })
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
+                { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
@@ -135,7 +139,7 @@ public actor ChatSession {
 
     private func runStream(
         text: String,
-        continuation: AsyncThrowingStream<StreamEvent, any Error>.Continuation
+        deliver: @escaping @Sendable (StreamEvent) async throws -> Void,
     ) async throws {
         let userMessage = LLMMessage.user(text)
         history.append(userMessage)
@@ -143,22 +147,14 @@ public actor ChatSession {
         var finalResponse: LLMResponse?
         do {
             let trimmed = try await prepared(history)
-            let upstream = broker.stream(
-                model: model,
-                messages: trimmed,
-                tools: tools,
-                config: config
-            )
+            let upstream = broker.stream(model: model, messages: trimmed, tools: tools, config: config)
             for try await event in upstream {
                 switch event {
-                case .textDelta(let delta):
-                    accumulated += delta
-                case .done(let response):
-                    finalResponse = response
-                default:
-                    break
+                case .textDelta(let delta): accumulated += delta
+                case .done(let response): finalResponse = response
+                default: break
                 }
-                continuation.yield(event)
+                try await deliver(event)
             }
         } catch {
             if history.last == userMessage {

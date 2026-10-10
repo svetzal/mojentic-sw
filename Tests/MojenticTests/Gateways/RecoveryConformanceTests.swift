@@ -1,12 +1,13 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("Buffered recovery conformance")
 struct RecoveryConformanceTests {
     @Test(arguments: RecoveryBoundary.all)
-    func bothOperationsPreserveShapingAndResults(_ boundary: RecoveryBoundary) async throws {
+    func bothOperationsPreserveShapingAndResults(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let success = try boundary.success()
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "unavailable"), success])
         let recorder = RecoveryRecorder()
@@ -46,23 +47,29 @@ struct RecoveryConformanceTests {
             #expect(fields?["temperature"] == 0.25)
             #expect(fields?["max_tokens"] == 123)
             #expect(fields?["reasoning_effort"] == "high")
-            if boundary.structured { #expect(fields?["response_format"] != nil) }
+            if boundary.structured {
+                #expect(fields?["response_format"] != nil)
+            }
         } else {
             #expect(fields?["think"] == true)
             #expect(fields?["options"]?.objectValue?["temperature"] == 0.25)
             #expect(fields?["options"]?.objectValue?["num_predict"] == 123)
-            if boundary.structured { #expect(fields?["format"] == ["type": "object"]) }
+            if boundary.structured {
+                #expect(fields?["format"] == ["type": "object"])
+            }
         }
-        if !boundary.structured { #expect(fields?["tools"] != nil) }
+        if !boundary.structured {
+            #expect(fields?["tools"] != nil)
+        }
         let traces = recorder.requests.withLock { $0 }
         #expect(traces[0].0.logicalID == traces[1].0.logicalID)
         #expect(traces[0].0.attemptID != traces[1].0.attemptID)
-        #expect(traces.map { $0.0.wireNumber } == [1, 2])
+        #expect(traces.map(\.0.wireNumber) == [1, 2])
         let events = recorder.events.withLock { $0 }
         #expect(
             events.map(\.transition.rawValue) == [
-                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed",
-                "delayScheduled", "retryStarted", "attemptStarted", "attemptSucceeded",
+                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed", "delayScheduled",
+                "retryStarted", "attemptStarted", "attemptSucceeded",
             ]
         )
         let safe = try #require(String(bytes: JSONEncoder().encode(events), encoding: .utf8))
@@ -79,35 +86,20 @@ struct RecoveryConformanceTests {
         #expect(final.history.first?.identity == traces[0].0)
         #expect(final.history.count == 1)
         #expect(final.progress.delivered.reasoningBytes == 9)
-        let wire = recorder.wires.withLock { $0 }
-        var firstBody = Data()
-        var secondBody = Data()
-        var statuses: [Int] = []
-        for item in wire {
-            switch item {
-            case .headers(let identity, let status, _):
-                #expect(identity == (status == 503 ? traces[0].0 : traces[1].0))
-                statuses.append(status)
-            case .body(let identity, let bytes):
-                #expect(identity == traces[0].0 || identity == traces[1].0)
-                if identity == traces[0].0 { firstBody.append(bytes) } else { secondBody.append(bytes) }
-            case .request: break
-            }
-        }
-        #expect(statuses == [503, 200])
-        #expect(firstBody == Data("unavailable".utf8))
-        #expect(secondBody == Data(success.body.utf8))
-        #expect(!String(reflecting: wire).contains("sentinel"))
+        assertWireEvidence(recorder: recorder, traces: traces, success: success)
     }
 
     @Test(arguments: RecoveryBoundary.all, [400, 401, 403])
-    func permanentTruncatedStatusWins(_ boundary: RecoveryBoundary, _ status: Int) async throws {
+    func permanentTruncatedStatusWins(
+        _ boundary: RecoveryBoundary,
+        _ status: Int,
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(
                 status: status,
                 headers: ["X-Request-ID": "credential-sentinel"],
                 body: "payload-sentinel",
-                truncated: true
+                truncated: true,
             )
         ])
         let recorder = RecoveryRecorder()
@@ -136,7 +128,9 @@ struct RecoveryConformanceTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func persistent504IsBounded(_ boundary: RecoveryBoundary) async throws {
+    func persistent504IsBounded(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "payload-sentinel")])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
@@ -154,11 +148,17 @@ struct RecoveryConformanceTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func successfulCaptureFailureRetainsObservedAndTypedCause(_ boundary: RecoveryBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [try boundary.success(tools: true)])
+    func successfulCaptureFailureRetainsObservedAndTypedCause(
+        _ boundary: RecoveryBoundary
+    ) async throws {
+        let server = try RecoveryLoopback(replies: [boundary.success(tools: true)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
-        policy.wireObserver = { event in if case .body = event { throw RecoveryCaptureSentinel() } }
+        policy.wireObserver = { event in
+            if case .body = event {
+                throw RecoveryCaptureSentinel()
+            }
+        }
         let failure = try await recoveryFailure {
             _ = try await boundary.complete(boundary.gateway(server, policy: policy))
         }
@@ -179,7 +179,9 @@ struct RecoveryConformanceTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func malformedResponseNeverResends(_ boundary: RecoveryBoundary) async throws {
+    func malformedResponseNeverResends(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: "not JSON payload-sentinel")])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
@@ -192,9 +194,11 @@ struct RecoveryConformanceTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func disabledRecoveryRetainsLegacyOneSend(_ boundary: RecoveryBoundary) async throws {
+    func disabledRecoveryRetainsLegacyOneSend(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(status: 503, body: "legacy"), try boundary.success(),
+            RecoveryReply(status: 503, body: "legacy"), boundary.success(),
         ])
         let failure = await httpFailure {
             _ = try await boundary.complete(boundary.gateway(server, policy: nil))
@@ -203,8 +207,11 @@ struct RecoveryConformanceTests {
         #expect(failure?.body == "legacy")
         #expect(server.requests.withLock { $0.count } == 1)
     }
+
     @Test(arguments: RecoveryBoundary.all)
-    func successfulLegacyAndRecoveryResultsMatch(_ boundary: RecoveryBoundary) async throws {
+    func successfulLegacyAndRecoveryResultsMatch(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let reply = try boundary.success()
         let legacyServer = try RecoveryLoopback(replies: [reply])
         let recoveryServer = try RecoveryLoopback(replies: [reply])
@@ -216,27 +223,28 @@ struct RecoveryConformanceTests {
         #expect(legacy == recovered)
         let legacyBody = try JSONDecoder().decode(
             JSONValue.self,
-            from: #require(legacyServer.requests.withLock { $0.first })
+            from: #require(legacyServer.requests.withLock { $0.first }),
         )
         let recoveredBody = try JSONDecoder().decode(
             JSONValue.self,
-            from: #require(recoveryServer.requests.withLock { $0.first })
+            from: #require(recoveryServer.requests.withLock { $0.first }),
         )
         #expect(legacyBody == recoveredBody)
         #expect(recoveryServer.requests.withLock { $0.count } == 1)
     }
-
 }
 
 @Suite("Recovery protocol and identity safeguards")
 struct RecoverySafeguardTests {
     @Test(arguments: RecoveryBoundary.all)
-    func redirectsAreNotFollowed(_ boundary: RecoveryBoundary) async throws {
+    func redirectsAreNotFollowed(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(
                 status: 307,
                 headers: ["Location": "http://127.0.0.1:1/forbidden"],
-                body: "redirect"
+                body: "redirect",
             )
         ])
         let failure = try await recoveryFailure {
@@ -250,16 +258,18 @@ struct RecoverySafeguardTests {
     }
 
     @Test(arguments: [false, true])
-    func structuredJSONFailureRetainsReceivedSemanticEvidence(_ omlx: Bool) async throws {
+    func structuredJSONFailureRetainsReceivedSemanticEvidence(
+        _ omlx: Bool
+    ) async throws {
         let ordinary = RecoveryBoundary(omlx: omlx, structured: false)
         let structured = RecoveryBoundary(omlx: omlx, structured: true)
-        let server = try RecoveryLoopback(replies: [try ordinary.success()])
+        let server = try RecoveryLoopback(replies: [ordinary.success()])
         let failure = try await recoveryFailure {
             _ = try await structured.gateway(server, policy: recoveryPolicy(RecoveryRecorder())).completeJSON(
                 model: "fixture",
                 messages: [.user("original")],
                 schema: ["type": "object"],
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         }
         #expect(failure.outcome == .malformedResponse)
@@ -271,7 +281,9 @@ struct RecoverySafeguardTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func failedSecondRequestCaptureDoesNotInventAnotherAttempt(_ boundary: RecoveryBoundary) async throws {
+    func failedSecondRequestCaptureDoesNotInventAnotherAttempt(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy")])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
@@ -295,8 +307,11 @@ struct RecoverySafeguardTests {
         #expect(server.requests.withLock { $0.count } == 1)
         #expect(!recorder.events.withLock { $0.map(\.transition.rawValue) }.contains("retryStarted"))
     }
+
     @Test(arguments: [false, true])
-    func ordinaryJSONFormatKeepsLegacySuccessfulResult(_ omlx: Bool) async throws {
+    func ordinaryJSONFormatKeepsLegacySuccessfulResult(
+        _ omlx: Bool
+    ) async throws {
         let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let reply = try boundary.success()
         let oldServer = try RecoveryLoopback(replies: [reply])
@@ -306,20 +321,22 @@ struct RecoverySafeguardTests {
             model: "fixture",
             messages: [.user("original")],
             tools: nil,
-            config: config
+            config: config,
         )
         let new = try await boundary.gateway(newServer, policy: recoveryPolicy(RecoveryRecorder())).complete(
             model: "fixture",
             messages: [.user("original")],
             tools: nil,
-            config: config
+            config: config,
         )
         #expect(old == new)
         #expect(new.content == "recovered")
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func receivedSemanticProgressSurvivesMalformedTail(_ boundary: RecoveryBoundary) async throws {
+    func receivedSemanticProgressSurvivesMalformedTail(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let good = try boundary.success(tools: true)
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(body: good.body + "malformed-tail", hold: true, splitAt: good.body.utf8.count)
@@ -334,7 +351,9 @@ struct RecoverySafeguardTests {
                     $0 += data.count
                     return $0
                 }
-                if count == good.body.utf8.count { ready.continuation.yield(()) }
+                if count == good.body.utf8.count {
+                    ready.continuation.yield(())
+                }
             }
         }
         let gateway = boundary.gateway(server, policy: policy)
@@ -350,5 +369,34 @@ struct RecoverySafeguardTests {
         #expect(failure.failure.progress.rawBytes == good.body.utf8.count + 14)
         #expect(server.requests.withLock { $0.count } == 1)
     }
+}
 
+private func assertWireEvidence(
+    recorder: RecoveryRecorder,
+    traces: [(RecoveryIdentity, Data)],
+    success: RecoveryReply,
+) {
+    let wire = recorder.wires.withLock { $0 }
+    var firstBody = Data()
+    var secondBody = Data()
+    var statuses: [Int] = []
+    for item in wire {
+        switch item {
+        case .headers(let identity, let status, _):
+            #expect(identity == (status == 503 ? traces[0].0 : traces[1].0))
+            statuses.append(status)
+        case .body(let identity, let bytes):
+            #expect(identity == traces[0].0 || identity == traces[1].0)
+            if identity == traces[0].0 {
+                firstBody.append(bytes)
+            } else {
+                secondBody.append(bytes)
+            }
+        case .request: break
+        }
+    }
+    #expect(statuses == [503, 200])
+    #expect(firstBody == Data("unavailable".utf8))
+    #expect(secondBody == Data(success.body.utf8))
+    #expect(!String(reflecting: wire).contains("sentinel"))
 }

@@ -21,7 +21,7 @@ struct OpenAICompletionEventParser: CompletionEventParser {
             finishReason: finishReason,
             usage: usage,
             providerModel: providerModel,
-            metadata: metadata
+            metadata: metadata,
         )
     }
 
@@ -39,18 +39,18 @@ struct OpenAICompletionEventParser: CompletionEventParser {
         if let error = object["error"] {
             return terminate(.error(.providerError(status: nil, detail: error)))
         }
-        guard case .array(let choices)? = object["choices"],
+        guard
+            case .array(let choices)? = object["choices"],
             let chunk = try? JSONDecoder().decode(OpenAIStreamEvidence.self, from: data)
-        else {
-            return terminate(.error(.invalidStreamEvent(message: payload)))
-        }
+        else { return terminate(.error(.invalidStreamEvent(message: payload))) }
         absorbEvidence(chunk)
         guard let choice = choices.first else { return [] }
         return consume(choice: choice, payload: payload)
     }
 
     private mutating func consume(choice: JSONValue, payload: String) -> [CompletionStreamEvent] {
-        guard let fields = choice.objectValue,
+        guard
+            let fields = choice.objectValue,
             Self.validOptional(fields["delta"], kind: { $0.objectValue != nil }),
             Self.validOptional(fields["finish_reason"], kind: { $0.stringValue != nil })
         else { return terminate(.error(.invalidStreamEvent(message: payload))) }
@@ -59,9 +59,12 @@ struct OpenAICompletionEventParser: CompletionEventParser {
             Self.validOptional(
                 delta["tool_calls"],
                 kind: {
-                    if case .array = $0 { return true }
+                    if case .array = $0 {
+                        return true
+                    }
                     return false
-                }),
+                },
+            ),
             Self.validOptional(delta["function_call"], kind: { $0.objectValue != nil })
         else { return terminate(.error(.invalidStreamEvent(message: payload))) }
         if Self.containsToolCalls(delta) {
@@ -71,19 +74,22 @@ struct OpenAICompletionEventParser: CompletionEventParser {
             finishReason = reason
         }
         switch delta["content"] {
-        case nil, .null?:
-            return []
-        case .string(let text)?:
-            return text.isEmpty ? [] : [.content(text)]
-        default:
-            return terminate(.error(.invalidStreamEvent(message: payload)))
+        case nil, .null?: return []
+        case .string(let text)?: return text.isEmpty ? [] : [.content(text)]
+        default: return terminate(.error(.invalidStreamEvent(message: payload)))
         }
     }
 
     private mutating func absorbEvidence(_ chunk: OpenAIStreamEvidence) {
-        if let reported = chunk.usage?.toUsage() { usage = reported }
-        if let model = chunk.model { providerModel = model }
-        if let reported = chunk.envelope.metadata { metadata = reported }
+        if let reported = chunk.usage?.toUsage() {
+            usage = reported
+        }
+        if let model = chunk.model {
+            providerModel = model
+        }
+        if let reported = chunk.envelope.metadata {
+            metadata = reported
+        }
     }
 
     private mutating func terminate(_ event: CompletionStreamEvent) -> [CompletionStreamEvent] {
@@ -97,8 +103,12 @@ struct OpenAICompletionEventParser: CompletionEventParser {
     }
 
     private static func containsToolCalls(_ delta: [String: JSONValue]) -> Bool {
-        if case .array(let calls)? = delta["tool_calls"], !calls.isEmpty { return true }
-        if case .object? = delta["function_call"] { return true }
+        if case .array(let calls)? = delta["tool_calls"], !calls.isEmpty {
+            return true
+        }
+        if case .object? = delta["function_call"] {
+            return true
+        }
         return false
     }
 

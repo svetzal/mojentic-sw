@@ -40,10 +40,12 @@ public struct TokenBudgetContextWindowManager: ContextWindowManager {
         let cap = max(0, budget - max(0, reserving))
         var current = messages
         var total = try await tokenizer.count(current, model: model)
-        if total <= cap { return current }
+        if total <= cap {
+            return current
+        }
         let pinned = pinnedIndices(in: current)
         var index = 0
-        while total > cap && index < current.count {
+        while total > cap, index < current.count {
             if pinned.contains(index) {
                 index += 1
                 continue

@@ -1,29 +1,28 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
 private func openAIChunk(_ choices: String, extra: String = "") -> String {
-    #"data: {"id":"chatcmpl-9","created":1700000000,"model":"gpt-4o-2024-08-06","#
-        + extra + #""choices":"# + choices + "}"
+    #"""
+    data: {"id":"chatcmpl-9","created":1700000000,"model":"gpt-4o-2024-08-\#
+    06",
+    """# + extra + #""choices":"#
+        + choices + "}"
 }
 
 private let openAIUsageChunk = openAIChunk(
     "[]",
-    extra: #""usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7},"#
+    extra: #""usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7},"#,
 )
 
-private let openAIMetadata: [String: JSONValue] = [
-    "id": "chatcmpl-9",
-    "created": .integer(1_700_000_000),
-]
+private let openAIMetadata: [String: JSONValue] = ["id": "chatcmpl-9", "created": .integer(1_700_000_000)]
 
 private func openAIEvidence(_ reason: String) -> CompletionEvidence {
     CompletionEvidence(
         finishReason: reason,
         usage: Usage(promptTokens: 5, completionTokens: 2, totalTokens: 7),
         providerModel: "gpt-4o-2024-08-06",
-        metadata: openAIMetadata
+        metadata: openAIMetadata,
     )
 }
 
@@ -37,11 +36,14 @@ struct OpenAICompletionEventParserTests {
     func completes() {
         let seen = parse([
             ": keep-alive",
-            openAIChunk(#"[{"index":0,"delta":{"role":"assistant","content":"Hel"},"finish_reason":null}]"#),
-            "",
-            openAIChunk(#"[{"index":0,"delta":{"content":"lo"},"finish_reason":null}]"#),
-            openAIChunk(#"[{"index":0,"delta":{},"finish_reason":"stop"}]"#),
-            openAIUsageChunk,
+            openAIChunk(
+                #"""
+                [{"index":0,"delta":{"role":"assistant","content":"Hel"},"finish_reaso\#
+                n":null}]
+                """#
+            ),
+            "", openAIChunk(#"[{"index":0,"delta":{"content":"lo"},"finish_reason":null}]"#),
+            openAIChunk(#"[{"index":0,"delta":{},"finish_reason":"stop"}]"#), openAIUsageChunk,
             "data: [DONE]",
         ])
         #expect(seen == [.content("Hel"), .content("lo"), .completed(openAIEvidence("stop"))])
@@ -51,8 +53,7 @@ struct OpenAICompletionEventParserTests {
     func length() {
         let seen = parse([
             openAIChunk(#"[{"index":0,"delta":{"content":"Partial"},"finish_reason":null}]"#),
-            openAIChunk(#"[{"index":0,"delta":{},"finish_reason":"length"}]"#),
-            openAIUsageChunk,
+            openAIChunk(#"[{"index":0,"delta":{},"finish_reason":"length"}]"#), openAIUsageChunk,
             "data: [DONE]",
         ])
         #expect(seen == [.content("Partial"), .incompleteCompletion(openAIEvidence("length"))])
@@ -72,8 +73,10 @@ struct OpenAICompletionEventParserTests {
     func toolCalls() {
         let seen = parse([
             openAIChunk(
-                #"[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","#
-                    + #""function":{"name":"f","arguments":""}}]},"finish_reason":null}]"#
+                #"""
+                [{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"f","\#
+                arguments":""}}]},"finish_reason":null}]
+                """#
             ),
             "data: [DONE]",
         ])
@@ -84,7 +87,8 @@ struct OpenAICompletionEventParserTests {
     func providerError() {
         let seen = parse([#"data: {"error":{"message":"overloaded","type":"server_error"}}"#])
         #expect(
-            seen == [.providerError(status: nil, detail: ["message": "overloaded", "type": "server_error"])])
+            seen == [.providerError(status: nil, detail: ["message": "overloaded", "type": "server_error"])]
+        )
     }
 
     @Test("a malformed frame is an invalid-stream-event error")
@@ -97,9 +101,10 @@ struct OpenAICompletionEventParserTests {
     @Test(
         "malformed choice and control fields fail",
         arguments: [
-            "42", #"{"delta":42}"#, #"{"delta":{"tool_calls":"bad"}}"#,
-            #"{"delta":{"function_call":[]}}"#, #"{"delta":{},"finish_reason":42}"#,
-        ])
+            "42", #"{"delta":42}"#, #"{"delta":{"tool_calls":"bad"}}"#, #"{"delta":{"function_call":[]}}"#,
+            #"{"delta":{},"finish_reason":42}"#,
+        ],
+    )
     func malformedControlFields(_ choice: String) {
         #expect(parse([openAIChunk("[" + choice + "]")]) == [.invalidStreamEvent])
     }
@@ -113,10 +118,12 @@ struct OpenAICompletionEventParserTests {
 }
 
 private let ollamaFinal =
-    #"{"model":"qwen3:8b","created_at":"2026-09-24T00:00:00Z","#
-    + #""message":{"role":"assistant","content":""},"done":true,"done_reason":"%@","#
-    + #""total_duration":100,"load_duration":10,"prompt_eval_count":5,"#
-    + #""prompt_eval_duration":20,"eval_count":3,"eval_duration":30}"#
+    #"""
+    {"model":"qwen3:8b","created_at":"2026-09-24T00:00:00Z","message":{"role":"assis\#
+    tant","content":""},"done":true,"done_reason":"%@","total_duration":100,"load_du\#
+    ration":10,"prompt_eval_count":5,"prompt_eval_duration":20,"eval_count":3,"eval_\#
+    duration":30}
+    """#
 
 private func ollamaFinalFrame(_ reason: String) -> String {
     ollamaFinal.replacingOccurrences(of: "%@", with: reason)
@@ -128,12 +135,10 @@ private func ollamaEvidence(_ reason: String) -> CompletionEvidence {
         usage: Usage(promptTokens: 5, completionTokens: 3, totalTokens: 8),
         providerModel: "qwen3:8b",
         metadata: [
-            "created_at": "2026-09-24T00:00:00Z",
-            "total_duration": .integer(100),
-            "load_duration": .integer(10),
-            "prompt_eval_duration": .integer(20),
+            "created_at": "2026-09-24T00:00:00Z", "total_duration": .integer(100),
+            "load_duration": .integer(10), "prompt_eval_duration": .integer(20),
             "eval_duration": .integer(30),
-        ]
+        ],
     )
 }
 
@@ -172,14 +177,17 @@ struct OllamaCompletionEventParserTests {
     func withoutDoneReason() {
         let seen = parse([#"{"model":"qwen3:8b","message":{"content":"Hi"},"done":true}"#])
         #expect(
-            seen == [.content("Hi"), .incompleteCompletion(CompletionEvidence(providerModel: "qwen3:8b"))])
+            seen == [.content("Hi"), .incompleteCompletion(CompletionEvidence(providerModel: "qwen3:8b"))]
+        )
     }
 
     @Test("a tool call in the stream is an unexpected-tool-calls error")
     func toolCalls() {
         let seen = parse([
-            #"{"message":{"role":"assistant","content":"","#
-                + #""tool_calls":[{"function":{"name":"f","arguments":{}}}]},"done":false}"#,
+            #"""
+            {"message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"f\#
+            ","arguments":{}}}]},"done":false}
+            """#,
             ollamaFinalFrame("stop"),
         ])
         #expect(seen == [.unexpectedToolCalls])
@@ -190,19 +198,25 @@ struct OllamaCompletionEventParserTests {
         #expect(
             parse([#"{"error":"model not found"}"#]) == [
                 .providerError(status: nil, detail: "model not found")
-            ])
+            ]
+        )
     }
 
     @Test("sparse frames retain previously reported evidence")
     func sparseEvidence() {
         var parser = OllamaCompletionEventParser()
         _ = parser.consume(
-            line: #"{"model":"qwen3","prompt_eval_count":5,"eval_count":2,"total_duration":10,"done":false}"#)
+            line: #"""
+                {"model":"qwen3","prompt_eval_count":5,"eval_count":2,"total_duration"\#
+                :10,"done":false}
+                """#
+        )
         let expected = CompletionEvidence(
             finishReason: "stop",
             usage: Usage(promptTokens: 5, completionTokens: 2, totalTokens: 7),
             providerModel: "qwen3",
-            metadata: ["total_duration": 10])
+            metadata: ["total_duration": 10],
+        )
         #expect(parser.partialEvidence?.usage == expected.usage)
         #expect(parser.partialEvidence?.metadata == expected.metadata)
         let terminal = parser.consume(line: #"{"done":true,"done_reason":"stop"}"#)
@@ -220,9 +234,10 @@ struct OllamaCompletionEventParserTests {
     @Test(
         "malformed control fields fail",
         arguments: [
-            #"{"done":"false"}"#, #"{"done":false,"done_reason":42}"#,
-            #"{"message":42}"#, #"{"message":{"tool_calls":"bad"}}"#,
-        ])
+            #"{"done":"false"}"#, #"{"done":false,"done_reason":42}"#, #"{"message":42}"#,
+            #"{"message":{"tool_calls":"bad"}}"#,
+        ],
+    )
     func malformedControlFields(_ frame: String) {
         #expect(parse([frame]) == [.invalidStreamEvent])
     }

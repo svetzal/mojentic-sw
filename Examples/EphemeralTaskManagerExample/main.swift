@@ -16,8 +16,8 @@ struct EphemeralTaskManagerExample {
             broker: broker,
             model: "gpt-4o-mini",
             systemPrompt:
-                "You are a task assistant. Use the task tools to manage the user's to-do list.",
-            tools: manager.toolBundle()
+            "You are a task assistant. Use the task tools to manage the user's to-do list.",
+            tools: manager.toolBundle(),
         )
         print("Task manager ready. Blank line to quit.")
         while true {

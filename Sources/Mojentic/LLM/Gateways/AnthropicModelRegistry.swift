@@ -13,7 +13,7 @@ public struct AnthropicModelCapabilities: Sendable, Hashable {
     public init(
         supportsTools: Bool = true,
         supportsVision: Bool = true,
-        supportsExtendedThinking: Bool = false
+        supportsExtendedThinking: Bool = false,
     ) {
         self.supportsTools = supportsTools
         self.supportsVision = supportsVision
@@ -39,45 +39,36 @@ public struct AnthropicModelRegistry: Sendable {
         let chatVisionTools = AnthropicModelCapabilities(
             supportsTools: true,
             supportsVision: true,
-            supportsExtendedThinking: false
+            supportsExtendedThinking: false,
         )
         let reasoning = AnthropicModelCapabilities(
             supportsTools: true,
             supportsVision: true,
-            supportsExtendedThinking: true
+            supportsExtendedThinking: true,
         )
         var registry: [String: AnthropicModelCapabilities] = [
-            "claude-3-haiku-20240307": chatVisionTools,
-            "claude-3-5-haiku-20241022": chatVisionTools,
-            "claude-3-5-haiku-latest": chatVisionTools,
-            "claude-3-5-sonnet-20240620": chatVisionTools,
-            "claude-3-5-sonnet-20241022": chatVisionTools,
-            "claude-3-5-sonnet-latest": chatVisionTools,
-            "claude-3-opus-20240229": chatVisionTools,
-            "claude-3-opus-latest": chatVisionTools,
-            "claude-3-7-sonnet-latest": reasoning,
-            "claude-haiku-4-5": chatVisionTools,
-            "claude-sonnet-4-5": reasoning,
-            "claude-opus-4-7": reasoning,
+            "claude-3-haiku-20240307": chatVisionTools, "claude-3-5-haiku-20241022": chatVisionTools,
+            "claude-3-5-haiku-latest": chatVisionTools, "claude-3-5-sonnet-20240620": chatVisionTools,
+            "claude-3-5-sonnet-20241022": chatVisionTools, "claude-3-5-sonnet-latest": chatVisionTools,
+            "claude-3-opus-20240229": chatVisionTools, "claude-3-opus-latest": chatVisionTools,
+            "claude-3-7-sonnet-latest": reasoning, "claude-haiku-4-5": chatVisionTools,
+            "claude-sonnet-4-5": reasoning, "claude-opus-4-7": reasoning,
         ]
         // Preserve insertion order for deterministic availableModels() output.
-        self.entries = registry
+        entries = registry
         registry.removeAll(keepingCapacity: false)
-        self.patterns = [
-            ("opus-4", reasoning),
-            ("sonnet-4", reasoning),
-            ("haiku-4", chatVisionTools),
-            ("3-7-sonnet", reasoning),
-            ("3-5-sonnet", chatVisionTools),
-            ("3-5-haiku", chatVisionTools),
-            ("3-opus", chatVisionTools),
-            ("3-haiku", chatVisionTools),
+        patterns = [
+            ("opus-4", reasoning), ("sonnet-4", reasoning), ("haiku-4", chatVisionTools),
+            ("3-7-sonnet", reasoning), ("3-5-sonnet", chatVisionTools), ("3-5-haiku", chatVisionTools),
+            ("3-opus", chatVisionTools), ("3-haiku", chatVisionTools),
         ]
     }
 
     /// Capabilities for `model`, falling back to coarse pattern matching.
     public func capabilities(for model: String) -> AnthropicModelCapabilities {
-        if let direct = entries[model] { return direct }
+        if let direct = entries[model] {
+            return direct
+        }
         let lowered = model.lowercased()
         for (pattern, caps) in patterns where lowered.contains(pattern) {
             return caps
@@ -86,7 +77,7 @@ public struct AnthropicModelRegistry: Sendable {
         return AnthropicModelCapabilities(
             supportsTools: true,
             supportsVision: false,
-            supportsExtendedThinking: false
+            supportsExtendedThinking: false,
         )
     }
 

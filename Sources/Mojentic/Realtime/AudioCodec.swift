@@ -18,7 +18,7 @@ public struct AudioFrame: Sendable, Hashable {
     public let sampleRate: Int
 
     /// Construct a frame.
-    public init(samples: [Int16], sampleRate: Int = 24_000) {
+    public init(samples: [Int16], sampleRate: Int = 24000) {
         precondition(sampleRate > 0, "sampleRate must be positive")
         self.samples = samples
         self.sampleRate = sampleRate
@@ -32,9 +32,7 @@ public enum AudioCodec {
         var data = Data(capacity: frame.samples.count * 2)
         for sample in frame.samples {
             let little = sample.littleEndian
-            withUnsafeBytes(of: little) { bytes in
-                data.append(contentsOf: bytes)
-            }
+            withUnsafeBytes(of: little) { bytes in data.append(contentsOf: bytes) }
         }
         return data.base64EncodedString()
     }
@@ -43,17 +41,12 @@ public enum AudioCodec {
     ///
     /// Throws ``MojenticError/decoding(message:)`` when the payload is not
     /// valid base64 or has an odd byte count.
-    public static func base64Decode(
-        _ string: String,
-        sampleRate: Int = 24_000
-    ) throws -> AudioFrame {
+    public static func base64Decode(_ string: String, sampleRate: Int = 24000) throws -> AudioFrame {
         guard let data = Data(base64Encoded: string) else {
             throw MojenticError.decoding(message: "Invalid base64 audio payload")
         }
         guard data.count % 2 == 0 else {
-            throw MojenticError.decoding(
-                message: "PCM payload has odd byte count (expected pairs of bytes)"
-            )
+            throw MojenticError.decoding(message: "PCM payload has odd byte count (expected pairs of bytes)")
         }
         var samples: [Int16] = []
         samples.reserveCapacity(data.count / 2)

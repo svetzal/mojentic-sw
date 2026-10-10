@@ -27,7 +27,7 @@ struct RecursiveAgentExample {
                 messages: [
                     .system("You are an expert editor."),
                     .user(prompt),
-                ]
+                ],
             )
             if response.content.uppercased().trimmingCharacters(in: .whitespacesAndNewlines) == "DONE" {
                 return .complete(current)

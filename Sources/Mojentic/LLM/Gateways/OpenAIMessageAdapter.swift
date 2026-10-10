@@ -18,8 +18,7 @@ public enum OpenAIMessageAdapter {
         [
             "type": "function",
             "function": [
-                "name": .string(descriptor.name),
-                "description": .string(descriptor.description),
+                "name": .string(descriptor.name), "description": .string(descriptor.description),
                 "parameters": descriptor.parameters,
             ],
         ]
@@ -27,20 +26,11 @@ public enum OpenAIMessageAdapter {
 
     private static func adaptSingle(_ message: LLMMessage) -> JSONValue {
         switch message.role {
-        case .system:
-            return [
-                "role": "system",
-                "content": .string(message.content ?? ""),
-            ]
-        case .user:
-            return adaptUser(message)
-        case .assistant:
-            return adaptAssistant(message)
+        case .system: return ["role": "system", "content": .string(message.content ?? "")]
+        case .user: return adaptUser(message)
+        case .assistant: return adaptAssistant(message)
         case .tool:
-            var dict: [String: JSONValue] = [
-                "role": "tool",
-                "content": .string(message.content ?? ""),
-            ]
+            var dict: [String: JSONValue] = ["role": "tool", "content": .string(message.content ?? "")]
             if let id = message.toolCallId {
                 dict["tool_call_id"] = .string(id)
             }
@@ -51,10 +41,7 @@ public enum OpenAIMessageAdapter {
     private static func adaptUser(_ message: LLMMessage) -> JSONValue {
         let images = message.images ?? []
         if images.isEmpty {
-            return [
-                "role": "user",
-                "content": .string(message.content ?? ""),
-            ]
+            return ["role": "user", "content": .string(message.content ?? "")]
         }
         var parts: [JSONValue] = []
         if let text = message.content, !text.isEmpty {
@@ -63,35 +50,24 @@ public enum OpenAIMessageAdapter {
         for image in images {
             parts.append(imagePart(image))
         }
-        return [
-            "role": "user",
-            "content": .array(parts),
-        ]
+        return ["role": "user", "content": .array(parts)]
     }
 
     private static func imagePart(_ image: ImageContent) -> JSONValue {
-        let urlString: String
-        switch image.source {
-        case .url(let url):
-            urlString = url.absoluteString
-        case .data(let base64, let mimeType):
-            urlString = "data:\(mimeType);base64,\(base64)"
-        }
+        let urlString: String =
+            switch image.source {
+            case .url(let url): url.absoluteString
+            case .data(let base64, let mimeType): "data:\(mimeType);base64,\(base64)"
+            }
         var imageURL: [String: JSONValue] = ["url": .string(urlString)]
         if let detail = image.detail {
             imageURL["detail"] = .string(detail)
         }
-        return [
-            "type": "image_url",
-            "image_url": .object(imageURL),
-        ]
+        return ["type": "image_url", "image_url": .object(imageURL)]
     }
 
     private static func adaptAssistant(_ message: LLMMessage) -> JSONValue {
-        var dict: [String: JSONValue] = [
-            "role": "assistant",
-            "content": .string(message.content ?? ""),
-        ]
+        var dict: [String: JSONValue] = ["role": "assistant", "content": .string(message.content ?? "")]
         if let calls = message.toolCalls, !calls.isEmpty {
             dict["tool_calls"] = .array(calls.map(adaptToolCall))
         }
@@ -99,21 +75,11 @@ public enum OpenAIMessageAdapter {
     }
 
     private static func adaptToolCall(_ call: LLMToolCall) -> JSONValue {
-        let argumentsString: String
-        if let data = try? JSONEncoder().encode(call.arguments),
-            let string = String(data: data, encoding: .utf8)
-        {
-            argumentsString = string
-        } else {
-            argumentsString = "{}"
-        }
+        let encoded = try? JSONEncoder().encode(call.arguments)
+        let argumentsString = encoded.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return [
-            "id": .string(call.id ?? ""),
-            "type": "function",
-            "function": [
-                "name": .string(call.name),
-                "arguments": .string(argumentsString),
-            ],
+            "id": .string(call.id ?? ""), "type": "function",
+            "function": ["name": .string(call.name), "arguments": .string(argumentsString)],
         ]
     }
 }

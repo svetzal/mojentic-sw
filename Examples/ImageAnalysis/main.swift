@@ -33,7 +33,7 @@ struct ImageAnalysis {
                 model: "gpt-4o-mini",
                 messages: [
                     .user(text: "Describe this image in one sentence.", images: [image])
-                ]
+                ],
             )
             print(response.content)
         } catch {

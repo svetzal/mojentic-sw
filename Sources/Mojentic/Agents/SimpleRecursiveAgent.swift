@@ -34,10 +34,8 @@ public actor SimpleRecursiveAgent {
         for iteration in 1...maxDepth {
             try Task.checkCancellation()
             switch try await step(current, iteration) {
-            case .complete(let final):
-                return final
-            case .refine(let next):
-                current = next
+            case .complete(let final): return final
+            case .refine(let next): current = next
             }
         }
         throw MojenticError.recursionDepthExceeded(limit: maxDepth)

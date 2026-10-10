@@ -1,21 +1,22 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private actor CountingAgent: BaseAgent {
     var seen = 0
 
-    func handle(_ event: any Event) async throws -> [any Event] {
+    func handle(_: any Event) async throws -> [any Event] {
         seen += 1
         return []
     }
 
-    func count() -> Int { seen }
+    func count() -> Int {
+        seen
+    }
 }
 
 private actor FailingAgent: BaseAgent {
-    func handle(_ event: any Event) async throws -> [any Event] {
+    func handle(_: any Event) async throws -> [any Event] {
         throw MojenticError.invalidArgument(message: "boom")
     }
 }
@@ -23,7 +24,7 @@ private actor FailingAgent: BaseAgent {
 @Suite("AsyncDispatcher")
 struct AsyncDispatcherTests {
     @Test("dispatch + wait drains the queue and reaches every subscriber")
-    func dispatchAndWait() async throws {
+    func dispatchAndWait() async {
         let router = Router()
         let dispatcher = AsyncDispatcher(router: router)
         let agent = CountingAgent()
@@ -37,7 +38,7 @@ struct AsyncDispatcherTests {
     }
 
     @Test("agent failure surfaces as an ErrorEvent fanned to subscribers")
-    func agentFailure() async throws {
+    func agentFailure() async {
         let router = Router()
         let dispatcher = AsyncDispatcher(router: router)
         let failer = FailingAgent()
@@ -52,7 +53,9 @@ struct AsyncDispatcherTests {
     }
 
     @Test("tracer captures agent lifecycle phases for each handler invocation")
-    func tracerCapturesLifecycle() async throws {
+    func tracerCapturesLifecycle()
+        async
+    {
         let store = EventStore()
         let tracer = EventStoreTracer(store: store)
         let router = Router()
@@ -61,13 +64,13 @@ struct AsyncDispatcherTests {
         await router.subscribe(agent, to: TextEvent.self)
         await dispatcher.start()
         let correlation = UUID()
-        await dispatcher.dispatch(
-            TextEvent(content: "x", correlationId: correlation)
-        )
+        await dispatcher.dispatch(TextEvent(content: "x", correlationId: correlation))
         await dispatcher.wait()
         await dispatcher.stop()
         let lifecycle = await store.events(correlatedTo: correlation).filter { event in
-            if case .agentLifecycle = event { return true }
+            if case .agentLifecycle = event {
+                return true
+            }
             return false
         }
         let phases = lifecycle.compactMap { event -> AgentLifecyclePayload.Phase? in

@@ -21,7 +21,8 @@ public enum ReasoningEffort: String, Sendable, Codable, Hashable, CaseIterable {
 /// | ---- | ------------------------ | --------------- |
 /// | ``text`` | `{"type": "text"}` | omitted |
 /// | ``jsonObject`` | `{"type": "json_object"}` | `"json"` |
-/// | ``jsonSchema(_:)`` | `{"type": "json_schema", "json_schema": {"name": "response", "schema": …}}` | the schema |
+/// | ``jsonSchema(_:)`` | `{"type": "json_schema", "json_schema": {"name": "response", "schema": …}}` | the
+/// schema |
 public enum ResponseFormat: Sendable, Codable, Hashable {
     /// Plain text output.
     case text
@@ -72,13 +73,13 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
     /// Create a `CompletionConfig` with the documented defaults.
     public init(
         temperature: Double = 1.0,
-        maxTokens: Int = 16_384,
+        maxTokens: Int = 16384,
         topP: Double? = nil,
         reasoning: ReasoningEffort? = nil,
-        numCtx: Int? = 32_768,
+        numCtx: Int? = 32768,
         extraOptions: [String: JSONValue] = [:],
         maxToolIterations: Int? = 25,
-        responseFormat: ResponseFormat? = nil
+        responseFormat: ResponseFormat? = nil,
     ) {
         self.temperature = temperature
         self.maxTokens = maxTokens

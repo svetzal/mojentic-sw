@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("LLMMessage composer factories")
 struct MessagesTests {
@@ -44,7 +43,7 @@ struct MessagesTests {
         let original = LLMMessage(
             role: .assistant,
             content: "ok",
-            toolCalls: [LLMToolCall(id: "x", name: "y", arguments: ["a": 1])]
+            toolCalls: [LLMToolCall(id: "x", name: "y", arguments: ["a": 1])],
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(LLMMessage.self, from: data)

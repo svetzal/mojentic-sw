@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 /// Actor-isolated state behind `FakeGateway` so tests can inspect invocations
 /// without violating Swift 6 actor-isolation rules.
@@ -12,7 +11,7 @@ private actor FakeGatewayState {
     var streamScript: [[GatewayStreamEvent]] = []
 
     init(responses: [LLMGatewayResponse]) {
-        self.queue = responses
+        queue = responses
     }
 
     func record(_ messages: [LLMMessage]) {
@@ -27,13 +26,15 @@ private actor FakeGatewayState {
     }
 
     func setJSONResponse(_ value: JSONValue) {
-        self.jsonResponse = value
+        jsonResponse = value
     }
 
-    func currentJSONResponse() -> JSONValue { jsonResponse }
+    func currentJSONResponse() -> JSONValue {
+        jsonResponse
+    }
 
     func setStreamScript(_ script: [[GatewayStreamEvent]]) {
-        self.streamScript = script
+        streamScript = script
     }
 
     func nextStreamScript() -> [GatewayStreamEvent] {
@@ -41,21 +42,23 @@ private actor FakeGatewayState {
         return streamScript.removeFirst()
     }
 
-    func recordedInvocations() -> [[LLMMessage]] { invocations }
+    func recordedInvocations() -> [[LLMMessage]] {
+        invocations
+    }
 }
 
 private struct FakeGateway: LLMGateway {
     let state: FakeGatewayState
 
     init(responses: [LLMGatewayResponse]) {
-        self.state = FakeGatewayState(responses: responses)
+        state = FakeGatewayState(responses: responses)
     }
 
     func complete(
         model _: String,
         messages: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
         await state.record(messages)
         return try await state.nextResponse()
@@ -65,21 +68,23 @@ private struct FakeGateway: LLMGateway {
         model _: String,
         messages: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> JSONValue {
         await state.record(messages)
         return await state.currentJSONResponse()
     }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
-        let state = self.state
+        let state = state
         return AsyncThrowingStream { continuation in
             let task = Task {
                 await state.record(messages)
@@ -98,11 +103,7 @@ private struct EchoNumberTool: LLMTool {
     let descriptor = ToolDescriptor(
         name: "double",
         description: "double a number",
-        parameters: [
-            "type": "object",
-            "properties": ["value": ["type": "integer"]],
-            "required": ["value"],
-        ]
+        parameters: ["type": "object", "properties": ["value": ["type": "integer"]], "required": ["value"]],
     )
 
     func execute(arguments: JSONValue) async throws -> JSONValue {
@@ -117,11 +118,7 @@ private struct ExtractedPerson: Codable, Sendable, Equatable, JSONSchemaProvidin
 
     static var jsonSchema: JSONValue {
         [
-            "type": "object",
-            "properties": [
-                "name": ["type": "string"],
-                "age": ["type": "integer"],
-            ],
+            "type": "object", "properties": ["name": ["type": "string"], "age": ["type": "integer"]],
             "required": ["name", "age"],
         ]
     }
@@ -134,7 +131,9 @@ struct BrokerTests {
         let call = LLMToolCall(id: "native", name: "missing", arguments: [:])
         let gateway = FakeGateway(responses: [LLMGatewayResponse(content: "", toolCalls: [call])])
         let response = try await LLMBroker(gateway: gateway).generateResponse(
-            model: "offline", messages: [.user("inspect")])
+            model: "offline",
+            messages: [.user("inspect")],
+        )
         #expect(response.toolCalls == [call])
         #expect(await gateway.state.recordedInvocations().count == 1)
     }
@@ -145,11 +144,15 @@ struct BrokerTests {
             (0..<27).map { index in
                 LLMGatewayResponse(
                     content: "",
-                    toolCalls: [LLMToolCall(id: "call-\(index)", name: "missing", arguments: [:])])
+                    toolCalls: [LLMToolCall(id: "call-\(index)", name: "missing", arguments: [:])],
+                )
             } + [LLMGatewayResponse(content: "done")]
         let gateway = FakeGateway(responses: responses)
         let response = try await LLMBroker(gateway: gateway).complete(
-            model: "offline", messages: [.user("inspect")], config: CompletionConfig(maxToolIterations: nil))
+            model: "offline",
+            messages: [.user("inspect")],
+            config: CompletionConfig(maxToolIterations: nil),
+        )
         #expect(response.content == "done")
         #expect(await gateway.state.recordedInvocations().count == 28)
     }
@@ -162,7 +165,7 @@ struct BrokerTests {
         let broker = LLMBroker(gateway: gateway)
         let response = try await broker.complete(
             model: "test-model",
-            messages: [.user("colour of the sky?")]
+            messages: [.user("colour of the sky?")],
         )
         #expect(response.content == "the sky is blue")
         #expect(response.finishReason == .stop)
@@ -171,7 +174,9 @@ struct BrokerTests {
     }
 
     @Test("dispatches a single tool call, appends pair, and recurses")
-    func singleToolCallRecursion() async throws {
+    func singleToolCallRecursion()
+        async throws
+    {
         let toolCall = LLMToolCall(id: "1", name: "double", arguments: ["value": 21])
         let gateway = FakeGateway(responses: [
             LLMGatewayResponse(content: "", toolCalls: [toolCall], finishReason: .toolCalls),
@@ -181,7 +186,7 @@ struct BrokerTests {
         let response = try await broker.complete(
             model: "test-model",
             messages: [.user("double 21")],
-            tools: [EchoNumberTool()]
+            tools: [EchoNumberTool()],
         )
         #expect(response.content == "the answer is 42")
         let invocations = await gateway.state.recordedInvocations()
@@ -208,7 +213,7 @@ struct BrokerTests {
                 model: "test-model",
                 messages: [.user("loop")],
                 tools: [EchoNumberTool()],
-                config: config
+                config: config,
             )
             Issue.record("expected toolDepthExceeded")
         } catch let error as MojenticError {
@@ -217,23 +222,20 @@ struct BrokerTests {
             } else {
                 Issue.record("unexpected error: \(error)")
             }
-        } catch {
-            Issue.record("unexpected error: \(error)")
-        }
+        } catch { Issue.record("unexpected error: \(error)") }
     }
 
     @Test("completeJSON decodes the gateway payload into the requested type")
-    func structuredOutputDecode() async throws {
+    func structuredOutputDecode()
+        async throws
+    {
         let gateway = FakeGateway(responses: [])
-        await gateway.state.setJSONResponse([
-            "name": "Alice",
-            "age": 34,
-        ])
+        await gateway.state.setJSONResponse(["name": "Alice", "age": 34])
         let broker = LLMBroker(gateway: gateway)
         let person = try await broker.completeJSON(
             model: "test-model",
             messages: [.user("extract person")],
-            responseType: ExtractedPerson.self
+            responseType: ExtractedPerson.self,
         )
         #expect(person == ExtractedPerson(name: "Alice", age: 34))
     }
@@ -242,23 +244,16 @@ struct BrokerTests {
     func streamingOrdering() async throws {
         let gateway = FakeGateway(responses: [])
         await gateway.state.setStreamScript([
-            [
-                .textDelta("hello "),
-                .textDelta("world"),
-                .done(finishReason: .stop, usage: nil),
-            ]
+            [.textDelta("hello "), .textDelta("world"), .done(finishReason: .stop, usage: nil)]
         ])
         let broker = LLMBroker(gateway: gateway)
         var deltas: [String] = []
         var finalContent: String?
         for try await event in broker.stream(model: "test-model", messages: [.user("hi")]) {
             switch event {
-            case .textDelta(let delta):
-                deltas.append(delta)
-            case .done(let response):
-                finalContent = response.content
-            default:
-                break
+            case .textDelta(let delta): deltas.append(delta)
+            case .done(let response): finalContent = response.content
+            default: break
             }
         }
         #expect(deltas == ["hello ", "world"])
@@ -270,14 +265,8 @@ struct BrokerTests {
         let toolCall = LLMToolCall(id: "1", name: "double", arguments: ["value": 21])
         let gateway = FakeGateway(responses: [])
         await gateway.state.setStreamScript([
-            [
-                .toolCallRequest(toolCall),
-                .done(finishReason: .toolCalls, usage: nil),
-            ],
-            [
-                .textDelta("42"),
-                .done(finishReason: .stop, usage: nil),
-            ],
+            [.toolCallRequest(toolCall), .done(finishReason: .toolCalls, usage: nil)],
+            [.textDelta("42"), .done(finishReason: .stop, usage: nil)],
         ])
         let broker = LLMBroker(gateway: gateway)
         var toolResults: [JSONValue] = []
@@ -286,17 +275,13 @@ struct BrokerTests {
         for try await event in broker.stream(
             model: "test-model",
             messages: [.user("double 21")],
-            tools: [EchoNumberTool()]
+            tools: [EchoNumberTool()],
         ) {
             switch event {
-            case .textDelta(let delta):
-                deltas.append(delta)
-            case .toolCallResult(_, let result):
-                toolResults.append(result)
-            case .done:
-                done = true
-            default:
-                break
+            case .textDelta(let delta): deltas.append(delta)
+            case .toolCallResult(_, let result): toolResults.append(result)
+            case .done: done = true
+            default: break
             }
         }
         #expect(deltas == ["42"])

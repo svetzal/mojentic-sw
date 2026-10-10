@@ -71,44 +71,28 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
     /// Human-readable representation of the error suitable for logging.
     public var description: String {
         switch self {
-        case .http(let status, let body):
-            return "HTTP \(status): \(body)"
-        case .transport(let message):
-            return "Transport error: \(message)"
-        case .decoding(let message):
-            return "Decoding error: \(message)"
-        case .schema(let message):
-            return "Schema error: \(message)"
-        case .toolNotFound(let name):
-            return "Tool not found: \(name)"
-        case .toolExecution(let name, let message):
-            return "Tool '\(name)' failed: \(message)"
-        case .toolDepthExceeded(let limit):
-            return "Tool-call recursion exceeded limit (\(limit))"
-        case .recursionDepthExceeded(let limit):
-            return "Agent recursion exceeded depth limit (\(limit))"
+        case .http(let status, let body): "HTTP \(status): \(body)"
+        case .transport(let message): "Transport error: \(message)"
+        case .decoding(let message): "Decoding error: \(message)"
+        case .schema(let message): "Schema error: \(message)"
+        case .toolNotFound(let name): "Tool not found: \(name)"
+        case .toolExecution(let name, let message): "Tool '\(name)' failed: \(message)"
+        case .toolDepthExceeded(let limit): "Tool-call recursion exceeded limit (\(limit))"
+        case .recursionDepthExceeded(let limit): "Agent recursion exceeded depth limit (\(limit))"
         case .structuredDecoding(let typeName, let message):
-            return "Failed to decode structured output as \(typeName): \(message)"
-        case .cancelled:
-            return "Operation cancelled"
-        case .invalidArgument(let message):
-            return "Invalid argument: \(message)"
+            "Failed to decode structured output as \(typeName): \(message)"
+        case .cancelled: "Operation cancelled"
+        case .invalidArgument(let message): "Invalid argument: \(message)"
         case .incompleteCompletion(let evidence):
-            return "Incomplete completion (finish reason: \(evidence.finishReason ?? "none"))"
-        case .incompleteStream:
-            return "Stream ended without a terminal marker"
-        case .unexpectedToolCalls:
-            return "Stream contained unexpected tool calls"
+            "Incomplete completion (finish reason: \(evidence.finishReason ?? "none"))"
+        case .incompleteStream: "Stream ended without a terminal marker"
+        case .unexpectedToolCalls: "Stream contained unexpected tool calls"
         case .providerError(let status, let detail):
-            return "Provider error\(status.map { " (HTTP \($0))" } ?? ""): \(detail)"
-        case .requestFailed(let message):
-            return "Request failed: \(message)"
-        case .invalidStreamEvent(let message):
-            return "Invalid stream event: \(message)"
-        case .recovery(let error):
-            return error.description
-        case .streamEventsUnsupported:
-            return "Gateway does not support single-turn event streams"
+            "Provider error\(status.map { " (HTTP \($0))" } ?? ""): \(detail)"
+        case .requestFailed(let message): "Request failed: \(message)"
+        case .invalidStreamEvent(let message): "Invalid stream event: \(message)"
+        case .recovery(let error): error.description
+        case .streamEventsUnsupported: "Gateway does not support single-turn event streams"
         }
     }
 }

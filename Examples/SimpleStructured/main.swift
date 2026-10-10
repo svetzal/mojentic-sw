@@ -30,7 +30,7 @@ struct SimpleStructured {
             let person = try await broker.completeJSON(
                 model: "llama3.2",
                 messages: messages,
-                responseType: Person.self
+                responseType: Person.self,
             )
             print("Name: \(person.name), Age: \(person.age)")
         } catch {

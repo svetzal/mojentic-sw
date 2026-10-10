@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("CompletionConfig defaults and serialisation")
 struct CompletionConfigTests {
@@ -9,10 +8,10 @@ struct CompletionConfigTests {
     func defaults() {
         let config = CompletionConfig()
         #expect(config.temperature == 1.0)
-        #expect(config.maxTokens == 16_384)
+        #expect(config.maxTokens == 16384)
         #expect(config.topP == nil)
         #expect(config.reasoning == nil)
-        #expect(config.numCtx == 32_768)
+        #expect(config.numCtx == 32768)
         #expect(config.extraOptions.isEmpty)
         #expect(config.maxToolIterations == 25)
     }
@@ -21,12 +20,12 @@ struct CompletionConfigTests {
     func codableRoundTripWithReasoning() throws {
         let original = CompletionConfig(
             temperature: 0.2,
-            maxTokens: 1_024,
+            maxTokens: 1024,
             topP: 0.95,
             reasoning: .medium,
-            numCtx: 8_192,
+            numCtx: 8192,
             extraOptions: ["seed": .integer(42)],
-            maxToolIterations: 5
+            maxToolIterations: 5,
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(CompletionConfig.self, from: data)

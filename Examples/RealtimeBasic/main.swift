@@ -23,7 +23,7 @@ struct RealtimeBasic {
                 RealtimeSessionConfig(
                     model: "gpt-4o-realtime-preview",
                     apiKey: key,
-                    instructions: "Reply briefly when the user speaks."
+                    instructions: "Reply briefly when the user speaks.",
                 )
             )
             if let pcmPath {
@@ -33,7 +33,9 @@ struct RealtimeBasic {
             }
             for try await event in session.events() {
                 describe(event)
-                if case .responseDone = event { break }
+                if case .responseDone = event {
+                    break
+                }
             }
             await session.close()
         } catch {

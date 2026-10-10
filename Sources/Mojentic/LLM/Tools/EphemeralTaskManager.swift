@@ -47,7 +47,9 @@ public actor EphemeralTaskManager {
     }
 
     /// Return a snapshot of the current task list.
-    public func list() -> [EphemeralTask] { tasks }
+    public func list() -> [EphemeralTask] {
+        tasks
+    }
 
     /// Mark a task as complete by id.
     public func complete(id: String) -> Bool {
@@ -64,26 +66,21 @@ public actor EphemeralTaskManager {
     }
 
     /// Empty the entire list.
-    public func clear() { tasks.removeAll() }
+    public func clear() {
+        tasks.removeAll()
+    }
 
     /// Return the bundled tool set bound to this manager.
     public nonisolated func toolBundle() -> [any LLMTool] {
         [
-            AppendTaskTool(manager: self),
-            ListTasksTool(manager: self),
-            CompleteTaskTool(manager: self),
-            RemoveTaskTool(manager: self),
-            ClearTasksTool(manager: self),
+            AppendTaskTool(manager: self), ListTasksTool(manager: self), CompleteTaskTool(manager: self),
+            RemoveTaskTool(manager: self), ClearTasksTool(manager: self),
         ]
     }
 }
 
 private func encode(_ task: EphemeralTask) -> JSONValue {
-    [
-        "id": .string(task.id),
-        "title": .string(task.title),
-        "status": .string(task.status.rawValue),
-    ]
+    ["id": .string(task.id), "title": .string(task.title), "status": .string(task.status.rawValue)]
 }
 
 /// Append a task to the manager.
@@ -91,7 +88,9 @@ public struct AppendTaskTool: LLMTool {
     private let manager: EphemeralTaskManager
 
     /// Create the tool bound to a manager.
-    public init(manager: EphemeralTaskManager) { self.manager = manager }
+    public init(manager: EphemeralTaskManager) {
+        self.manager = manager
+    }
 
     /// Descriptor surfaced to the LLM.
     public var descriptor: ToolDescriptor {
@@ -99,11 +98,9 @@ public struct AppendTaskTool: LLMTool {
             name: "append_task",
             description: "Append a new task to the in-memory task list.",
             parameters: [
-                "type": "object",
-                "properties": ["title": ["type": "string"]],
-                "required": ["title"],
+                "type": "object", "properties": ["title": ["type": "string"]], "required": ["title"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 
@@ -122,19 +119,16 @@ public struct ListTasksTool: LLMTool {
     private let manager: EphemeralTaskManager
 
     /// Create the tool bound to a manager.
-    public init(manager: EphemeralTaskManager) { self.manager = manager }
+    public init(manager: EphemeralTaskManager) {
+        self.manager = manager
+    }
 
     /// Descriptor surfaced to the LLM.
     public var descriptor: ToolDescriptor {
         ToolDescriptor(
             name: "list_tasks",
             description: "List every task currently tracked by the in-memory task list.",
-            parameters: [
-                "type": "object",
-                "properties": [:],
-                "required": [],
-                "additionalProperties": false,
-            ]
+            parameters: ["type": "object", "properties": [:], "required": [], "additionalProperties": false],
         )
     }
 
@@ -150,7 +144,9 @@ public struct CompleteTaskTool: LLMTool {
     private let manager: EphemeralTaskManager
 
     /// Create the tool bound to a manager.
-    public init(manager: EphemeralTaskManager) { self.manager = manager }
+    public init(manager: EphemeralTaskManager) {
+        self.manager = manager
+    }
 
     /// Descriptor surfaced to the LLM.
     public var descriptor: ToolDescriptor {
@@ -158,11 +154,9 @@ public struct CompleteTaskTool: LLMTool {
             name: "complete_task",
             description: "Mark a task complete by id.",
             parameters: [
-                "type": "object",
-                "properties": ["id": ["type": "string"]],
-                "required": ["id"],
+                "type": "object", "properties": ["id": ["type": "string"]], "required": ["id"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 
@@ -181,7 +175,9 @@ public struct RemoveTaskTool: LLMTool {
     private let manager: EphemeralTaskManager
 
     /// Create the tool bound to a manager.
-    public init(manager: EphemeralTaskManager) { self.manager = manager }
+    public init(manager: EphemeralTaskManager) {
+        self.manager = manager
+    }
 
     /// Descriptor surfaced to the LLM.
     public var descriptor: ToolDescriptor {
@@ -189,11 +185,9 @@ public struct RemoveTaskTool: LLMTool {
             name: "remove_task",
             description: "Remove a task by id.",
             parameters: [
-                "type": "object",
-                "properties": ["id": ["type": "string"]],
-                "required": ["id"],
+                "type": "object", "properties": ["id": ["type": "string"]], "required": ["id"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 
@@ -212,19 +206,16 @@ public struct ClearTasksTool: LLMTool {
     private let manager: EphemeralTaskManager
 
     /// Create the tool bound to a manager.
-    public init(manager: EphemeralTaskManager) { self.manager = manager }
+    public init(manager: EphemeralTaskManager) {
+        self.manager = manager
+    }
 
     /// Descriptor surfaced to the LLM.
     public var descriptor: ToolDescriptor {
         ToolDescriptor(
             name: "clear_tasks",
             description: "Empty the in-memory task list.",
-            parameters: [
-                "type": "object",
-                "properties": [:],
-                "required": [],
-                "additionalProperties": false,
-            ]
+            parameters: ["type": "object", "properties": [:], "required": [], "additionalProperties": false],
         )
     }
 

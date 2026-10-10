@@ -30,7 +30,7 @@ public struct WebSearchTool: LLMTool {
         apiKey: String,
         endpoint: URL = WebSearchTool.defaultEndpoint,
         client: HTTPClient = HTTPClient(),
-        maxResults: Int = 10
+        maxResults: Int = 10,
     ) {
         precondition(!apiKey.isEmpty, "WebSearch API key must not be empty")
         precondition(maxResults > 0, "maxResults must be positive")
@@ -46,11 +46,9 @@ public struct WebSearchTool: LLMTool {
             name: "web_search",
             description: "Search the web for results matching the query.",
             parameters: [
-                "type": "object",
-                "properties": ["query": ["type": "string"]],
-                "required": ["query"],
+                "type": "object", "properties": ["query": ["type": "string"]], "required": ["query"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 
@@ -63,17 +61,12 @@ public struct WebSearchTool: LLMTool {
         let response = try await client.postJSON(
             url: endpoint,
             body: body,
-            headers: [
-                "X-API-KEY": apiKey
-            ],
-            responseType: SerperResponse.self
+            headers: ["X-API-KEY": apiKey],
+            responseType: SerperResponse.self,
         )
         let trimmed = Array(response.organic.prefix(maxResults))
         let encoded = trimmed.map { result -> JSONValue in
-            var dict: [String: JSONValue] = [
-                "title": .string(result.title),
-                "link": .string(result.link),
-            ]
+            var dict: [String: JSONValue] = ["title": .string(result.title), "link": .string(result.link)]
             if let snippet = result.snippet {
                 dict["snippet"] = .string(snippet)
             }
@@ -86,14 +79,10 @@ public struct WebSearchTool: LLMTool {
 private struct SerperRequest: Encodable {
     let query: String
 
-    enum CodingKeys: String, CodingKey {
-        case query = "q"
-    }
+    enum CodingKeys: String, CodingKey { case query = "q" }
 }
 
-private struct SerperResponse: Decodable {
-    let organic: [SerperResult]
-}
+private struct SerperResponse: Decodable { let organic: [SerperResult] }
 
 private struct SerperResult: Decodable {
     let title: String

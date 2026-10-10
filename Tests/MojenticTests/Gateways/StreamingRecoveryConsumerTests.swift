@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 struct StreamingRecoveryConsumerTests {
     @Test(arguments: [false, true], [(false, false), (false, true), (true, false), (true, true)])
@@ -9,9 +8,9 @@ struct StreamingRecoveryConsumerTests {
         let (session, recover) = mode
         let boundary = StreamingBoundary(omlx: omlx, single: false)
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(body: try boundary.frame(tool: true, done: true)),
+            RecoveryReply(body: boundary.frame(tool: true, done: true)),
             RecoveryReply(status: 503, body: "busy"),
-            RecoveryReply(body: try boundary.frame(content: "recovered", done: true)),
+            RecoveryReply(body: boundary.frame(content: "recovered", done: true)),
         ])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
@@ -29,13 +28,23 @@ struct StreamingRecoveryConsumerTests {
         let config = CompletionConfig(maxToolIterations: 2)
         let chat = ChatSession(broker: broker, model: "fixture", tools: tools, config: config)
         let stream =
-            session
-            ? chat.stream("original-user")
-            : broker.stream(
-                model: "fixture", messages: [.user("original-user")], tools: tools, config: config)
+            if session {
+                chat.stream("original-user")
+            } else {
+                broker.stream(
+                    model: "fixture",
+                    messages: [.user("original-user")],
+                    tools: tools,
+                    config: config,
+                )
+            }
         var content = ""
         do {
-            for try await event in stream { if case .textDelta(let text) = event { content += text } }
+            for try await event in stream {
+                if case .textDelta(let text) = event {
+                    content += text
+                }
+            }
             #expect(recover)
         } catch let failure as RecoveryError {
             #expect(!recover)
@@ -47,7 +56,9 @@ struct StreamingRecoveryConsumerTests {
         #expect(content == (recover ? "recovered" : ""))
         let bodies = server.requests.withLock { $0 }
         #expect(bodies.count == (recover ? 3 : 2))
-        if recover { #expect(bodies[1] == bodies[2]) }
+        if recover {
+            #expect(bodies[1] == bodies[2])
+        }
         let fields = try JSONDecoder().decode(JSONValue.self, from: bodies[1]).objectValue
         if case .array(let messages)? = fields?["messages"] {
             #expect(messages.contains { $0.objectValue?["role"] == "tool" })
@@ -55,13 +66,15 @@ struct StreamingRecoveryConsumerTests {
         } else {
             Issue.record("Missing follow-up tool history")
         }
-        if session { #expect(await chat.messages().map(\.role) == (recover ? [.user, .assistant] : [])) }
+        if session {
+            #expect(await chat.messages().map(\.role) == (recover ? [.user, .assistant] : []))
+        }
     }
 
     @Test(arguments: [false, true])
     func recoveryPreservesStreamingToolDepth(_ omlx: Bool) async throws {
         let boundary = StreamingBoundary(omlx: omlx, single: false)
-        let toolReply = RecoveryReply(body: try boundary.frame(tool: true, done: true))
+        let toolReply = try RecoveryReply(body: boundary.frame(tool: true, done: true))
         let server = try RecoveryLoopback(replies: [
             toolReply, RecoveryReply(status: 503, body: "busy"), toolReply,
         ])
@@ -72,8 +85,8 @@ struct StreamingRecoveryConsumerTests {
                 model: "fixture",
                 messages: [],
                 tools: [RecoveryCountingTool(calls: count)],
-                config: CompletionConfig(maxToolIterations: 2))
-            {}
+                config: CompletionConfig(maxToolIterations: 2),
+            ) {}
             Issue.record("Expected tool depth failure")
         } catch MojenticError.toolDepthExceeded(let limit) { #expect(limit == 2) }
         #expect(count.value.withLock { $0 } == 2)

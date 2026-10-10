@@ -30,7 +30,7 @@ struct AnthropicSimple {
                     messages: [
                         .system("Reply in one short sentence."),
                         .user("Name one fact about Anthropic's headquarters."),
-                    ]
+                    ],
                 )
                 print(response.content)
             } catch {

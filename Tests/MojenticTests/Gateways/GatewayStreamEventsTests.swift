@@ -1,21 +1,32 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
 private let openAILines = [
-    #"data: {"model":"gpt-4o-2024-08-06","#
-        + #""choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":null}]}"#,
-    #"data: {"model":"gpt-4o-2024-08-06","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}"#,
-    #"data: {"model":"gpt-4o-2024-08-06","choices":[],"#
-        + #""usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}"#,
+    #"""
+    data: {"model":"gpt-4o-2024-08-06","choices":[{"index":0,"delta":{"content":"Hi"\#
+    },"finish_reason":null}]}
+    """#,
+    #"""
+    data: {"model":"gpt-4o-2024-08-06","choices":[{"index":0,"delta":{},"f\#
+    inish_reason":"stop"}]}
+    """#,
+    #"""
+    data: {"model":"gpt-4o-2024-08-06","choices":[],"usage":{"prompt_tokens":5,"comp\#
+    letion_tokens":1,"total_tokens":6}}
+    """#,
     "data: [DONE]",
 ]
 
 private let ollamaLines = [
-    #"{"model":"qwen3:8b","message":{"role":"assistant","content":"Hi"},"done":false}"#,
-    #"{"model":"qwen3:8b","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","#
-        + #""prompt_eval_count":5,"eval_count":1}"#,
+    #"""
+    {"model":"qwen3:8b","message":{"role":"assistant","content":"Hi"},"don\#
+    e":false}
+    """#,
+    #"""
+    {"model":"qwen3:8b","message":{"role":"assistant","content":""},"done":true,"don\#
+    e_reason":"stop","prompt_eval_count":5,"eval_count":1}
+    """#,
 ]
 
 @Suite("OpenAI gateway single-turn event stream")
@@ -31,7 +42,7 @@ struct OpenAIGatewayStreamEventsTests {
             gateway(transport).completeStreamEvents(
                 model: "gpt-4o",
                 messages: [.user("hi")],
-                config: CompletionConfig(responseFormat: .jsonObject)
+                config: CompletionConfig(responseFormat: .jsonObject),
             )
         )
         let bodies = await transport.recorder.bodies
@@ -49,13 +60,13 @@ struct OpenAIGatewayStreamEventsTests {
             gateway(FakeLineTransport(lines: openAILines)).completeStreamEvents(
                 model: "gpt-4o",
                 messages: [.user("hi")],
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         )
         let evidence = CompletionEvidence(
             finishReason: "stop",
             usage: Usage(promptTokens: 5, completionTokens: 1, totalTokens: 6),
-            providerModel: "gpt-4o-2024-08-06"
+            providerModel: "gpt-4o-2024-08-06",
         )
         #expect(seen == [.content("Hi"), .completed(evidence)])
     }
@@ -66,13 +77,13 @@ struct OpenAIGatewayStreamEventsTests {
             gateway(FakeLineTransport(lines: Array(openAILines.dropLast()))).completeStreamEvents(
                 model: "gpt-4o",
                 messages: [.user("hi")],
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         )
         let partial = CompletionEvidence(
             finishReason: "stop",
             usage: Usage(promptTokens: 5, completionTokens: 1, totalTokens: 6),
-            providerModel: "gpt-4o-2024-08-06"
+            providerModel: "gpt-4o-2024-08-06",
         )
         #expect(seen == [.content("Hi"), .incompleteStream(partial)])
     }
@@ -82,7 +93,10 @@ struct OpenAIGatewayStreamEventsTests {
         let transport = FakeLineTransport(failure: .http(status: 429, body: #"{"error":"slow down"}"#))
         let seen = await collect(
             gateway(transport).completeStreamEvents(
-                model: "gpt-4o", messages: [.user("hi")], config: CompletionConfig())
+                model: "gpt-4o",
+                messages: [.user("hi")],
+                config: CompletionConfig(),
+            )
         )
         #expect(seen == [.providerError(status: 429, detail: ["error": "slow down"])])
     }
@@ -92,20 +106,25 @@ struct OpenAIGatewayStreamEventsTests {
         let transport = FakeLineTransport(failure: .transport(message: "connection refused"))
         let seen = await collect(
             gateway(transport).completeStreamEvents(
-                model: "gpt-4o", messages: [.user("hi")], config: CompletionConfig())
+                model: "gpt-4o",
+                messages: [.user("hi")],
+                config: CompletionConfig(),
+            )
         )
         #expect(seen == [.requestFailed])
     }
 
     @Test("stopping consumption early cancels the request", .timeLimit(.minutes(1)))
-    func cancelsRequest() async {
+    func cancelsRequest()
+        async
+    {
         let transport = FakeLineTransport(lines: [openAILines[0]], holdOpen: true)
         // Iterate the temporary directly: an AsyncStream is terminated when
         // neither the stream value nor its iterator is referenced any more.
         for await event in gateway(transport).completeStreamEvents(
             model: "gpt-4o",
             messages: [.user("hi")],
-            config: CompletionConfig()
+            config: CompletionConfig(),
         ) {
             #expect(SeenEvent(event) == .content("Hi"))
             break
@@ -128,7 +147,7 @@ struct OllamaGatewayStreamEventsTests {
             gateway(transport).completeStreamEvents(
                 model: "qwen3",
                 messages: [.user("hi")],
-                config: CompletionConfig(responseFormat: .jsonObject)
+                config: CompletionConfig(responseFormat: .jsonObject),
             )
         )
         let bodies = await transport.recorder.bodies
@@ -145,13 +164,13 @@ struct OllamaGatewayStreamEventsTests {
             gateway(FakeLineTransport(lines: ollamaLines)).completeStreamEvents(
                 model: "qwen3",
                 messages: [.user("hi")],
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         )
         let evidence = CompletionEvidence(
             finishReason: "stop",
             usage: Usage(promptTokens: 5, completionTokens: 1, totalTokens: 6),
-            providerModel: "qwen3:8b"
+            providerModel: "qwen3:8b",
         )
         #expect(seen == [.content("Hi"), .completed(evidence)])
     }
@@ -162,21 +181,23 @@ struct OllamaGatewayStreamEventsTests {
             gateway(FakeLineTransport(lines: [ollamaLines[0]])).completeStreamEvents(
                 model: "qwen3",
                 messages: [.user("hi")],
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         )
         #expect(seen == [.content("Hi"), .incompleteStream(CompletionEvidence(providerModel: "qwen3:8b"))])
     }
 
     @Test("stopping consumption early cancels the request", .timeLimit(.minutes(1)))
-    func cancelsRequest() async {
+    func cancelsRequest()
+        async
+    {
         let transport = FakeLineTransport(lines: [ollamaLines[0]], holdOpen: true)
         // Iterate the temporary directly: an AsyncStream is terminated when
         // neither the stream value nor its iterator is referenced any more.
         for await event in gateway(transport).completeStreamEvents(
             model: "qwen3",
             messages: [.user("hi")],
-            config: CompletionConfig()
+            config: CompletionConfig(),
         ) {
             #expect(SeenEvent(event) == .content("Hi"))
             break
@@ -195,7 +216,7 @@ struct OllamaGatewayStreamEventsTests {
                 _ = try AnthropicGateway(apiKey: "k").completeStreamEvents(
                     model: "claude-sonnet-4-5",
                     messages: [.user("hi")],
-                    config: CompletionConfig()
+                    config: CompletionConfig(),
                 )
             }
         }

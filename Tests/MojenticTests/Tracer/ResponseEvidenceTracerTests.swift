@@ -1,13 +1,9 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
 private let reportedUsage = Usage(promptTokens: 12, completionTokens: 34, totalTokens: 46)
-private let reportedMetadata: [String: JSONValue] = [
-    "id": "chatcmpl-1",
-    "system_fingerprint": "fp_abc",
-]
+private let reportedMetadata: [String: JSONValue] = ["id": "chatcmpl-1", "system_fingerprint": "fp_abc"]
 
 /// Gateway that returns the same scripted evidence from every entry point.
 private struct EvidenceGateway: LLMGateway {
@@ -17,32 +13,38 @@ private struct EvidenceGateway: LLMGateway {
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
-    ) async throws -> LLMGatewayResponse { response }
+        config _: CompletionConfig,
+    ) async throws -> LLMGatewayResponse {
+        response
+    }
 
     func completeJSON(
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
-    ) async throws -> JSONValue { ["answer": "42"] }
+        config _: CompletionConfig,
+    ) async throws -> JSONValue {
+        ["answer": "42"]
+    }
 
     func completeStructured(
         model _: String,
         messages _: [LLMMessage],
         schema _: JSONValue,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
         StructuredGatewayResponse(value: ["answer": "42"], response: response)
     }
 
-    func availableModels() async throws -> [String] { [] }
+    func availableModels() async throws -> [String] {
+        []
+    }
 
     func stream(
         model _: String,
         messages _: [LLMMessage],
         tools _: [any LLMTool]?,
-        config _: CompletionConfig
+        config _: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { $0.finish() }
     }
@@ -51,10 +53,7 @@ private struct EvidenceGateway: LLMGateway {
 private struct Answer: Codable, Sendable, JSONSchemaProviding {
     let answer: String
 
-    static let jsonSchema: JSONValue = [
-        "type": "object",
-        "properties": ["answer": ["type": "string"]],
-    ]
+    static let jsonSchema: JSONValue = ["type": "object", "properties": ["answer": ["type": "string"]]]
 }
 
 private func responsePayloads(in store: EventStore, _ context: TracerContext) async -> [LLMResponsePayload] {
@@ -68,7 +67,7 @@ private func evidenceBroker(_ response: LLMGatewayResponse) -> (LLMBroker, Event
     let store = EventStore()
     let broker = LLMBroker(
         gateway: EvidenceGateway(response: response),
-        tracer: EventStoreTracer(store: store)
+        tracer: EventStoreTracer(store: store),
     )
     return (broker, store)
 }
@@ -79,7 +78,7 @@ private let evidence = LLMGatewayResponse(
     usage: reportedUsage,
     providerFinishReason: "stop",
     providerModel: "gpt-4o-2024-08-06",
-    metadata: reportedMetadata
+    metadata: reportedMetadata,
 )
 
 @Suite("Provider evidence in response traces")
@@ -106,7 +105,7 @@ struct ResponseEvidenceTracerTests {
             model: "gpt-4o",
             messages: [.user("hi")],
             responseType: Answer.self,
-            context: context
+            context: context,
         )
         #expect(answer.answer == "42")
 
@@ -120,7 +119,9 @@ struct ResponseEvidenceTracerTests {
     }
 
     @Test("an unknown provider finish reason survives into the trace unchanged")
-    func unknownFinishReason() async throws {
+    func unknownFinishReason()
+        async throws
+    {
         let (broker, store) = evidenceBroker(
             LLMGatewayResponse(content: "", finishReason: .other, providerFinishReason: "load")
         )
@@ -133,7 +134,9 @@ struct ResponseEvidenceTracerTests {
     }
 
     @Test("a gateway that reports no usage produces a response event with nil usage")
-    func noUsage() async throws {
+    func noUsage()
+        async throws
+    {
         let (broker, store) = evidenceBroker(LLMGatewayResponse(content: "ok"))
         let context = TracerContext()
         _ = try await broker.complete(model: "m", messages: [.user("hi")], context: context)
@@ -146,29 +149,37 @@ struct ResponseEvidenceTracerTests {
     }
 
     @Test("a gateway without completeStructured still traces the structured call")
-    func structuredDefault() async throws {
+    func structuredDefault()
+        async throws
+    {
         struct PlainGateway: LLMGateway {
             func complete(
                 model _: String,
                 messages _: [LLMMessage],
                 tools _: [any LLMTool]?,
-                config _: CompletionConfig
-            ) async throws -> LLMGatewayResponse { LLMGatewayResponse(content: "") }
+                config _: CompletionConfig,
+            ) async throws -> LLMGatewayResponse {
+                LLMGatewayResponse(content: "")
+            }
 
             func completeJSON(
                 model _: String,
                 messages _: [LLMMessage],
                 schema _: JSONValue,
-                config _: CompletionConfig
-            ) async throws -> JSONValue { ["answer": "7"] }
+                config _: CompletionConfig,
+            ) async throws -> JSONValue {
+                ["answer": "7"]
+            }
 
-            func availableModels() async throws -> [String] { [] }
+            func availableModels() async throws -> [String] {
+                []
+            }
 
             func stream(
                 model _: String,
                 messages _: [LLMMessage],
                 tools _: [any LLMTool]?,
-                config _: CompletionConfig
+                config _: CompletionConfig,
             ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
                 AsyncThrowingStream { $0.finish() }
             }
@@ -180,7 +191,7 @@ struct ResponseEvidenceTracerTests {
             model: "m",
             messages: [.user("hi")],
             responseType: Answer.self,
-            context: context
+            context: context,
         )
         #expect(answer.answer == "7")
         let payload = try #require(await responsePayloads(in: store, context).first)

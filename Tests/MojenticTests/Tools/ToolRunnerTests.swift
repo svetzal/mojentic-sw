@@ -1,13 +1,12 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private struct EchoTool: LLMTool {
     let descriptor = ToolDescriptor(
         name: "echo",
         description: "echo back the supplied text",
-        parameters: ["type": "object"]
+        parameters: ["type": "object"],
     )
 
     func execute(arguments: JSONValue) async throws -> JSONValue {
@@ -19,7 +18,7 @@ private struct FailingTool: LLMTool {
     let descriptor = ToolDescriptor(
         name: "boom",
         description: "always fails",
-        parameters: ["type": "object"]
+        parameters: ["type": "object"],
     )
 
     func execute(arguments _: JSONValue) async throws -> JSONValue {
@@ -52,7 +51,7 @@ struct ToolRunnerTests {
         let runner = SerialToolRunner()
         let outcomes = try await runner.runBatch(
             [ToolCallExecution(id: "x", name: "boom", arguments: [:])],
-            tools: [FailingTool()]
+            tools: [FailingTool()],
         )
         #expect(outcomes.count == 1)
         #expect(!outcomes[0].ok)
@@ -68,7 +67,7 @@ struct ToolRunnerTests {
         let runner = SerialToolRunner()
         let outcomes = try await runner.runBatch(
             [ToolCallExecution(id: "x", name: "nope", arguments: [:])],
-            tools: [EchoTool()]
+            tools: [EchoTool()],
         )
         #expect(outcomes.count == 1)
         #expect(!outcomes[0].ok)

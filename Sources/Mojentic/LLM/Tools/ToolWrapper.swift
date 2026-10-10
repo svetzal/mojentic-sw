@@ -36,22 +36,20 @@ public struct ToolWrapper: TracerContextAwareTool {
         description: String,
         systemPrompt: String? = nil,
         tools: [any LLMTool] = [],
-        config: CompletionConfig = CompletionConfig()
+        config: CompletionConfig = CompletionConfig(),
     ) {
         self.broker = broker
         self.model = model
         self.systemPrompt = systemPrompt
         self.tools = tools
         self.config = config
-        self.descriptor = ToolDescriptor(
+        descriptor = ToolDescriptor(
             name: name,
             description: description,
             parameters: [
-                "type": "object",
-                "properties": ["input": ["type": "string"]],
-                "required": ["input"],
+                "type": "object", "properties": ["input": ["type": "string"]], "required": ["input"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 
@@ -61,18 +59,14 @@ public struct ToolWrapper: TracerContextAwareTool {
     /// under the parent's correlation tree. The runner picks the contextual
     /// overload automatically via ``TracerContextAwareTool``.
     public func execute(arguments: JSONValue) async throws -> JSONValue {
-        try await executeWithContext(
-            arguments: arguments,
-            tracer: NullTracer(),
-            context: TracerContext()
-        )
+        try await executeWithContext(arguments: arguments, tracer: NullTracer(), context: TracerContext())
     }
 
     /// Execute the wrapped broker, threading the parent's tracer context.
     public func executeWithContext(
         arguments: JSONValue,
         tracer _: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> JSONValue {
         guard let input = arguments.objectValue?["input"]?.stringValue else {
             throw MojenticError.invalidArgument(message: "\(descriptor.name) requires 'input'")
@@ -87,7 +81,7 @@ public struct ToolWrapper: TracerContextAwareTool {
             messages: messages,
             tools: tools,
             config: config,
-            context: context
+            context: context,
         )
         return ["response": .string(response.content)]
     }

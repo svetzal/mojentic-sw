@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("oMLX configuration")
 struct OMLXConfigurationTests {
@@ -9,15 +8,13 @@ struct OMLXConfigurationTests {
         host: URL? = nil,
         apiKey: String? = nil,
         timeout: TimeInterval? = nil,
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
     ) -> OMLXConfiguration {
         OMLXConfiguration.resolve(host: host, apiKey: apiKey, timeout: timeout, environment: environment)
     }
 
     private let environment = [
-        "OMLX_HOST": "http://studio.local:9000",
-        "OMLX_API_KEY": "env-key",
-        "OMLX_TIMEOUT": "1500",
+        "OMLX_HOST": "http://studio.local:9000", "OMLX_API_KEY": "env-key", "OMLX_TIMEOUT": "1500",
     ]
 
     @Test("defaults to localhost:8000, no key and ten minutes")
@@ -52,29 +49,27 @@ struct OMLXConfigurationTests {
 
     @Test(
         "empty or unusable environment values fall back to the defaults",
-        arguments: ["", "soon", "0", "-5"]
+        arguments: ["", "soon", "0", "-5"],
     )
     func unusableEnvironment(value: String) {
-        let configuration = resolve(
-            environment: ["OMLX_HOST": "", "OMLX_API_KEY": "", "OMLX_TIMEOUT": value]
-        )
+        let configuration = resolve(environment: ["OMLX_HOST": "", "OMLX_API_KEY": "", "OMLX_TIMEOUT": value])
         #expect(configuration == OMLXConfiguration())
     }
 
     @Test("the gateway adds /v1 to the host", arguments: ["http://localhost:8000", "http://localhost:8000/"])
     func versionPrefix(host: String) throws {
-        let configuration = OMLXConfiguration(host: try #require(URL(string: host)))
+        let configuration = try OMLXConfiguration(host: #require(URL(string: host)))
         #expect(configuration.baseURL.absoluteString == "http://localhost:8000/v1")
     }
 
     @Test("requests go to host/v1 with the configured timeout and no authorization without a key")
     func requestWithoutKey() async throws {
-        let transport = FakeRequestTransport(try .fixture("chat_thinking_disabled.json"))
+        let transport = try FakeRequestTransport(.fixture("chat_thinking_disabled.json"))
         _ = try await omlxGateway(transport).complete(
             model: omlxFixtureModel,
             messages: [.user("hi")],
             tools: nil,
-            config: CompletionConfig()
+            config: CompletionConfig(),
         )
         let request = try await transport.onlyRequest()
         #expect(request.method == "POST")
@@ -85,7 +80,7 @@ struct OMLXConfigurationTests {
 
     @Test("an API key is sent as a bearer token")
     func requestWithKey() async throws {
-        let transport = FakeRequestTransport(try .fixture("models.json"))
+        let transport = try FakeRequestTransport(.fixture("models.json"))
         _ = try await omlxGateway(transport, configuration: OMLXConfiguration(apiKey: "secret"))
             .availableModels()
         let request = try await transport.onlyRequest()

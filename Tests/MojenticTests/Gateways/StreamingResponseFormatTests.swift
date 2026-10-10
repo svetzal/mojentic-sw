@@ -1,12 +1,8 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
-private let schema: JSONValue = [
-    "type": "object",
-    "properties": ["answer": ["type": "string"]],
-]
+private let schema: JSONValue = ["type": "object", "properties": ["answer": ["type": "string"]]]
 
 private func openAIGateway(_ transport: FakeLineTransport) -> OpenAIGateway {
     OpenAIGateway(apiKey: "test-key", lineTransport: transport)
@@ -18,7 +14,7 @@ private func ollamaGateway(_ transport: FakeLineTransport) -> OllamaGateway {
 
 private func sentBody(
     through transport: FakeLineTransport,
-    _ stream: AsyncThrowingStream<GatewayStreamEvent, any Error>
+    _ stream: AsyncThrowingStream<GatewayStreamEvent, any Error>,
 ) async throws -> [String: JSONValue] {
     try await drain(stream)
     let bodies = await transport.recorder.bodies
@@ -33,7 +29,7 @@ struct OpenAIStreamingResponseFormatTests {
             model: "gpt-4o",
             messages: [.user("hi")],
             tools: nil,
-            config: CompletionConfig(responseFormat: format)
+            config: CompletionConfig(responseFormat: format),
         )
         return try await sentBody(through: transport, stream)
     }
@@ -61,8 +57,7 @@ struct OpenAIStreamingResponseFormatTests {
     func jsonSchema() async throws {
         let body = try await streamedBody(format: .jsonSchema(schema))
         let expected: JSONValue = [
-            "type": "json_schema",
-            "json_schema": ["name": "response", "schema": schema],
+            "type": "json_schema", "json_schema": ["name": "response", "schema": schema],
         ]
         #expect(body["response_format"] == expected)
     }
@@ -76,7 +71,7 @@ struct OllamaStreamingResponseFormatTests {
             model: "qwen3",
             messages: [.user("hi")],
             tools: nil,
-            config: CompletionConfig(responseFormat: format)
+            config: CompletionConfig(responseFormat: format),
         )
         return try await sentBody(through: transport, stream)
     }

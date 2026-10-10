@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("OpenAIModelRegistry")
 struct OpenAIModelRegistryTests {
@@ -14,7 +13,7 @@ struct OpenAIModelRegistryTests {
         #expect(capabilities.supportsJSONSchema)
         #expect(capabilities.tokenLimitParameter == "max_tokens")
         #expect(capabilities.maxContextTokens == 128_000)
-        #expect(capabilities.maxOutputTokens == 16_384)
+        #expect(capabilities.maxOutputTokens == 16384)
         #expect(capabilities.supportsChatApi)
         #expect(!capabilities.supportsCompletionsApi)
         #expect(!capabilities.supportsResponsesApi)
@@ -28,7 +27,7 @@ struct OpenAIModelRegistryTests {
         #expect(capabilities.supportsReasoningEffort)
         #expect(capabilities.tokenLimitParameter == "max_completion_tokens")
         #expect(capabilities.maxContextTokens == 128_000)
-        #expect(capabilities.maxOutputTokens == 32_768)
+        #expect(capabilities.maxOutputTokens == 32768)
         #expect(capabilities.supportedTemperatures == [1.0])
         #expect(capabilities.supportsTemperature(1.0))
         #expect(!capabilities.supportsTemperature(0.5))
@@ -54,12 +53,10 @@ struct OpenAIModelRegistryTests {
     @Test(
         "gpt-5.4 / gpt-5.5 families register as reasoning+vision models",
         arguments: [
-            "gpt-5.4", "gpt-5.4-2026-03-05",
-            "gpt-5.4-mini", "gpt-5.4-mini-2026-03-17",
-            "gpt-5.4-nano", "gpt-5.4-nano-2026-03-17",
-            "gpt-5.5", "gpt-5.5-2026-04-23",
-            "gpt-5.5-pro", "gpt-5.5-pro-2026-04-23",
-        ]
+            "gpt-5.4", "gpt-5.4-2026-03-05", "gpt-5.4-mini", "gpt-5.4-mini-2026-03-17", "gpt-5.4-nano",
+            "gpt-5.4-nano-2026-03-17", "gpt-5.5", "gpt-5.5-2026-04-23", "gpt-5.5-pro",
+            "gpt-5.5-pro-2026-04-23",
+        ],
     )
     func gpt54And55Families(model: String) {
         let capabilities = OpenAIModelRegistry.shared.capabilities(for: model)
@@ -103,13 +100,13 @@ struct OpenAIModelRegistryTests {
         let gpt5 = registry.capabilities(for: "gpt-5")
         #expect(gpt5.modelType == .reasoning)
         #expect(gpt5.maxContextTokens == 300_000)
-        #expect(gpt5.maxOutputTokens == 50_000)
+        #expect(gpt5.maxOutputTokens == 50000)
         #expect(gpt5.supportsChatApi)
         #expect(!gpt5.supportsResponsesApi)
 
         let gpt5Mini = registry.capabilities(for: "gpt-5-mini")
         #expect(gpt5Mini.maxContextTokens == 200_000)
-        #expect(gpt5Mini.maxOutputTokens == 32_768)
+        #expect(gpt5Mini.maxOutputTokens == 32768)
         // gpt-5-mini has incomplete tool support per the cross-port audit.
         #expect(!gpt5Mini.supportsTools)
 
@@ -133,20 +130,20 @@ struct OpenAIModelRegistryTests {
 
         let gpt4 = registry.capabilities(for: "gpt-4")
         #expect(gpt4.modelType == .chat)
-        #expect(gpt4.maxContextTokens == 32_000)
-        #expect(gpt4.maxOutputTokens == 8_192)
+        #expect(gpt4.maxContextTokens == 32000)
+        #expect(gpt4.maxOutputTokens == 8192)
 
         let gpt41 = registry.capabilities(for: "gpt-4.1")
         #expect(gpt41.maxContextTokens == 200_000)
-        #expect(gpt41.maxOutputTokens == 32_768)
+        #expect(gpt41.maxOutputTokens == 32768)
 
         let gpt41Mini = registry.capabilities(for: "gpt-4.1-mini")
         #expect(gpt41Mini.maxContextTokens == 128_000)
-        #expect(gpt41Mini.maxOutputTokens == 16_384)
+        #expect(gpt41Mini.maxOutputTokens == 16384)
 
         let gpt35 = registry.capabilities(for: "gpt-3.5-turbo")
-        #expect(gpt35.maxContextTokens == 16_385)
-        #expect(gpt35.maxOutputTokens == 4_096)
+        #expect(gpt35.maxContextTokens == 16385)
+        #expect(gpt35.maxOutputTokens == 4096)
         #expect(!gpt35.supportsJSONSchema)
     }
 
@@ -194,7 +191,7 @@ struct OpenAIModelRegistryTests {
             #expect(!capabilities.supportsChatApi)
             #expect(capabilities.supportsCompletionsApi)
             #expect(!capabilities.supportsResponsesApi)
-            #expect(capabilities.maxContextTokens == 16_384)
+            #expect(capabilities.maxContextTokens == 16384)
         }
     }
 

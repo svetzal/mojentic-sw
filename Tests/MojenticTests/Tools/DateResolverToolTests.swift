@@ -1,14 +1,13 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("DateResolverTool")
 struct DateResolverToolTests {
     private static func fixedDate() -> Date {
         // 2026-05-15 (Friday) at 12:00 UTC.
         var components = DateComponents()
-        components.year = 2_026
+        components.year = 2026
         components.month = 5
         components.day = 15
         components.hour = 12
@@ -56,8 +55,6 @@ struct DateResolverToolTests {
                 return
             }
             Issue.record("unexpected error: \(error)")
-        } catch {
-            Issue.record("unexpected error: \(error)")
-        }
+        } catch { Issue.record("unexpected error: \(error)") }
     }
 }

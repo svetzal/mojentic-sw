@@ -1,5 +1,4 @@
 import Foundation
-
 @testable import Mojentic
 
 /// Records what a ``FakeLineTransport`` was asked to send and whether its
@@ -24,10 +23,10 @@ actor TransportRecorder {
 
     /// Suspend until the transport stream has been terminated at least once.
     func waitForTermination() async {
-        if terminations > 0 { return }
-        await withCheckedContinuation { continuation in
-            terminationWaiters.append(continuation)
+        if terminations > 0 {
+            return
         }
+        await withCheckedContinuation { continuation in terminationWaiters.append(continuation) }
     }
 }
 
@@ -50,7 +49,7 @@ struct FakeLineTransport: LineStreamingTransport {
     func streamLines(
         url _: URL,
         body: some Encodable,
-        headers _: [String: String]
+        headers _: [String: String],
     ) async throws -> AsyncThrowingStream<String, any Error> {
         let data = try JSONEncoder().encode(body)
         let value = try JSONDecoder().decode(JSONValue.self, from: data)
@@ -58,13 +57,11 @@ struct FakeLineTransport: LineStreamingTransport {
         if let failure {
             throw failure
         }
-        let lines = self.lines
-        let holdOpen = self.holdOpen
-        let recorder = self.recorder
+        let lines = lines
+        let holdOpen = holdOpen
+        let recorder = recorder
         return AsyncThrowingStream { continuation in
-            continuation.onTermination = { _ in
-                Task { await recorder.recordTermination() }
-            }
+            continuation.onTermination = { _ in Task { await recorder.recordTermination() } }
             for line in lines {
                 continuation.yield(line)
             }

@@ -32,7 +32,7 @@ public actor ParallelToolRunner: ToolRunner {
         _ calls: [ToolCallExecution],
         tools: [any LLMTool],
         tracer: any Tracer,
-        context: TracerContext
+        context: TracerContext,
     ) async throws -> [ToolCallOutcome] {
         try Task.checkCancellation()
         guard !calls.isEmpty else { return [] }
@@ -41,7 +41,7 @@ public actor ParallelToolRunner: ToolRunner {
             correlationId: context.correlationId,
             parentId: context.parentId,
             duration: .zero,
-            count: calls.count
+            count: calls.count,
         )
         let childContext = context.child(parent: batchPayload.id)
         let start = clock.now
@@ -51,7 +51,7 @@ public actor ParallelToolRunner: ToolRunner {
             var nextIndex = 0
             var inFlight = 0
             while nextIndex < calls.count || inFlight > 0 {
-                while inFlight < limit && nextIndex < calls.count {
+                while inFlight < limit, nextIndex < calls.count {
                     let index = nextIndex
                     let call = calls[index]
                     group.addTask {
@@ -60,7 +60,7 @@ public actor ParallelToolRunner: ToolRunner {
                             call: call,
                             tools: tools,
                             tracer: tracer,
-                            context: childContext
+                            context: childContext,
                         )
                         return (index, outcome)
                     }
@@ -81,7 +81,7 @@ public actor ParallelToolRunner: ToolRunner {
                 correlationId: context.correlationId,
                 parentId: context.parentId,
                 duration: duration,
-                count: calls.count
+                count: calls.count,
             )
         )
         return outcomes

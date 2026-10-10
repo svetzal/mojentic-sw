@@ -18,11 +18,9 @@ public struct TellUserTool: LLMTool {
             name: "tell_user",
             description: "Surface a message to the end user out-of-band from the assistant turn.",
             parameters: [
-                "type": "object",
-                "properties": ["message": ["type": "string"]],
-                "required": ["message"],
+                "type": "object", "properties": ["message": ["type": "string"]], "required": ["message"],
                 "additionalProperties": false,
-            ]
+            ],
         )
     }
 

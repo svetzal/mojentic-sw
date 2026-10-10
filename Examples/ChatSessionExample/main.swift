@@ -14,7 +14,7 @@ struct ChatSessionExample {
         let session = ChatSession(
             broker: broker,
             model: "gpt-4o-mini",
-            systemPrompt: "You are a concise and helpful assistant."
+            systemPrompt: "You are a concise and helpful assistant.",
         )
 
         print("Chat session ready. Enter blank line to quit.")

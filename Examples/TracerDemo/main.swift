@@ -11,7 +11,7 @@ struct TracerDemo {
         let tracer = EventStoreTracer(store: store)
         let broker = LLMBroker(
             gateway: OllamaGateway(),
-            tracer: tracer
+            tracer: tracer,
         )
         let context = TracerContext()
         do {
@@ -21,7 +21,7 @@ struct TracerDemo {
                     .system("Be brief."),
                     .user("Say hello in one word."),
                 ],
-                context: context
+                context: context,
             )
         } catch {
             print("LLM call failed (this is fine if Ollama isn't running): \(error)")
@@ -37,17 +37,17 @@ struct TracerDemo {
     static func describe(_ event: TracerEvent) -> String {
         switch event {
         case .llmCall(let payload):
-            return "llmCall model=\(payload.model) parent=\(payload.parentId?.uuidString ?? "-")"
+            "llmCall model=\(payload.model) parent=\(payload.parentId?.uuidString ?? "-")"
         case .llmResponse(let payload):
-            return "llmResponse duration=\(payload.duration)"
+            "llmResponse duration=\(payload.duration)"
         case .toolCall(let payload):
-            return "toolCall name=\(payload.name)"
+            "toolCall name=\(payload.name)"
         case .toolResult(let payload):
-            return "toolResult ok=\(payload.outcome.ok)"
+            "toolResult ok=\(payload.outcome.ok)"
         case .toolBatch(let payload):
-            return "toolBatch count=\(payload.count) duration=\(payload.duration)"
+            "toolBatch count=\(payload.count) duration=\(payload.duration)"
         case .agentLifecycle(let payload):
-            return "agent=\(payload.agentName) phase=\(payload.phase.rawValue)"
+            "agent=\(payload.agentName) phase=\(payload.phase.rawValue)"
         }
     }
 }

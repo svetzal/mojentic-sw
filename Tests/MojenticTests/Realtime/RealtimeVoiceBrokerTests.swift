@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private actor RecordingGatewayState {
     var observed: (any Tracer)?
@@ -19,7 +18,7 @@ private struct RecordingGateway: RealtimeGateway {
     func openSession(
         _ config: RealtimeSessionConfig,
         tracer: any Tracer,
-        toolRunner: any ToolRunner
+        toolRunner: any ToolRunner,
     ) async throws -> RealtimeSession {
         await state.capture(tracer: tracer, runner: toolRunner)
         // Return a no-op session against a closed fake transport.
@@ -29,19 +28,20 @@ private struct RecordingGateway: RealtimeGateway {
             tools: config.tools,
             tracer: tracer,
             toolRunner: toolRunner,
-            vad: config.vad
+            vad: config.vad,
         )
     }
 }
 
 private actor DummyTransportState {
     var continuation: AsyncThrowingStream<TransportFrame, any Error>.Continuation?
-    func setContinuation(
-        _ continuation: AsyncThrowingStream<TransportFrame, any Error>.Continuation
-    ) {
+    func setContinuation(_ continuation: AsyncThrowingStream<TransportFrame, any Error>.Continuation) {
         self.continuation = continuation
     }
-    func close() { continuation?.finish() }
+
+    func close() {
+        continuation?.finish()
+    }
 }
 
 private struct DummyTransport: RealtimeTransport {
@@ -49,12 +49,13 @@ private struct DummyTransport: RealtimeTransport {
     func send(text _: String) async throws {}
     func send(data _: Data) async throws {}
     func receive() -> AsyncThrowingStream<TransportFrame, any Error> {
-        let state = self.state
-        return AsyncThrowingStream { continuation in
-            Task { await state.setContinuation(continuation) }
-        }
+        let state = state
+        return AsyncThrowingStream { continuation in Task { await state.setContinuation(continuation) } }
     }
-    func close() async { await state.close() }
+
+    func close() async {
+        await state.close()
+    }
 }
 
 @Suite("RealtimeVoiceBroker")
@@ -64,13 +65,8 @@ struct RealtimeVoiceBrokerTests {
         let state = RecordingGatewayState()
         let store = EventStore()
         let tracer = EventStoreTracer(store: store)
-        let broker = RealtimeVoiceBroker(
-            gateway: RecordingGateway(state: state),
-            tracer: tracer
-        )
-        _ = try await broker.startSession(
-            RealtimeSessionConfig(model: "m", apiKey: "k")
-        )
+        let broker = RealtimeVoiceBroker(gateway: RecordingGateway(state: state), tracer: tracer)
+        _ = try await broker.startSession(RealtimeSessionConfig(model: "m", apiKey: "k"))
         let observedTracer = await state.observed
         let observedRunner = await state.observedRunner
         #expect(observedTracer is EventStoreTracer)
@@ -82,11 +78,9 @@ struct RealtimeVoiceBrokerTests {
         let state = RecordingGatewayState()
         let broker = RealtimeVoiceBroker(
             gateway: RecordingGateway(state: state),
-            toolRunner: SerialToolRunner()
+            toolRunner: SerialToolRunner(),
         )
-        _ = try await broker.startSession(
-            RealtimeSessionConfig(model: "m", apiKey: "k")
-        )
+        _ = try await broker.startSession(RealtimeSessionConfig(model: "m", apiKey: "k"))
         let observedRunner = await state.observedRunner
         #expect(observedRunner is SerialToolRunner)
     }

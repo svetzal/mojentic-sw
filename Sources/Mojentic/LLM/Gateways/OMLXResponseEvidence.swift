@@ -12,16 +12,12 @@ struct OMLXChatExtras: Decodable {
         case usage
     }
 
-    private struct Choice: Decodable {
-        let message: Message?
-    }
+    private struct Choice: Decodable { let message: Message? }
 
     private struct Message: Decodable {
         let reasoningContent: String?
 
-        enum CodingKeys: String, CodingKey {
-            case reasoningContent = "reasoning_content"
-        }
+        enum CodingKeys: String, CodingKey { case reasoningContent = "reasoning_content" }
     }
 
     init(from decoder: any Decoder) throws {

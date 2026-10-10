@@ -20,7 +20,7 @@ public actor AsyncLLMAgent: BaseAgent {
         model: String,
         systemPrompt: String? = nil,
         tools: [any LLMTool] = [],
-        config: CompletionConfig = CompletionConfig()
+        config: CompletionConfig = CompletionConfig(),
     ) {
         self.broker = broker
         self.model = model
@@ -31,10 +31,7 @@ public actor AsyncLLMAgent: BaseAgent {
 
     /// Handle a TextEvent or LLMRequestEvent by invoking the broker.
     public func handle(_ event: any Event) async throws -> [any Event] {
-        let context = TracerContext(
-            correlationId: event.correlationId,
-            parentId: event.parentId
-        )
+        let context = TracerContext(correlationId: event.correlationId, parentId: event.parentId)
         let messages: [LLMMessage]
         let modelName: String
         switch event {
@@ -44,21 +41,20 @@ public actor AsyncLLMAgent: BaseAgent {
         case let requestEvent as LLMRequestEvent:
             messages = requestEvent.messages
             modelName = requestEvent.model ?? model
-        default:
-            return []
+        default: return []
         }
         let response = try await broker.complete(
             model: modelName,
             messages: messages,
             tools: tools,
             config: config,
-            context: context
+            context: context,
         )
         return [
             LLMResponseEvent(
                 response: response,
                 correlationId: event.correlationId,
-                parentId: event.parentId
+                parentId: event.parentId,
             )
         ]
     }

@@ -1,15 +1,15 @@
 import Foundation
+@testable import Mojentic
 import Testing
 
-@testable import Mojentic
-
-final class RecoveryToolCounter: Sendable {
-    let value = RecoveryLocked<Int>(0)
-}
+final class RecoveryToolCounter: Sendable { let value = RecoveryLocked<Int>(0) }
 
 struct RecoveryCountingTool: LLMTool {
     let calls: RecoveryToolCounter
-    var descriptor: ToolDescriptor { ResolveDateTool().descriptor }
+    var descriptor: ToolDescriptor {
+        ResolveDateTool().descriptor
+    }
+
     func execute(arguments: JSONValue) async throws -> JSONValue {
         #expect(arguments == ["relative": "tomorrow"])
         calls.value.withLock { $0 += 1 }
@@ -20,11 +20,13 @@ struct RecoveryCountingTool: LLMTool {
 @Suite("Recovery through broker and session")
 struct RecoveryToolSafetyTests {
     @Test(arguments: [false, true], [false, true])
-    func completedToolSurvivesRecoveredFollowUp(_ omlx: Bool, _ session: Bool) async throws {
+    func completedToolSurvivesRecoveredFollowUp(
+        _ omlx: Bool,
+        _ session: Bool,
+    ) async throws {
         let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let server = try RecoveryLoopback(replies: [
-            try boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"),
-            try boundary.success(),
+            boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
         let count = RecoveryToolCounter()
@@ -41,7 +43,7 @@ struct RecoveryToolSafetyTests {
                 model: "fixture",
                 messages: [.user("original-user")],
                 tools: [tool],
-                config: config
+                config: config,
             )
         }
         #expect(result.content == "recovered")
@@ -65,8 +67,10 @@ struct RecoveryToolSafetyTests {
                 "original-result": "tool-sentinel"
             ]
         )
-        if omlx { #expect(messages[2].objectValue?["tool_call_id"] == "original-tool") }
-        let identities = recorder.requests.withLock { $0.map { $0.0 } }
+        if omlx {
+            #expect(messages[2].objectValue?["tool_call_id"] == "original-tool")
+        }
+        let identities = recorder.requests.withLock { $0.map(\.0) }
         #expect(identities.map(\.wireNumber) == [1, 1, 2])
         #expect(identities[0].logicalID != identities[1].logicalID)
         #expect(identities[1].logicalID == identities[2].logicalID)
@@ -74,10 +78,13 @@ struct RecoveryToolSafetyTests {
     }
 
     @Test(arguments: [false, true], [false, true])
-    func failurePreservesTypedCauseAfterCompletedTool(_ omlx: Bool, _ session: Bool) async throws {
+    func failurePreservesTypedCauseAfterCompletedTool(
+        _ omlx: Bool,
+        _ session: Bool,
+    ) async throws {
         let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let server = try RecoveryLoopback(replies: [
-            try boundary.success(tools: true), RecoveryReply(body: " ", truncated: true),
+            boundary.success(tools: true), RecoveryReply(body: " ", truncated: true),
         ])
         let count = RecoveryToolCounter()
         let recorder = RecoveryRecorder()
@@ -98,7 +105,7 @@ struct RecoveryToolSafetyTests {
                 _ = try await broker.complete(
                     model: "fixture",
                     messages: [.user("original-user")],
-                    tools: [tool]
+                    tools: [tool],
                 )
             }
         }
@@ -112,8 +119,8 @@ struct RecoveryToolSafetyTests {
     func recoveryDoesNotResetToolDepth(_ omlx: Bool) async throws {
         let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let server = try RecoveryLoopback(replies: [
-            try boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"),
-            try boundary.success(tools: true),
+            boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"),
+            boundary.success(tools: true),
         ])
         let count = RecoveryToolCounter()
         let broker = LLMBroker(gateway: boundary.gateway(server, policy: recoveryPolicy(RecoveryRecorder())))
@@ -122,12 +129,10 @@ struct RecoveryToolSafetyTests {
                 model: "fixture",
                 messages: [.user("original-user")],
                 tools: [RecoveryCountingTool(calls: count)],
-                config: CompletionConfig(maxToolIterations: 2)
+                config: CompletionConfig(maxToolIterations: 2),
             )
             Issue.record("Expected tool depth failure")
-        } catch MojenticError.toolDepthExceeded(let limit) {
-            #expect(limit == 2)
-        }
+        } catch MojenticError.toolDepthExceeded(let limit) { #expect(limit == 2) }
         #expect(count.value.withLock { $0 } == 2)
         #expect(server.requests.withLock { $0.count } == 3)
     }

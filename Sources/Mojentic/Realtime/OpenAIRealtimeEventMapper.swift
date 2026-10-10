@@ -15,33 +15,25 @@ public enum OpenAIRealtimeEventMapper {
     /// strings across multiple files without clarifying the dispatch.
     public static func map(_ event: JSONValue) -> RealtimeEvent? {
         // swiftlint:disable:previous cyclomatic_complexity
-        guard let object = event.objectValue,
-            let type = object["type"]?.stringValue
-        else { return nil }
+        guard let object = event.objectValue, let type = object["type"]?.stringValue else { return nil }
         switch type {
         case "session.created":
-            let sessionId =
-                object["session"]?.objectValue?["id"]?.stringValue ?? ""
+            let sessionId = object["session"]?.objectValue?["id"]?.stringValue ?? ""
             return .sessionCreated(sessionId: sessionId)
-        case "session.updated":
-            return .sessionUpdated
-        case "input_audio_buffer.speech_started":
-            return .speechStarted
-        case "input_audio_buffer.speech_stopped":
-            return .speechStopped
+        case "session.updated": return .sessionUpdated
+        case "input_audio_buffer.speech_started": return .speechStarted
+        case "input_audio_buffer.speech_stopped": return .speechStopped
         case "conversation.item.input_audio_transcription.delta":
-            guard let itemId = object["item_id"]?.stringValue,
-                let delta = object["delta"]?.stringValue
-            else { return nil }
+            guard let itemId = object["item_id"]?.stringValue, let delta = object["delta"]?.stringValue else {
+                return nil
+            }
             return .userTranscriptDelta(itemId: itemId, delta: delta)
         case "conversation.item.input_audio_transcription.completed":
-            guard let itemId = object["item_id"]?.stringValue,
-                let text = object["transcript"]?.stringValue
+            guard let itemId = object["item_id"]?.stringValue, let text = object["transcript"]?.stringValue
             else { return nil }
             return .userTranscript(itemId: itemId, text: text)
         case "response.created":
-            let turnId =
-                object["response"]?.objectValue?["id"]?.stringValue ?? ""
+            let turnId = object["response"]?.objectValue?["id"]?.stringValue ?? ""
             return .responseStarted(turnId: turnId)
         case "response.text.delta", "response.output_text.delta":
             guard let delta = object["delta"]?.stringValue else { return nil }
@@ -60,8 +52,7 @@ public enum OpenAIRealtimeEventMapper {
             let turnId = object["response_id"]?.stringValue ?? ""
             return .transcript(turnId: turnId, text: text)
         case "response.audio.delta", "response.output_audio.delta":
-            guard let base64 = object["delta"]?.stringValue,
-                let frame = try? AudioCodec.base64Decode(base64)
+            guard let base64 = object["delta"]?.stringValue, let frame = try? AudioCodec.base64Decode(base64)
             else { return nil }
             let turnId = object["response_id"]?.stringValue ?? ""
             return .audioDelta(turnId: turnId, frame: frame)
@@ -69,17 +60,16 @@ public enum OpenAIRealtimeEventMapper {
             let turnId = object["response_id"]?.stringValue ?? ""
             return .audioDone(turnId: turnId)
         case "response.output_item.added":
-            guard let item = object["item"]?.objectValue,
-                item["type"]?.stringValue == "function_call",
-                let callId = item["call_id"]?.stringValue,
-                let name = item["name"]?.stringValue
+            guard
+                let item = object["item"]?.objectValue, item["type"]?.stringValue == "function_call",
+                let callId = item["call_id"]?.stringValue, let name = item["name"]?.stringValue
             else { return nil }
             let turnId = object["response_id"]?.stringValue ?? ""
             return .toolCallStarted(turnId: turnId, callId: callId, name: name)
         case "response.function_call_arguments.delta":
-            guard let callId = object["call_id"]?.stringValue,
-                let delta = object["delta"]?.stringValue
-            else { return nil }
+            guard let callId = object["call_id"]?.stringValue, let delta = object["delta"]?.stringValue else {
+                return nil
+            }
             return .toolCallArgsDelta(callId: callId, delta: delta)
         case "response.done":
             let response = object["response"]?.objectValue
@@ -87,12 +77,9 @@ public enum OpenAIRealtimeEventMapper {
             let usage = parseUsage(response?["usage"]?.objectValue)
             return .responseDone(turnId: turnId, usage: usage)
         case "error":
-            let message =
-                object["error"]?.objectValue?["message"]?.stringValue
-                ?? "unknown realtime error"
+            let message = object["error"]?.objectValue?["message"]?.stringValue ?? "unknown realtime error"
             return .errorOccurred(message)
-        default:
-            return nil
+        default: return nil
         }
     }
 
@@ -101,7 +88,7 @@ public enum OpenAIRealtimeEventMapper {
         return RealtimeTokenUsage(
             promptTokens: payload["input_tokens"]?.intValue,
             completionTokens: payload["output_tokens"]?.intValue,
-            totalTokens: payload["total_tokens"]?.intValue
+            totalTokens: payload["total_tokens"]?.intValue,
         )
     }
 }

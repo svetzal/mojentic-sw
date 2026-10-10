@@ -24,7 +24,7 @@ public struct RealtimeTokenUsage: Sendable, Hashable, Codable {
 /// hatch is ``RealtimeSession/rawEvents()``, which surfaces the underlying
 /// JSON for cases that don't fit the neutral union.
 public enum RealtimeEvent: Sendable, Hashable {
-    // Session lifecycle
+    /// Session lifecycle
     /// The provider acknowledged the session.
     case sessionCreated(sessionId: String)
     /// The provider applied an updated session configuration.
@@ -32,7 +32,7 @@ public enum RealtimeEvent: Sendable, Hashable {
     /// The session is being torn down.
     case sessionClosed(reason: SessionCloseReason)
 
-    // User audio
+    /// User audio
     /// Server VAD detected the user starting to speak.
     case speechStarted
     /// Server VAD detected the user stopping speaking.
@@ -42,7 +42,7 @@ public enum RealtimeEvent: Sendable, Hashable {
     /// Final transcript of the user's audio for this item.
     case userTranscript(itemId: String, text: String)
 
-    // Assistant output
+    /// Assistant output
     /// A new response turn has begun.
     case responseStarted(turnId: String)
     /// Incremental text content for the in-flight turn.
@@ -60,7 +60,7 @@ public enum RealtimeEvent: Sendable, Hashable {
     /// The response turn finished cleanly.
     case responseDone(turnId: String, usage: RealtimeTokenUsage?)
 
-    // Tools (mirror the parity row in PARITY.md)
+    /// Tools (mirror the parity row in PARITY.md)
     /// The model announced a function call.
     case toolCallStarted(turnId: String, callId: String, name: String)
     /// Streaming JSON arguments for an in-flight function call.
@@ -74,7 +74,7 @@ public enum RealtimeEvent: Sendable, Hashable {
     /// A parallel batch of tool outputs was submitted upstream.
     case toolBatchSubmitted(turnId: String, callIds: [String])
 
-    // Interruption / error
+    /// Interruption / error
     /// A turn was interrupted (barge-in or manual).
     case interrupted(turnId: String, reason: InterruptReason)
     /// The provider raised an error.

@@ -30,7 +30,7 @@ let package = Package(
         .executable(name: "BrokerAsTool", targets: ["BrokerAsTool"]),
         .executable(
             name: "EphemeralTaskManagerExample",
-            targets: ["EphemeralTaskManagerExample"]
+            targets: ["EphemeralTaskManagerExample"],
         ),
         .executable(name: "TellUser", targets: ["TellUser"]),
         .executable(name: "AskUser", targets: ["AskUser"]),
@@ -39,7 +39,7 @@ let package = Package(
         .executable(name: "AsyncLLM", targets: ["AsyncLLM"]),
         .executable(
             name: "AsyncDispatcherExample",
-            targets: ["AsyncDispatcherExample"]
+            targets: ["AsyncDispatcherExample"],
         ),
         .executable(name: "IterativeSolver", targets: ["IterativeSolver"]),
         .executable(name: "RecursiveAgent", targets: ["RecursiveAgent"]),
@@ -60,7 +60,7 @@ let package = Package(
         "anthropic",
         .trait(
             name: "full",
-            enabledTraits: ["ollama", "openai", "anthropic"]
+            enabledTraits: ["ollama", "openai", "anthropic"],
         ),
     ],
     dependencies: [
@@ -71,172 +71,172 @@ let package = Package(
         .target(
             name: "Mojentic",
             dependencies: [
-                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Logging", package: "swift-log")
             ],
             swiftSettings: [
-                .enableUpcomingFeature("ExistentialAny"),
-            ]
+                .enableUpcomingFeature("ExistentialAny")
+            ],
         ),
         .testTarget(
             name: "MojenticTests",
             dependencies: ["Mojentic"],
-            resources: [.copy("Fixtures")]
+            resources: [.copy("Fixtures")],
         ),
         .executableTarget(
             name: "SimpleLLM",
             dependencies: ["Mojentic"],
-            path: "Examples/SimpleLLM"
+            path: "Examples/SimpleLLM",
         ),
         .executableTarget(
             name: "ListModels",
             dependencies: ["Mojentic"],
-            path: "Examples/ListModels"
+            path: "Examples/ListModels",
         ),
         .executableTarget(
             name: "SimpleStructured",
             dependencies: ["Mojentic"],
-            path: "Examples/SimpleStructured"
+            path: "Examples/SimpleStructured",
         ),
         .executableTarget(
             name: "SimpleTool",
             dependencies: ["Mojentic"],
-            path: "Examples/SimpleTool"
+            path: "Examples/SimpleTool",
         ),
         .executableTarget(
             name: "Streaming",
             dependencies: ["Mojentic"],
-            path: "Examples/Streaming"
+            path: "Examples/Streaming",
         ),
         .executableTarget(
             name: "BrokerExamples",
             dependencies: ["Mojentic"],
-            path: "Examples/BrokerExamples"
+            path: "Examples/BrokerExamples",
         ),
         .executableTarget(
             name: "ChatSessionExample",
             dependencies: ["Mojentic"],
-            path: "Examples/ChatSessionExample"
+            path: "Examples/ChatSessionExample",
         ),
         .executableTarget(
             name: "ChatSessionWithTool",
             dependencies: ["Mojentic"],
-            path: "Examples/ChatSessionWithTool"
+            path: "Examples/ChatSessionWithTool",
         ),
         .executableTarget(
             name: "ImageAnalysis",
             dependencies: ["Mojentic"],
-            path: "Examples/ImageAnalysis"
+            path: "Examples/ImageAnalysis",
         ),
         .executableTarget(
             name: "Embeddings",
             dependencies: ["Mojentic"],
-            path: "Examples/Embeddings"
+            path: "Examples/Embeddings",
         ),
         .executableTarget(
             name: "FileTool",
             dependencies: ["Mojentic"],
-            path: "Examples/FileTool"
+            path: "Examples/FileTool",
         ),
         .executableTarget(
             name: "CodingFileTool",
             dependencies: ["Mojentic"],
-            path: "Examples/CodingFileTool"
+            path: "Examples/CodingFileTool",
         ),
         .executableTarget(
             name: "BrokerAsTool",
             dependencies: ["Mojentic"],
-            path: "Examples/BrokerAsTool"
+            path: "Examples/BrokerAsTool",
         ),
         .executableTarget(
             name: "EphemeralTaskManagerExample",
             dependencies: ["Mojentic"],
-            path: "Examples/EphemeralTaskManagerExample"
+            path: "Examples/EphemeralTaskManagerExample",
         ),
         .executableTarget(
             name: "TellUser",
             dependencies: ["Mojentic"],
-            path: "Examples/TellUser"
+            path: "Examples/TellUser",
         ),
         .executableTarget(
             name: "AskUser",
             dependencies: ["Mojentic"],
-            path: "Examples/AskUser"
+            path: "Examples/AskUser",
         ),
         .executableTarget(
             name: "WebSearch",
             dependencies: ["Mojentic"],
-            path: "Examples/WebSearch"
+            path: "Examples/WebSearch",
         ),
         .executableTarget(
             name: "TracerDemo",
             dependencies: ["Mojentic"],
-            path: "Examples/TracerDemo"
+            path: "Examples/TracerDemo",
         ),
         .executableTarget(
             name: "AsyncLLM",
             dependencies: ["Mojentic"],
-            path: "Examples/AsyncLLM"
+            path: "Examples/AsyncLLM",
         ),
         .executableTarget(
             name: "AsyncDispatcherExample",
             dependencies: ["Mojentic"],
-            path: "Examples/AsyncDispatcher"
+            path: "Examples/AsyncDispatcher",
         ),
         .executableTarget(
             name: "IterativeSolver",
             dependencies: ["Mojentic"],
-            path: "Examples/IterativeSolver"
+            path: "Examples/IterativeSolver",
         ),
         .executableTarget(
             name: "RecursiveAgent",
             dependencies: ["Mojentic"],
-            path: "Examples/RecursiveAgent"
+            path: "Examples/RecursiveAgent",
         ),
         .executableTarget(
             name: "SolverChatSession",
             dependencies: ["Mojentic"],
-            path: "Examples/SolverChatSession"
+            path: "Examples/SolverChatSession",
         ),
         .executableTarget(
             name: "ReAct",
             dependencies: ["Mojentic"],
-            path: "Examples/ReAct"
+            path: "Examples/ReAct",
         ),
         .executableTarget(
             name: "WorkingMemory",
             dependencies: ["Mojentic"],
-            path: "Examples/WorkingMemory"
+            path: "Examples/WorkingMemory",
         ),
         .executableTarget(
             name: "RealtimeBasic",
             dependencies: ["Mojentic"],
-            path: "Examples/RealtimeBasic"
+            path: "Examples/RealtimeBasic",
         ),
         .executableTarget(
             name: "RealtimeManualVAD",
             dependencies: ["Mojentic"],
-            path: "Examples/RealtimeManualVAD"
+            path: "Examples/RealtimeManualVAD",
         ),
         .executableTarget(
             name: "RealtimeBargeIn",
             dependencies: ["Mojentic"],
-            path: "Examples/RealtimeBargeIn"
+            path: "Examples/RealtimeBargeIn",
         ),
         .executableTarget(
             name: "RealtimeToolCall",
             dependencies: ["Mojentic"],
-            path: "Examples/RealtimeToolCall"
+            path: "Examples/RealtimeToolCall",
         ),
         .executableTarget(
             name: "AnthropicSimple",
             dependencies: ["Mojentic"],
-            path: "Examples/AnthropicSimple"
+            path: "Examples/AnthropicSimple",
         ),
         .executableTarget(
             name: "OMLXChat",
             dependencies: ["Mojentic"],
-            path: "Examples/OMLXChat"
+            path: "Examples/OMLXChat",
         ),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v6],
 )

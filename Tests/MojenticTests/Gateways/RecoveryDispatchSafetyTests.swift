@@ -1,28 +1,28 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("Recovery dispatch safety")
 struct RecoveryDispatchSafetyTests {
     @Test(arguments: RecoveryBoundary.all, [false, true])
     func expiryDuringRetryCapturePreventsResend(
-        _ boundary: RecoveryBoundary, _ duringTransportSetup: Bool
+        _ boundary: RecoveryBoundary,
+        _ duringTransportSetup: Bool,
     ) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(status: 503, body: "busy"), try boundary.success(),
+            RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
         let readings = RecoveryLocked<[TimeInterval]>([])
         var policy = recoveryPolicy(recorder)
         policy.budget = 5
-        policy.timing.monotonic = {
-            readings.withLock { $0.isEmpty ? 0 : $0.removeFirst() }
-        }
+        policy.timing.monotonic = { readings.withLock { $0.isEmpty ? 0 : $0.removeFirst() } }
         // Script clock readings after capture: immediate expiry, or expiry during
         // URLSession setup after the engine's first final check has passed.
         policy.timing.sleep = { delay in
-            if delay > 0 { try await Task.sleep(for: .seconds(60)) }
+            if delay > 0 {
+                try await Task.sleep(for: .seconds(60))
+            }
         }
         let capture = policy.wireObserver
         policy.wireObserver = { event in
@@ -52,9 +52,10 @@ struct RecoveryDispatchSafetyTests {
         #expect(captures.last?.0.attemptID != first.0.attemptID)
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
-                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed,
-                .delayScheduled, .limitRefused,
-            ])
+                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled,
+                .limitRefused,
+            ]
+        )
         #expect(recorder.events.withLock { $0.allSatisfy { $0.identity == first.0 } })
     }
 
@@ -63,7 +64,7 @@ struct RecoveryDispatchSafetyTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(body: " ", truncated: true, hold: true), try boundary.success(),
+            RecoveryReply(body: " ", truncated: true, hold: true), boundary.success(),
         ])
         defer { server.release() }
         let recorder = RecoveryRecorder()
@@ -75,7 +76,9 @@ struct RecoveryDispatchSafetyTests {
         policy.deadline = 110
         policy.timing.monotonic = { now.withLock { $0 } }
         policy.timing.sleep = { delay in
-            if delay > 0 { try await Task.sleep(for: .seconds(60)) }
+            if delay > 0 {
+                try await Task.sleep(for: .seconds(60))
+            }
         }
         policy.reportObserver = { value in report.withLock { $0 = value } }
         let capture = policy.wireObserver
@@ -87,7 +90,7 @@ struct RecoveryDispatchSafetyTests {
                 } else {
                     // This request is already on the wire. Neither recovery limit
                     // may cut off its received response or turn success into refusal.
-                    now.withLock { $0 = 1_000 }
+                    now.withLock { $0 = 1000 }
                 }
             }
         }
@@ -108,7 +111,7 @@ struct RecoveryDispatchSafetyTests {
         #expect(first.0.attemptID != last.0.attemptID)
         #expect(first.0.wireNumber == 1)
         #expect(last.0.wireNumber == 2)
-        #expect(server.requests.withLock { $0 } == captures.map { $0.1 })
+        #expect(server.requests.withLock { $0 } == captures.map(\.1))
         let final = try #require(report.withLock { $0 })
         #expect(final.identity == last.0)
         #expect(final.history.count == 1)
@@ -120,15 +123,18 @@ struct RecoveryDispatchSafetyTests {
         #expect(final.progress.observed == final.progress.delivered)
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
-                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed,
-                .delayScheduled, .retryStarted, .attemptStarted, .attemptSucceeded,
-            ])
+                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled,
+                .retryStarted, .attemptStarted, .attemptSucceeded,
+            ]
+        )
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func expiryFromActualStartObserverDoesNotAbortAdmittedRequest(_ boundary: RecoveryBoundary) async throws {
+    func expiryFromActualStartObserverDoesNotAbortAdmittedRequest(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(status: 503, body: "busy"), try boundary.success(),
+            RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
         let now = RecoveryLocked<TimeInterval>(0)
@@ -137,31 +143,37 @@ struct RecoveryDispatchSafetyTests {
         policy.deadline = 5
         policy.timing.monotonic = { now.withLock { $0 } }
         policy.timing.sleep = { delay in
-            if delay > 0 { try await Task.sleep(for: .seconds(60)) }
+            if delay > 0 {
+                try await Task.sleep(for: .seconds(60))
+            }
         }
         let observe = policy.observer
         policy.observer = { event in
             observe?(event)
-            if event.transition == .retryStarted { now.withLock { $0 = 100 } }
+            if event.transition == .retryStarted {
+                now.withLock { $0 = 100 }
+            }
         }
         let response = try await boundary.complete(boundary.gateway(server, policy: policy))
         #expect(response.thinking == "reasoning")
         let captures = recorder.requests.withLock { $0 }
         #expect(captures.count == 2)
-        #expect(server.requests.withLock { $0 } == captures.map { $0.1 })
+        #expect(server.requests.withLock { $0 } == captures.map(\.1))
         #expect(captures.first?.1 == captures.last?.1)
         #expect(captures.first?.0.logicalID == captures.last?.0.logicalID)
         #expect(captures.first?.0.attemptID != captures.last?.0.attemptID)
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
-                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed,
-                .delayScheduled, .retryStarted, .attemptStarted, .attemptSucceeded,
-            ])
+                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled,
+                .retryStarted, .attemptStarted, .attemptSucceeded,
+            ]
+        )
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func cancellationFromActualStartObserverCancelsLaunchedRequest(_ boundary: RecoveryBoundary) async throws
-    {
+    func cancellationFromActualStartObserverCancelsLaunchedRequest(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let success = try boundary.success()
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(status: 503, body: "busy"),
@@ -195,7 +207,7 @@ struct RecoveryDispatchSafetyTests {
         #expect(captures.count == 2)
         let first = try #require(captures.first)
         let last = try #require(captures.last)
-        #expect(server.requests.withLock { $0 } == captures.map { $0.1 })
+        #expect(server.requests.withLock { $0 } == captures.map(\.1))
         #expect(first.1 == last.1)
         #expect(first.0.logicalID == last.0.logicalID)
         #expect(first.0.attemptID != last.0.attemptID)
@@ -212,9 +224,9 @@ struct RecoveryDispatchSafetyTests {
         #expect(failure.failure.progress.delivered == RecoverySemanticProgress())
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
-                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed,
-                .delayScheduled, .retryStarted, .attemptStarted, .attemptFailed, .cancelled,
-            ])
+                .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled,
+                .retryStarted, .attemptStarted, .attemptFailed, .cancelled,
+            ]
+        )
     }
-
 }

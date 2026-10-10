@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 final class RecoveryRecorder: Sendable {
     let requests = RecoveryLocked<[(RecoveryIdentity, Data)]>([])
@@ -11,7 +10,8 @@ final class RecoveryRecorder: Sendable {
 
 @Suite("Buffered recovery public boundary")
 struct BufferedRecoveryTests {
-    @Test func admitted503PreservesBytesAndIdentity() async throws {
+    @Test
+    func admitted503PreservesBytesAndIdentity() async throws {
         let server = try RecoveryLoopback()
         var policy = CompletionRecoveryPolicy()
         policy.maximumAttempts = 2
@@ -34,7 +34,7 @@ struct BufferedRecoveryTests {
             model: "fixture",
             messages: [.user("original")],
             tools: nil,
-            config: CompletionConfig()
+            config: CompletionConfig(),
         )
         #expect(result.content == "recovered")
         #expect(result.thinking == "reasoning")
@@ -53,8 +53,8 @@ struct BufferedRecoveryTests {
         let events = recorder.events.withLock { $0 }
         #expect(
             events.map(\.transition.rawValue) == [
-                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed",
-                "delayScheduled", "retryStarted", "attemptStarted", "attemptSucceeded",
+                "attemptStarted", "attemptFailed", "admissionPending", "admissionAllowed", "delayScheduled",
+                "retryStarted", "attemptStarted", "attemptSucceeded",
             ]
         )
         #expect(events.last?.progress.observed.contentBytes == 9)

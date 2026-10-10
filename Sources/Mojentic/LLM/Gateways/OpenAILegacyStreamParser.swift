@@ -32,11 +32,10 @@ struct OpenAILegacyStreamParser {
             isDone = true
             return []
         }
-        guard let data = payload.data(using: .utf8),
+        guard
+            let data = payload.data(using: .utf8),
             let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data)
-        else {
-            return []
-        }
+        else { return [] }
         if let reportedUsage = chunk.usage?.toUsage() {
             usage = reportedUsage
         }
@@ -59,8 +58,9 @@ struct OpenAILegacyStreamParser {
 
     /// The events that close the stream: assembled tool calls, then `done`.
     func finish() -> [GatewayStreamEvent] {
-        accumulator.flushed().map(GatewayStreamEvent.toolCallRequest)
-            + [.done(finishReason: finishReason, usage: usage)]
+        accumulator.flushed().map(GatewayStreamEvent.toolCallRequest) + [
+            .done(finishReason: finishReason, usage: usage)
+        ]
     }
 
     private static func payload(from line: String) -> String? {
@@ -80,7 +80,7 @@ enum OpenAILegacyStreaming {
         url: URL,
         body: JSONValue,
         headers: [String: String],
-        parser initial: OpenAILegacyStreamParser
+        parser initial: OpenAILegacyStreamParser,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -92,17 +92,16 @@ enum OpenAILegacyStreaming {
                         for event in parser.consume(line: line) {
                             continuation.yield(event)
                         }
-                        if parser.isDone { break }
+                        if parser.isDone {
+                            break
+                        }
                     }
                     for event in parser.finish() {
                         continuation.yield(event)
                     }
                     continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: MojenticError.cancelled)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
+                { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
@@ -163,9 +162,15 @@ struct OpenAIToolCallAccumulator {
     mutating func absorb(_ deltas: [StreamToolCallDelta]) {
         for delta in deltas {
             var builder = entries[delta.index] ?? Builder()
-            if let id = delta.id { builder.id = id }
-            if let name = delta.function?.name { builder.name = name }
-            if let chunk = delta.function?.arguments { builder.arguments += chunk }
+            if let id = delta.id {
+                builder.id = id
+            }
+            if let name = delta.function?.name {
+                builder.name = name
+            }
+            if let chunk = delta.function?.arguments {
+                builder.arguments += chunk
+            }
             entries[delta.index] = builder
         }
     }

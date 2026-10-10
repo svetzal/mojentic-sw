@@ -91,18 +91,31 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
     /// Stable reason code containing no provider or cause text.
     public let reason: String
     /// Syntactically validated provider code, excluded from safe summaries and events.
-    public var providerCode: String? { evidence.providerCode }
+    public var providerCode: String? {
+        evidence.providerCode
+    }
+
     /// Syntactically validated request ID, excluded from safe summaries and events.
-    public var providerRequestID: String? { evidence.providerRequestID }
+    public var providerRequestID: String? {
+        evidence.providerRequestID
+    }
+
     private let evidence: RecoveryEvidence
 
     /// Safe summary excluding sensitive evidence.
-    public var description: String { "Completion recovery: \(category.rawValue) (\(reason))" }
+    public var description: String {
+        "Completion recovery: \(category.rawValue) (\(reason))"
+    }
+
     /// Safe debug summary excluding sensitive evidence.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 
     /// Sensitive evidence belongs to the caller's explicit inspection boundary.
-    public func inspectEvidence() -> RecoveryEvidence { evidence }
+    public func inspectEvidence() -> RecoveryEvidence {
+        evidence
+    }
 
     init(
         logicalID: UUID,
@@ -116,7 +129,7 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
         phase: RecoveryPhase?,
         eligible: Bool,
         reason: String,
-        evidence: RecoveryEvidence
+        evidence: RecoveryEvidence,
     ) {
         self.logicalID = logicalID
         self.identity = identity
@@ -126,7 +139,7 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
         self.status = status
         self.retryAfter = retryAfter
         self.progress = progress
-        self.acceptance = identity == nil ? .no : .unknown
+        acceptance = identity == nil ? .no : .unknown
         self.phase = phase
         self.eligible = eligible
         self.reason = reason
@@ -147,23 +160,32 @@ public struct RecoveryEvidence: Sendable, CustomStringConvertible, CustomDebugSt
         let value = try? JSONDecoder().decode(JSONValue.self, from: body)
         return Self.validated(value?.objectValue?["error"]?.objectValue?["code"]?.stringValue)
     }
+
     /// Validated request-ID token; raw headers remain available even when validation fails.
     public var providerRequestID: String? {
         Self.validated(headers.first { $0.key.lowercased() == "x-request-id" }?.value)
     }
+
     private static func validated(_ value: String?) -> String? {
-        guard let value, !value.isEmpty, value.utf8.count <= 128,
+        guard
+            let value, !value.isEmpty, value.utf8.count <= 128,
             value.utf8.allSatisfy({
-                (48...57).contains($0) || (65...90).contains($0)
-                    || (97...122).contains($0) || [45, 46, 95].contains($0)
+                (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+                    || [45, 46, 95].contains($0)
             })
         else { return nil }
         return value
     }
+
     /// Safe summary excluding sensitive evidence.
-    public var description: String { "Sensitive recovery evidence" }
+    public var description: String {
+        "Sensitive recovery evidence"
+    }
+
     /// Safe debug summary excluding sensitive evidence.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 }
 
 /// A terminal report retains every completed failure within the attempt limit.
@@ -177,9 +199,14 @@ public struct RecoveryError: Error, Sendable, CustomStringConvertible, CustomDeb
     /// Failed actual attempts bounded by the configured maximum attempts.
     public let history: [RecoveryFailure]
     /// Safe summary excluding sensitive evidence.
-    public var description: String { "Completion recovery ended: \(outcome); \(failure)" }
+    public var description: String {
+        "Completion recovery ended: \(outcome); \(failure)"
+    }
+
     /// Safe debug summary excluding sensitive evidence.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 }
 
 /// Safe lifecycle telemetry contains no payload, headers or cause text.
@@ -229,9 +256,14 @@ public enum RecoveryWireEvent: Sendable, CustomStringConvertible, CustomDebugStr
     /// Exact received body chunk after semantic accounting.
     case body(RecoveryIdentity, Data)
     /// Safe summary excluding sensitive evidence.
-    public var description: String { "Sensitive wire capture" }
+    public var description: String {
+        "Sensitive wire capture"
+    }
+
     /// Safe debug summary excluding sensitive evidence.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 }
 
 /// Injectable monotonic/wall clocks, sleeper and full jitter.
@@ -247,6 +279,7 @@ public struct RecoveryTiming: Sendable {
         let nanoseconds = min(max(0, $0) * 1_000_000_000, Double(UInt64.max).nextDown)
         try await Task.sleep(nanoseconds: UInt64(nanoseconds))
     }
+
     /// Create the documented default value.
     public init() {}
 }
@@ -345,9 +378,14 @@ public struct CompletionRecoveryReport: Sendable, CustomStringConvertible, Custo
     /// Failed actual attempts bounded by the configured maximum attempts.
     public let history: [RecoveryFailure]
     /// Safe summary excluding sensitive evidence.
-    public var description: String { "Buffered completion report (\(history.count) failed attempts)" }
+    public var description: String {
+        "Buffered completion report (\(history.count) failed attempts)"
+    }
+
     /// Safe debug summary excluding sensitive evidence.
-    public var debugDescription: String { description }
+    public var debugDescription: String {
+        description
+    }
 }
 
 /// Typed lifecycle transitions and terminal outcomes for completion recovery.

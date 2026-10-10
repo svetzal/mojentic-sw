@@ -23,7 +23,7 @@ public actor AsyncDispatcher {
     public init(router: Router, tracer: any Tracer = NullTracer()) {
         self.router = router
         self.tracer = tracer
-        self.logger = Logger(label: "mojentic.dispatcher")
+        logger = Logger(label: "mojentic.dispatcher")
     }
 
     /// Begin consuming dispatched events.
@@ -37,8 +37,8 @@ public actor AsyncDispatcher {
         consumer = Task { [weak self] in
             for await event in stream {
                 guard let self else { break }
-                await self.process(event)
-                await self.completeOne()
+                await process(event)
+                await completeOne()
             }
         }
     }
@@ -87,7 +87,7 @@ public actor AsyncDispatcher {
                             correlationId: event.correlationId,
                             parentId: event.parentId,
                             agentName: agentName,
-                            phase: .started
+                            phase: .started,
                         )
                     )
                     do {
@@ -97,7 +97,7 @@ public actor AsyncDispatcher {
                                 correlationId: event.correlationId,
                                 parentId: event.parentId,
                                 agentName: agentName,
-                                phase: .finished
+                                phase: .finished,
                             )
                         )
                         return emitted
@@ -108,14 +108,14 @@ public actor AsyncDispatcher {
                                 parentId: event.parentId,
                                 agentName: agentName,
                                 phase: .failed,
-                                detail: String(describing: error)
+                                detail: String(describing: error),
                             )
                         )
                         return [
                             ErrorEvent(
                                 description: String(describing: error),
                                 correlationId: event.correlationId,
-                                parentId: event.parentId
+                                parentId: event.parentId,
                             )
                         ]
                     }
@@ -131,7 +131,7 @@ public actor AsyncDispatcher {
 
     private func completeOne() {
         inflight -= 1
-        guard inflight == 0 && queued == 0 else { return }
+        guard inflight == 0, queued == 0 else { return }
         let waiters = idleWaiters
         idleWaiters.removeAll()
         for waiter in waiters {

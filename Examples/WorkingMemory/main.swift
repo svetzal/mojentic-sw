@@ -6,7 +6,9 @@ import Mojentic
 private actor WriterAgent: BaseAgent {
     let memory: SharedWorkingMemory
 
-    init(memory: SharedWorkingMemory) { self.memory = memory }
+    init(memory: SharedWorkingMemory) {
+        self.memory = memory
+    }
 
     func handle(_ event: any Event) async throws -> [any Event] {
         if let textEvent = event as? TextEvent {
@@ -19,7 +21,9 @@ private actor WriterAgent: BaseAgent {
 private actor ReaderAgent: BaseAgent {
     let memory: SharedWorkingMemory
 
-    init(memory: SharedWorkingMemory) { self.memory = memory }
+    init(memory: SharedWorkingMemory) {
+        self.memory = memory
+    }
 
     func handle(_ event: any Event) async throws -> [any Event] {
         let value = await memory.get("greeting", scope: event.correlationId)

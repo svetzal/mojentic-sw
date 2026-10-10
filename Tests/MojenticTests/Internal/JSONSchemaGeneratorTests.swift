@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private struct PrimitiveBag: Codable, Sendable, JSONSchemaSampleProviding {
     var name: String

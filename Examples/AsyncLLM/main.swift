@@ -14,7 +14,7 @@ struct AsyncLLMExample {
         let agent = AsyncLLMAgent(
             broker: broker,
             model: "gpt-4o-mini",
-            systemPrompt: "Reply in one short sentence."
+            systemPrompt: "Reply in one short sentence.",
         )
         do {
             let events = try await agent.handle(

@@ -17,7 +17,7 @@ struct RealtimeBargeIn {
                 RealtimeSessionConfig(
                     model: "gpt-4o-realtime-preview",
                     apiKey: key,
-                    instructions: "Recite the alphabet slowly."
+                    instructions: "Recite the alphabet slowly.",
                 )
             )
             try await session.send(text: "Please recite the alphabet slowly.")
@@ -26,7 +26,9 @@ struct RealtimeBargeIn {
             let consumer = Task {
                 for try await event in session.events() {
                     print("[event] \(event)")
-                    if case .sessionClosed = event { break }
+                    if case .sessionClosed = event {
+                        break
+                    }
                 }
             }
             try await Task.sleep(for: .seconds(1))

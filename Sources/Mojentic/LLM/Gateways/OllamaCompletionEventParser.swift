@@ -17,14 +17,20 @@ struct OllamaCompletionEventParser: CompletionEventParser {
         return Usage(
             promptTokens: promptTokens,
             completionTokens: completionTokens,
-            totalTokens: (promptTokens ?? 0) + (completionTokens ?? 0))
+            totalTokens: (promptTokens ?? 0) + (completionTokens ?? 0),
+        )
     }
+
     private var metadata: [String: JSONValue]?
     private var finishReason: String?
 
     private var evidence: CompletionEvidence {
         CompletionEvidence(
-            finishReason: finishReason, usage: usage, providerModel: providerModel, metadata: metadata)
+            finishReason: finishReason,
+            usage: usage,
+            providerModel: providerModel,
+            metadata: metadata,
+        )
     }
 
     var partialEvidence: CompletionEvidence? {
@@ -35,11 +41,10 @@ struct OllamaCompletionEventParser: CompletionEventParser {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isTerminal, !trimmed.isEmpty else { return [] }
         let data = Data(trimmed.utf8)
-        guard let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue,
+        guard
+            let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue,
             let frame = try? JSONDecoder().decode(OllamaResponseEvidence.self, from: data)
-        else {
-            return terminate(.error(.invalidStreamEvent(message: trimmed)))
-        }
+        else { return terminate(.error(.invalidStreamEvent(message: trimmed))) }
         if let error = object["error"] {
             return terminate(.error(.providerError(status: nil, detail: error)))
         }
@@ -47,37 +52,53 @@ struct OllamaCompletionEventParser: CompletionEventParser {
             Self.validOptional(
                 object["done"],
                 kind: {
-                    if case .bool = $0 { return true }
+                    if case .bool = $0 {
+                        return true
+                    }
                     return false
-                }),
+                },
+            ),
             Self.validOptional(object["done_reason"], kind: { $0.stringValue != nil }),
             Self.validOptional(object["message"], kind: { $0.objectValue != nil })
         else { return terminate(.error(.invalidStreamEvent(message: trimmed))) }
-        if let model = frame.model { providerModel = model }
-        if let reported = frame.promptEvalCount { promptTokens = reported }
-        if let reported = frame.evalCount { completionTokens = reported }
-        if let reported = frame.metadata { metadata = (metadata ?? [:]).merging(reported) { _, new in new } }
-        if let reason = object["done_reason"]?.stringValue { finishReason = reason }
+        if let model = frame.model {
+            providerModel = model
+        }
+        if let reported = frame.promptEvalCount {
+            promptTokens = reported
+        }
+        if let reported = frame.evalCount {
+            completionTokens = reported
+        }
+        if let reported = frame.metadata {
+            metadata = (metadata ?? [:]).merging(reported) { _, new in new }
+        }
+        if let reason = object["done_reason"]?.stringValue {
+            finishReason = reason
+        }
         let message = object["message"]?.objectValue ?? [:]
         guard
             Self.validOptional(
                 message["tool_calls"],
                 kind: {
-                    if case .array = $0 { return true }
+                    if case .array = $0 {
+                        return true
+                    }
                     return false
-                })
+                },
+            )
         else { return terminate(.error(.invalidStreamEvent(message: trimmed))) }
         if case .array(let calls)? = message["tool_calls"], !calls.isEmpty {
             return terminate(.error(.unexpectedToolCalls))
         }
         var events: [CompletionStreamEvent] = []
         switch message["content"] {
-        case nil, .null?:
-            break
+        case nil, .null?: break
         case .string(let text)?:
-            if !text.isEmpty { events.append(.content(text)) }
-        default:
-            return terminate(.error(.invalidStreamEvent(message: trimmed)))
+            if !text.isEmpty {
+                events.append(.content(text))
+            }
+        default: return terminate(.error(.invalidStreamEvent(message: trimmed)))
         }
         guard case .bool(true)? = object["done"] else { return events }
         let doneReason = object["done_reason"]?.stringValue

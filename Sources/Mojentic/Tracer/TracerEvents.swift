@@ -24,58 +24,58 @@ public enum TracerEvent: Sendable, Hashable, Codable {
     /// Used as `parentId` for child events.
     public var id: UUID {
         switch self {
-        case .llmCall(let payload): return payload.id
-        case .llmResponse(let payload): return payload.id
-        case .toolCall(let payload): return payload.id
-        case .toolResult(let payload): return payload.id
-        case .toolBatch(let payload): return payload.id
-        case .agentLifecycle(let payload): return payload.id
+        case .llmCall(let payload): payload.id
+        case .llmResponse(let payload): payload.id
+        case .toolCall(let payload): payload.id
+        case .toolResult(let payload): payload.id
+        case .toolBatch(let payload): payload.id
+        case .agentLifecycle(let payload): payload.id
         }
     }
 
     /// Root correlation id this event belongs to.
     public var correlationId: UUID {
         switch self {
-        case .llmCall(let payload): return payload.correlationId
-        case .llmResponse(let payload): return payload.correlationId
-        case .toolCall(let payload): return payload.correlationId
-        case .toolResult(let payload): return payload.correlationId
-        case .toolBatch(let payload): return payload.correlationId
-        case .agentLifecycle(let payload): return payload.correlationId
+        case .llmCall(let payload): payload.correlationId
+        case .llmResponse(let payload): payload.correlationId
+        case .toolCall(let payload): payload.correlationId
+        case .toolResult(let payload): payload.correlationId
+        case .toolBatch(let payload): payload.correlationId
+        case .agentLifecycle(let payload): payload.correlationId
         }
     }
 
     /// Immediate parent event id, when nested.
     public var parentId: UUID? {
         switch self {
-        case .llmCall(let payload): return payload.parentId
-        case .llmResponse(let payload): return payload.parentId
-        case .toolCall(let payload): return payload.parentId
-        case .toolResult(let payload): return payload.parentId
-        case .toolBatch(let payload): return payload.parentId
-        case .agentLifecycle(let payload): return payload.parentId
+        case .llmCall(let payload): payload.parentId
+        case .llmResponse(let payload): payload.parentId
+        case .toolCall(let payload): payload.parentId
+        case .toolResult(let payload): payload.parentId
+        case .toolBatch(let payload): payload.parentId
+        case .agentLifecycle(let payload): payload.parentId
         }
     }
 
     /// Wall-clock timestamp at which the event was recorded.
     public var timestamp: Date {
         switch self {
-        case .llmCall(let payload): return payload.timestamp
-        case .llmResponse(let payload): return payload.timestamp
-        case .toolCall(let payload): return payload.timestamp
-        case .toolResult(let payload): return payload.timestamp
-        case .toolBatch(let payload): return payload.timestamp
-        case .agentLifecycle(let payload): return payload.timestamp
+        case .llmCall(let payload): payload.timestamp
+        case .llmResponse(let payload): payload.timestamp
+        case .toolCall(let payload): payload.timestamp
+        case .toolResult(let payload): payload.timestamp
+        case .toolBatch(let payload): payload.timestamp
+        case .agentLifecycle(let payload): payload.timestamp
         }
     }
 
     /// Duration for response/result events that pair with a matching call.
     public var duration: Duration? {
         switch self {
-        case .llmResponse(let payload): return payload.duration
-        case .toolResult(let payload): return payload.duration
-        case .toolBatch(let payload): return payload.duration
-        default: return nil
+        case .llmResponse(let payload): payload.duration
+        case .toolResult(let payload): payload.duration
+        case .toolBatch(let payload): payload.duration
+        default: nil
         }
     }
 }
@@ -107,7 +107,7 @@ public struct LLMCallPayload: Sendable, Hashable, Codable {
         timestamp: Date = Date(),
         model: String,
         messages: [LLMMessage],
-        tools: [String]?
+        tools: [String]?,
     ) {
         self.id = id
         self.correlationId = correlationId
@@ -139,19 +139,27 @@ public struct LLMResponsePayload: Sendable, Hashable, Codable {
     /// Token usage exactly as the gateway reported it.
     ///
     /// `nil` when unreported; never estimated.
-    public var usage: Usage? { response.usage }
+    public var usage: Usage? {
+        response.usage
+    }
 
     /// Model name the provider reported; ``model`` stays the requested model.
-    public var providerModel: String? { response.providerModel }
+    public var providerModel: String? {
+        response.providerModel
+    }
 
     /// Finish reason exactly as the provider reported it, when reported.
     ///
     /// Unknown values such as Ollama's `load` survive unchanged. The typed
     /// mapping remains available as `response.finishReason`.
-    public var finishReason: String? { response.providerFinishReason }
+    public var finishReason: String? {
+        response.providerFinishReason
+    }
 
     /// Provider response metadata as the gateway reported it.
-    public var metadata: [String: JSONValue]? { response.metadata }
+    public var metadata: [String: JSONValue]? {
+        response.metadata
+    }
 
     /// Construct a response payload.
     public init(
@@ -161,7 +169,7 @@ public struct LLMResponsePayload: Sendable, Hashable, Codable {
         timestamp: Date = Date(),
         duration: Duration,
         model: String,
-        response: LLMGatewayResponse
+        response: LLMGatewayResponse,
     ) {
         self.id = id
         self.correlationId = correlationId
@@ -199,7 +207,7 @@ public struct ToolCallPayload: Sendable, Hashable, Codable {
         timestamp: Date = Date(),
         callId: String,
         name: String,
-        arguments: JSONValue
+        arguments: JSONValue,
     ) {
         self.id = id
         self.correlationId = correlationId
@@ -233,7 +241,7 @@ public struct ToolResultPayload: Sendable, Hashable, Codable {
         parentId: UUID?,
         timestamp: Date = Date(),
         duration: Duration,
-        outcome: ToolCallOutcome
+        outcome: ToolCallOutcome,
     ) {
         self.id = id
         self.correlationId = correlationId
@@ -266,7 +274,7 @@ public struct ToolBatchPayload: Sendable, Hashable, Codable {
         parentId: UUID?,
         timestamp: Date = Date(),
         duration: Duration,
-        count: Int
+        count: Int,
     ) {
         self.id = id
         self.correlationId = correlationId
@@ -314,7 +322,7 @@ public struct AgentLifecyclePayload: Sendable, Hashable, Codable {
         timestamp: Date = Date(),
         agentName: String,
         phase: Phase,
-        detail: String? = nil
+        detail: String? = nil,
     ) {
         self.id = id
         self.correlationId = correlationId

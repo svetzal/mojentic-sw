@@ -21,7 +21,9 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
                     if cancellationRequested {
                         return { continuation.resume(throwing: CancellationError()) }
                     }
-                    if let end { return { continuation.resume(with: end) } }
+                    if let end {
+                        return { continuation.resume(with: end) }
+                    }
                     if let reader {
                         self.reader = nil
                         return {
@@ -68,6 +70,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
                 action()
             }
         } onCancel: {
+            // The enclosing stream cancels its producer; this reader awaits its cleanup.
         }
     }
 
@@ -90,7 +93,9 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
         let waiting = lock.withLock {
             let waiting = reader
             reader = nil
-            if waiting == nil { finalElement = element }
+            if waiting == nil {
+                finalElement = element
+            }
             end = .success(())
             return waiting
         }
@@ -102,10 +107,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
         let saved = lock.withLock {
             if end != nil {
                 return (nil, nil)
-                    as (
-                        CheckedContinuation<Element?, any Error>?,
-                        CheckedContinuation<Void, any Error>?
-                    )
+                    as (CheckedContinuation<Element?, any Error>?, CheckedContinuation<Void, any Error>?)
             }
             end = result
             let saved = (reader, pending?.1)
@@ -121,6 +123,9 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
 /// Stream lifetime owns the producer task without a producer-to-owner cycle.
 final class RecoveryProducer: Sendable {
     let task: Task<Void, Never>
-    init(_ task: Task<Void, Never>) { self.task = task }
+    init(_ task: Task<Void, Never>) {
+        self.task = task
+    }
+
     deinit { task.cancel() }
 }

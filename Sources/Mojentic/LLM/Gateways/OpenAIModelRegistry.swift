@@ -77,7 +77,7 @@ public struct OpenAIModelCapabilities: Sendable, Hashable {
         supportsChatApi: Bool = true,
         supportsCompletionsApi: Bool = false,
         supportsResponsesApi: Bool = false,
-        supportsReasoningEffort: Bool = false
+        supportsReasoningEffort: Bool = false,
     ) {
         self.modelType = modelType
         self.supportsTools = supportsTools
@@ -115,7 +115,9 @@ public struct OpenAIModelCapabilities: Sendable, Hashable {
     /// - Returns: `true` when the value is permitted for this model.
     public func supportsTemperature(_ temperature: Double) -> Bool {
         guard let supportedTemperatures else { return true }
-        if supportedTemperatures.isEmpty { return false }
+        if supportedTemperatures.isEmpty {
+            return false
+        }
         return supportedTemperatures.contains(temperature)
     }
 }
@@ -146,25 +148,15 @@ public struct OpenAIModelRegistry: Sendable {
         Self.registerLegacyAndCodexModels(into: &registry)
         Self.registerGpt54PlusModels(into: &registry)
 
-        self.entries = registry
+        entries = registry
         // Order matters: longer / more-specific gpt-5.x prefixes are checked
         // before the bare `gpt-5` prefix so a future snapshot still resolves
         // to a reasoning profile.
-        self.patterns = [
-            ("o1", .reasoning),
-            ("o3", .reasoning),
-            ("o4", .reasoning),
-            ("gpt-5.5", .reasoning),
-            ("gpt-5.4", .reasoning),
-            ("gpt-5.3", .reasoning),
-            ("gpt-5.2", .reasoning),
-            ("gpt-5.1", .reasoning),
-            ("gpt-5", .reasoning),
-            ("gpt-4", .chat),
-            ("gpt-4.1", .chat),
-            ("gpt-3.5", .chat),
-            ("chatgpt", .chat),
-            ("text-embedding", .embedding),
+        patterns = [
+            ("o1", .reasoning), ("o3", .reasoning), ("o4", .reasoning), ("gpt-5.5", .reasoning),
+            ("gpt-5.4", .reasoning), ("gpt-5.3", .reasoning), ("gpt-5.2", .reasoning),
+            ("gpt-5.1", .reasoning), ("gpt-5", .reasoning), ("gpt-4", .chat), ("gpt-4.1", .chat),
+            ("gpt-3.5", .chat), ("chatgpt", .chat), ("text-embedding", .embedding),
             ("text-moderation", .moderation),
         ]
     }
@@ -176,23 +168,13 @@ public struct OpenAIModelRegistry: Sendable {
     /// Per the cross-port API audit, all reasoning models support tools and
     /// streaming (except `gpt-5-mini` / `o4-mini`, which have incomplete tool
     /// support), pin temperature at `1.0`, and never accept image input.
-    private static func registerReasoningModels(
-        into registry: inout [String: OpenAIModelCapabilities]
-    ) {
+    private static func registerReasoningModels(into registry: inout [String: OpenAIModelCapabilities]) {
         let reasoningModels = [
-            "o1", "o1-2024-12-17",
-            "o3", "o3-2025-04-16",
-            "o3-deep-research", "o3-deep-research-2025-06-26",
-            "o3-mini", "o3-mini-2025-01-31",
-            "o3-pro", "o3-pro-2025-06-10",
-            "o4-mini", "o4-mini-2025-04-16",
-            "o4-mini-deep-research", "o4-mini-deep-research-2025-06-26",
-            "gpt-5", "gpt-5-2025-08-07",
-            "gpt-5-codex",
-            "gpt-5-mini", "gpt-5-mini-2025-08-07",
-            "gpt-5-nano", "gpt-5-nano-2025-08-07",
-            "gpt-5-pro", "gpt-5-pro-2025-10-06",
-            "gpt-5.1", "gpt-5.1-2025-11-13", "gpt-5.1-chat-latest",
+            "o1", "o1-2024-12-17", "o3", "o3-2025-04-16", "o3-deep-research", "o3-deep-research-2025-06-26",
+            "o3-mini", "o3-mini-2025-01-31", "o3-pro", "o3-pro-2025-06-10", "o4-mini", "o4-mini-2025-04-16",
+            "o4-mini-deep-research", "o4-mini-deep-research-2025-06-26", "gpt-5", "gpt-5-2025-08-07",
+            "gpt-5-codex", "gpt-5-mini", "gpt-5-mini-2025-08-07", "gpt-5-nano", "gpt-5-nano-2025-08-07",
+            "gpt-5-pro", "gpt-5-pro-2025-10-06", "gpt-5.1", "gpt-5.1-2025-11-13", "gpt-5.1-chat-latest",
             "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.2-chat-latest",
         ]
 
@@ -208,21 +190,20 @@ public struct OpenAIModelRegistry: Sendable {
             let outputTokens: Int
             if isGpt5 {
                 contextTokens = isMiniOrNano ? 200_000 : 300_000
-                outputTokens = isMiniOrNano ? 32_768 : 50_000
+                outputTokens = isMiniOrNano ? 32768 : 50000
             } else if isDeepResearch {
                 contextTokens = 200_000
                 outputTokens = 100_000
             } else {
                 contextTokens = 128_000
-                outputTokens = 32_768
+                outputTokens = 32768
             }
 
             // Reasoning models pin temperature at 1.0.
-            let supportedTemperatures: [Double] = [1.0]
+            let supportedTemperatures = [1.0]
 
             // API endpoint support flags.
-            let isResponsesOnly =
-                model.contains("pro") || isDeepResearch || model == "gpt-5-codex"
+            let isResponsesOnly = model.contains("pro") || isDeepResearch || model == "gpt-5-codex"
             let isBothEndpoint = model == "gpt-5.1" || model == "gpt-5.1-2025-11-13"
 
             registry[model] = OpenAIModelCapabilities(
@@ -237,7 +218,7 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: !isResponsesOnly,
                 supportsCompletionsApi: isBothEndpoint,
                 supportsResponsesApi: isResponsesOnly,
-                supportsReasoningEffort: true
+                supportsReasoningEffort: true,
             )
         }
     }
@@ -247,26 +228,19 @@ public struct OpenAIModelRegistry: Sendable {
         into registry: inout [String: OpenAIModelCapabilities]
     ) {
         let gpt4AndNewerModels = [
-            "chatgpt-4o-latest",
-            "gpt-4", "gpt-4-0125-preview", "gpt-4-0613", "gpt-4-1106-preview",
-            "gpt-4-turbo", "gpt-4-turbo-2024-04-09", "gpt-4-turbo-preview",
-            "gpt-4.1", "gpt-4.1-2025-04-14",
-            "gpt-4.1-mini", "gpt-4.1-mini-2025-04-14",
-            "gpt-4.1-nano", "gpt-4.1-nano-2025-04-14",
-            "gpt-4o", "gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20",
-            "gpt-4o-audio-preview", "gpt-4o-audio-preview-2024-12-17",
-            "gpt-4o-audio-preview-2025-06-03",
-            "gpt-4o-mini", "gpt-4o-mini-2024-07-18",
-            "gpt-4o-mini-audio-preview", "gpt-4o-mini-audio-preview-2024-12-17",
-            "gpt-4o-mini-search-preview", "gpt-4o-mini-search-preview-2025-03-11",
-            "gpt-4o-search-preview", "gpt-4o-search-preview-2025-03-11",
-            "gpt-5-chat-latest",
-            "gpt-5-search-api", "gpt-5-search-api-2025-10-14",
+            "chatgpt-4o-latest", "gpt-4", "gpt-4-0125-preview", "gpt-4-0613", "gpt-4-1106-preview",
+            "gpt-4-turbo", "gpt-4-turbo-2024-04-09", "gpt-4-turbo-preview", "gpt-4.1", "gpt-4.1-2025-04-14",
+            "gpt-4.1-mini", "gpt-4.1-mini-2025-04-14", "gpt-4.1-nano", "gpt-4.1-nano-2025-04-14", "gpt-4o",
+            "gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20", "gpt-4o-audio-preview",
+            "gpt-4o-audio-preview-2024-12-17", "gpt-4o-audio-preview-2025-06-03", "gpt-4o-mini",
+            "gpt-4o-mini-2024-07-18", "gpt-4o-mini-audio-preview", "gpt-4o-mini-audio-preview-2024-12-17",
+            "gpt-4o-mini-search-preview", "gpt-4o-mini-search-preview-2025-03-11", "gpt-4o-search-preview",
+            "gpt-4o-search-preview-2025-03-11", "gpt-5-chat-latest", "gpt-5-search-api",
+            "gpt-5-search-api-2025-10-14",
         ]
 
-        let bothEndpointModels: Set<String> = [
-            "gpt-4.1-nano", "gpt-4.1-nano-2025-04-14",
-            "gpt-4o-mini", "gpt-4o-mini-2024-07-18",
+        let bothEndpointModels: Set = [
+            "gpt-4.1-nano", "gpt-4.1-nano-2025-04-14", "gpt-4o-mini", "gpt-4o-mini-2024-07-18",
         ]
 
         for model in gpt4AndNewerModels {
@@ -278,32 +252,30 @@ public struct OpenAIModelRegistry: Sendable {
 
             // chatgpt-4o-latest, gpt-4.1-nano, audio, and search models lack tools.
             let supportsTools =
-                model != "chatgpt-4o-latest" && model != "gpt-4.1-nano"
-                && !isSearch && !isAudio
+                model != "chatgpt-4o-latest" && model != "gpt-4.1-nano" && !isSearch && !isAudio
 
             // Audio models require the audio modality and cannot stream.
             let supportsStreaming = !isAudio
 
             // Keep vision=true for gpt-4o (probe limitation, not a real change).
             let visionSupport =
-                model.contains("gpt-4o") || model.contains("audio-preview")
-                || model.contains("realtime")
+                model.contains("gpt-4o") || model.contains("audio-preview") || model.contains("realtime")
 
             let contextTokens: Int
             let outputTokens: Int
             if isGpt5Chat {
                 contextTokens = 300_000
-                outputTokens = 50_000
+                outputTokens = 50000
             } else if isGpt41 {
                 contextTokens = isMiniOrNano ? 128_000 : 200_000
-                outputTokens = isMiniOrNano ? 16_384 : 32_768
+                outputTokens = isMiniOrNano ? 16384 : 32768
             } else if model.contains("gpt-4o") {
                 contextTokens = 128_000
-                outputTokens = 16_384
+                outputTokens = 16384
             } else {
                 // GPT-4 series.
-                contextTokens = 32_000
-                outputTokens = 8_192
+                contextTokens = 32000
+                outputTokens = 8192
             }
 
             // Search models do not accept the temperature parameter.
@@ -321,18 +293,15 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: true,
                 supportsCompletionsApi: bothEndpointModels.contains(model),
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         }
     }
 
     /// Chat Models (GPT-3.5 series), where `instruct` variants are completions-only.
-    private static func registerGpt35Models(
-        into registry: inout [String: OpenAIModelCapabilities]
-    ) {
+    private static func registerGpt35Models(into registry: inout [String: OpenAIModelCapabilities]) {
         let gpt35Models = [
-            "gpt-3.5-turbo", "gpt-3.5-turbo-0125", "gpt-3.5-turbo-1106",
-            "gpt-3.5-turbo-16k",
+            "gpt-3.5-turbo", "gpt-3.5-turbo-0125", "gpt-3.5-turbo-1106", "gpt-3.5-turbo-16k",
             "gpt-3.5-turbo-instruct", "gpt-3.5-turbo-instruct-0914",
         ]
 
@@ -345,25 +314,20 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsVision: false,
                 // GPT-3.5 pre-dates json_schema; callers fall back to json_object.
                 supportsJSONSchema: false,
-                maxContextTokens: 16_385,
-                maxOutputTokens: 4_096,
+                maxContextTokens: 16385,
+                maxOutputTokens: 4096,
                 supportedTemperatures: nil,
                 supportsChatApi: !isInstruct,
                 supportsCompletionsApi: isInstruct,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         }
     }
 
     /// Text embedding models.
-    private static func registerEmbeddingModels(
-        into registry: inout [String: OpenAIModelCapabilities]
-    ) {
-        let embeddingModels = [
-            "text-embedding-3-large", "text-embedding-3-small",
-            "text-embedding-ada-002",
-        ]
+    private static func registerEmbeddingModels(into registry: inout [String: OpenAIModelCapabilities]) {
+        let embeddingModels = ["text-embedding-3-large", "text-embedding-3-small", "text-embedding-ada-002"]
 
         for model in embeddingModels {
             registry[model] = OpenAIModelCapabilities(
@@ -378,28 +342,26 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: false,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         }
     }
 
     /// Legacy completions-only models and the Codex-mini reasoning models.
-    private static func registerLegacyAndCodexModels(
-        into registry: inout [String: OpenAIModelCapabilities]
-    ) {
+    private static func registerLegacyAndCodexModels(into registry: inout [String: OpenAIModelCapabilities]) {
         registry["babbage-002"] = OpenAIModelCapabilities(
             modelType: .chat,
             supportsTools: false,
             supportsStreaming: false,
             supportsVision: false,
             supportsJSONSchema: false,
-            maxContextTokens: 16_384,
-            maxOutputTokens: 4_096,
+            maxContextTokens: 16384,
+            maxOutputTokens: 4096,
             supportedTemperatures: nil,
             supportsChatApi: false,
             supportsCompletionsApi: true,
             supportsResponsesApi: false,
-            supportsReasoningEffort: false
+            supportsReasoningEffort: false,
         )
         registry["davinci-002"] = OpenAIModelCapabilities(
             modelType: .chat,
@@ -407,13 +369,13 @@ public struct OpenAIModelRegistry: Sendable {
             supportsStreaming: false,
             supportsVision: false,
             supportsJSONSchema: false,
-            maxContextTokens: 16_384,
-            maxOutputTokens: 4_096,
+            maxContextTokens: 16384,
+            maxOutputTokens: 4096,
             supportedTemperatures: nil,
             supportsChatApi: false,
             supportsCompletionsApi: true,
             supportsResponsesApi: false,
-            supportsReasoningEffort: false
+            supportsReasoningEffort: false,
         )
         registry["gpt-5.1-codex-mini"] = OpenAIModelCapabilities(
             modelType: .reasoning,
@@ -422,12 +384,12 @@ public struct OpenAIModelRegistry: Sendable {
             supportsVision: false,
             supportsJSONSchema: true,
             maxContextTokens: 200_000,
-            maxOutputTokens: 32_768,
+            maxOutputTokens: 32768,
             supportedTemperatures: nil,
             supportsChatApi: false,
             supportsCompletionsApi: true,
             supportsResponsesApi: false,
-            supportsReasoningEffort: true
+            supportsReasoningEffort: true,
         )
         registry["codex-mini-latest"] = OpenAIModelCapabilities(
             modelType: .reasoning,
@@ -436,12 +398,12 @@ public struct OpenAIModelRegistry: Sendable {
             supportsVision: false,
             supportsJSONSchema: true,
             maxContextTokens: 200_000,
-            maxOutputTokens: 32_768,
+            maxOutputTokens: 32768,
             supportedTemperatures: nil,
             supportsChatApi: false,
             supportsCompletionsApi: false,
             supportsResponsesApi: true,
-            supportsReasoningEffort: true
+            supportsReasoningEffort: true,
         )
     }
 
@@ -451,20 +413,12 @@ public struct OpenAIModelRegistry: Sendable {
     /// context, 128K output, image input, both Chat Completions + Responses
     /// APIs), so they are registered explicitly rather than via the
     /// reasoning-model loop.
-    private static func registerGpt54PlusModels(
-        into registry: inout [String: OpenAIModelCapabilities]
-    ) {
+    private static func registerGpt54PlusModels(into registry: inout [String: OpenAIModelCapabilities]) {
         let gpt54PlusModels: [(name: String, contextTokens: Int)] = [
-            ("gpt-5.4", 1_050_000),
-            ("gpt-5.4-2026-03-05", 1_050_000),
-            ("gpt-5.4-mini", 400_000),
-            ("gpt-5.4-mini-2026-03-17", 400_000),
-            ("gpt-5.4-nano", 400_000),
-            ("gpt-5.4-nano-2026-03-17", 400_000),
-            ("gpt-5.5", 1_050_000),
-            ("gpt-5.5-2026-04-23", 1_050_000),
-            ("gpt-5.5-pro", 1_050_000),
-            ("gpt-5.5-pro-2026-04-23", 1_050_000),
+            ("gpt-5.4", 1_050_000), ("gpt-5.4-2026-03-05", 1_050_000), ("gpt-5.4-mini", 400_000),
+            ("gpt-5.4-mini-2026-03-17", 400_000), ("gpt-5.4-nano", 400_000),
+            ("gpt-5.4-nano-2026-03-17", 400_000), ("gpt-5.5", 1_050_000), ("gpt-5.5-2026-04-23", 1_050_000),
+            ("gpt-5.5-pro", 1_050_000), ("gpt-5.5-pro-2026-04-23", 1_050_000),
         ]
 
         for entry in gpt54PlusModels {
@@ -480,7 +434,7 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: true,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: true,
-                supportsReasoningEffort: true
+                supportsReasoningEffort: true,
             )
         }
     }
@@ -496,24 +450,25 @@ public struct OpenAIModelRegistry: Sendable {
     /// - Parameter model: The OpenAI model identifier.
     /// - Returns: The capabilities for the model.
     public func capabilities(for model: String) -> OpenAIModelCapabilities {
-        if let direct = entries[model] { return direct }
+        if let direct = entries[model] {
+            return direct
+        }
 
         let lowered = model.lowercased()
         for (pattern, modelType) in patterns where lowered.contains(pattern) {
             logger.warning(
                 "Using pattern matching for unknown model",
                 metadata: [
-                    "model": .string(model),
-                    "pattern": .string(pattern),
+                    "model": .string(model), "pattern": .string(pattern),
                     "inferred": .string(modelType.rawValue),
-                ]
+                ],
             )
             return defaultCapabilities(for: modelType)
         }
 
         logger.warning(
             "Unknown model, defaulting to chat model capabilities",
-            metadata: ["model": .string(model)]
+            metadata: ["model": .string(model)],
         )
         return defaultCapabilities(for: .chat)
     }
@@ -531,12 +486,10 @@ public struct OpenAIModelRegistry: Sendable {
         Array(entries.keys)
     }
 
-    private func defaultCapabilities(
-        for modelType: OpenAIModelType
-    ) -> OpenAIModelCapabilities {
+    private func defaultCapabilities(for modelType: OpenAIModelType) -> OpenAIModelCapabilities {
         switch modelType {
         case .reasoning:
-            return OpenAIModelCapabilities(
+            OpenAIModelCapabilities(
                 modelType: .reasoning,
                 supportsTools: false,
                 supportsStreaming: false,
@@ -548,10 +501,10 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: true,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: true
+                supportsReasoningEffort: true,
             )
         case .chat:
-            return OpenAIModelCapabilities(
+            OpenAIModelCapabilities(
                 modelType: .chat,
                 supportsTools: true,
                 supportsStreaming: true,
@@ -563,10 +516,10 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: true,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         case .embedding:
-            return OpenAIModelCapabilities(
+            OpenAIModelCapabilities(
                 modelType: .embedding,
                 supportsTools: false,
                 supportsStreaming: false,
@@ -578,10 +531,10 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: false,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         case .moderation:
-            return OpenAIModelCapabilities(
+            OpenAIModelCapabilities(
                 modelType: .moderation,
                 supportsTools: false,
                 supportsStreaming: false,
@@ -593,7 +546,7 @@ public struct OpenAIModelRegistry: Sendable {
                 supportsChatApi: false,
                 supportsCompletionsApi: false,
                 supportsResponsesApi: false,
-                supportsReasoningEffort: false
+                supportsReasoningEffort: false,
             )
         }
     }

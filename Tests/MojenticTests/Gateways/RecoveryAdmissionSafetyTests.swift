@@ -1,24 +1,27 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("Recovery refusal safety")
 struct RecoveryAdmissionSafetyTests {
     @Test(
         arguments: RecoveryBoundary.all,
-        ["exhausted", "ineligible", "admissionRequired", "limit", "capture", "jitter"])
+        ["exhausted", "ineligible", "admissionRequired", "limit", "capture", "jitter"],
+    )
     func cancellationWinsOverRefusal(_ boundary: RecoveryBoundary, _ phase: String) async throws {
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(status: phase == "ineligible" ? 400 : 503, body: "busy"),
-            try boundary.success(),
+            RecoveryReply(status: phase == "ineligible" ? 400 : 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
         let handle = RecoveryLocked<Task<LLMGatewayResponse, any Error>?>(nil)
         let launch = AsyncStream<Void>.makeStream()
         var policy = recoveryPolicy(recorder, attempts: phase == "exhausted" ? 1 : 2)
-        if phase == "admissionRequired" { policy.admission = nil }
-        if phase == "limit" { policy.budget = 0 }
+        if phase == "admissionRequired" {
+            policy.admission = nil
+        }
+        if phase == "limit" {
+            policy.budget = 0
+        }
         let observe = policy.observer
         policy.observer = { event in
             observe?(event)
@@ -36,9 +39,7 @@ struct RecoveryAdmissionSafetyTests {
         let capture = policy.wireObserver
         policy.wireObserver = { event in
             try capture?(event)
-            if phase == "capture", case .request(let identity, _, _, _) = event,
-                identity.wireNumber == 2
-            {
+            if phase == "capture", case .request(let identity, _, _, _) = event, identity.wireNumber == 2 {
                 handle.withLock { $0?.cancel() }
             }
         }
@@ -67,18 +68,23 @@ struct RecoveryAdmissionSafetyTests {
         #expect(failure.failure.progress.delivered == RecoverySemanticProgress())
         #expect(server.requests.withLock { $0 } == [first.1])
         let prefix: [RecoveryTransition] =
-            phase == "capture"
-            ? [.attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled]
-            : phase == "jitter"
-                ? [.attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed]
-                : [.attemptStarted, .attemptFailed]
+            if phase == "capture" {
+                [.attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled]
+            } else {
+                if phase == "jitter" {
+                    [.attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed]
+                } else {
+                    [.attemptStarted, .attemptFailed]
+                }
+            }
         #expect(recorder.events.withLock { $0.map(\.transition) } == prefix + [.cancelled])
         #expect(recorder.events.withLock { $0.allSatisfy { $0.identity == first.0 } })
     }
 
     @Test(arguments: RecoveryBoundary.all, ["content", "reasoning", "tool"])
-    func observedSemanticEvidenceRefusesReplay(_ boundary: RecoveryBoundary, _ evidence: String) async throws
-    {
+    func observedSemanticEvidenceRefusesReplay(
+        _ boundary: RecoveryBoundary, _ evidence: String,
+    ) async throws {
         let content = evidence == "content" ? "observed" : ""
         var message: [String: JSONValue] = ["content": .string(content), "role": "assistant"]
         message[boundary.omlx ? "reasoning_content" : "thinking"] = evidence == "reasoning" ? "thought" : ""
@@ -92,13 +98,15 @@ struct RecoveryAdmissionSafetyTests {
             ])
         }
         let envelope: JSONValue =
-            boundary.omlx
-            ? ["choices": .array([["message": .object(message), "finish_reason": "stop"]])]
-            : ["message": .object(message), "done": true]
+            if boundary.omlx {
+                ["choices": .array([["message": .object(message), "finish_reason": "stop"]])]
+            } else {
+                ["message": .object(message), "done": true]
+            }
         let bytes = try JSONEncoder().encode(envelope)
         let server = try RecoveryLoopback(replies: [
-            RecoveryReply(body: try #require(String(data: bytes, encoding: .utf8)), truncated: true),
-            try boundary.success(),
+            RecoveryReply(body: #require(String(data: bytes, encoding: .utf8)), truncated: true),
+            boundary.success(),
         ])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
@@ -132,6 +140,7 @@ struct RecoveryAdmissionSafetyTests {
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
                 .attemptStarted, .attemptFailed, .ineligible,
-            ])
+            ]
+        )
     }
 }

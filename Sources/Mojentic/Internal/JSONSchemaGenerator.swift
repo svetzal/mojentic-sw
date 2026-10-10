@@ -21,7 +21,7 @@ public enum JSONSchemaGenerator {
     ///
     /// Throws `MojenticError.schema` if the type cannot be schematised by
     /// either route.
-    public static func schema<T: Codable & Sendable>(for type: T.Type) throws -> JSONValue {
+    public static func schema(for type: (some Codable & Sendable).Type) throws -> JSONValue {
         if let providing = type as? any JSONSchemaProviding.Type {
             return providing.jsonSchema
         }
@@ -32,8 +32,7 @@ public enum JSONSchemaGenerator {
             return try schema(forMirrorOf: sample)
         }
         throw MojenticError.schema(
-            message:
-                "Cannot derive schema for \(type). Conform it to JSONSchemaProviding "
+            message: "Cannot derive schema for \(type). Conform it to JSONSchemaProviding "
                 + "or JSONSchemaSampleProviding."
         )
     }
@@ -64,9 +63,7 @@ public enum JSONSchemaGenerator {
             }
         }
         return [
-            "type": "object",
-            "properties": .object(properties),
-            "required": .array(required),
+            "type": "object", "properties": .object(properties), "required": .array(required),
             "additionalProperties": false,
         ]
     }
@@ -89,16 +86,11 @@ public enum JSONSchemaGenerator {
 
     private static func schema(forValue value: Any) throws -> JSONValue {
         switch value {
-        case is String:
-            return ["type": "string"]
-        case is Bool:
-            return ["type": "boolean"]
-        case is Int, is Int32, is Int64, is UInt, is UInt32, is UInt64:
-            return ["type": "integer"]
-        case is Double, is Float:
-            return ["type": "number"]
-        default:
-            break
+        case is String: return ["type": "string"]
+        case is Bool: return ["type": "boolean"]
+        case is Int, is Int32, is Int64, is UInt, is UInt32, is UInt64: return ["type": "integer"]
+        case is Double, is Float: return ["type": "number"]
+        default: break
         }
         let mirror = Mirror(reflecting: value)
         switch mirror.displayStyle {
@@ -108,19 +100,15 @@ public enum JSONSchemaGenerator {
                 return ["type": "array", "items": itemSchema]
             }
             return ["type": "array"]
-        case .dictionary:
-            return ["type": "object"]
-        case .struct, .class:
-            return try schema(forMirrorOf: value)
-        case .enum:
-            return ["type": "string"]
+        case .dictionary: return ["type": "object"]
+        case .struct, .class: return try schema(forMirrorOf: value)
+        case .enum: return ["type": "string"]
         case .optional:
             if let inner = mirror.children.first?.value {
                 return try schema(forValue: inner)
             }
             return [:]
-        default:
-            return [:]
+        default: return [:]
         }
     }
 

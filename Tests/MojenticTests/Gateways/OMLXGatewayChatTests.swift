@@ -1,23 +1,22 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("oMLX gateway chat request body")
 struct OMLXChatRequestTests {
     private func sentBody(
         model: String = omlxFixtureModel,
         tools: [any LLMTool]? = nil,
-        config: CompletionConfig
+        config: CompletionConfig,
     ) async throws -> [String: JSONValue] {
-        let transport = FakeRequestTransport(try .fixture("chat_thinking_disabled.json"))
+        let transport = try FakeRequestTransport(.fixture("chat_thinking_disabled.json"))
         _ = try await omlxGateway(transport).complete(
             model: model,
             messages: [.system("Be brief."), .user("hi")],
             tools: tools,
-            config: config
+            config: config,
         )
-        return try jsonBody(try await transport.onlyRequest())
+        return try await jsonBody(transport.onlyRequest())
     }
 
     @Test("every configured field is sent, with no per-model adaptation")
@@ -29,7 +28,7 @@ struct OMLXChatRequestTests {
             reasoning: .high,
             numCtx: 8192,
             extraOptions: ["top_k": .integer(20)],
-            responseFormat: .jsonObject
+            responseFormat: .jsonObject,
         )
         let body = try await sentBody(tools: [ResolveDateTool()], config: config)
         #expect(body["model"] == .string(omlxFixtureModel))
@@ -58,10 +57,7 @@ struct OMLXChatRequestTests {
         #expect(body["tools"] == nil)
     }
 
-    @Test(
-        "reasoning effort is forwarded unchanged",
-        arguments: [ReasoningEffort.low, .medium, .high]
-    )
+    @Test("reasoning effort is forwarded unchanged", arguments: [ReasoningEffort.low, .medium, .high])
     func reasoningEffort(effort: ReasoningEffort) async throws {
         let body = try await sentBody(config: CompletionConfig(reasoning: effort))
         #expect(body["reasoning_effort"] == .string(effort.rawValue))
@@ -72,7 +68,7 @@ struct OMLXChatRequestTests {
         let body = try await sentBody(
             model: "o3-local-mlx",
             tools: [ResolveDateTool()],
-            config: CompletionConfig(temperature: 0.3, maxTokens: 64, reasoning: .low)
+            config: CompletionConfig(temperature: 0.3, maxTokens: 64, reasoning: .low),
         )
         #expect(body["model"] == "o3-local-mlx")
         #expect(body["temperature"] == .number(0.3))
@@ -88,14 +84,14 @@ struct OMLXChatResponseTests {
     private func complete(
         _ fixture: String,
         messages: [LLMMessage] = [.user("hi")],
-        tools: [any LLMTool]? = nil
+        tools: [any LLMTool]? = nil,
     ) async throws -> (LLMGatewayResponse, FakeRequestTransport) {
-        let transport = FakeRequestTransport(try .fixture(fixture))
+        let transport = try FakeRequestTransport(.fixture(fixture))
         let response = try await omlxGateway(transport).complete(
             model: omlxFixtureModel,
             messages: messages,
             tools: tools,
-            config: CompletionConfig()
+            config: CompletionConfig(),
         )
         return (response, transport)
     }
@@ -104,11 +100,11 @@ struct OMLXChatResponseTests {
     func thinking() async throws {
         let (response, _) = try await complete("chat_thinking.json")
         #expect(response.content == "hello")
-        #expect(
-            response.thinking
-                == #"We need to reply exactly: hello. User said "Reply with exactly: hello". "#
-                + #"Need final "hello". Ensure no extra."#
-        )
+        let expectedThinking = #"""
+            We need to reply exactly: hello. User said "Reply with exactly: hello". Need fin\#
+            al "hello". Ensure no extra.
+            """#
+        #expect(response.thinking == expectedThinking)
         #expect(response.finishReason == .stop)
         #expect(response.providerFinishReason == "stop")
         #expect(response.providerModel == omlxFixtureModel)
@@ -139,7 +135,7 @@ struct OMLXChatResponseTests {
         let (response, transport) = try await complete(
             "chat_tool_call.json",
             messages: [.user("What is today's date? Use the tool.")],
-            tools: [ResolveDateTool()]
+            tools: [ResolveDateTool()],
         )
         #expect(
             response.toolCalls == [
@@ -149,39 +145,43 @@ struct OMLXChatResponseTests {
         #expect(response.finishReason == .toolCalls)
         #expect(response.content.isEmpty)
         #expect(response.thinking?.hasPrefix("The user is asking to use a tool") == true)
-        let body = try jsonBody(try await transport.onlyRequest())
+        let body = try await jsonBody(transport.onlyRequest())
         #expect(body["tools"] == [OpenAIMessageAdapter.tool(ResolveDateTool().descriptor)])
     }
 
     @Test("a tool result goes back as a tool message and the answer comes through")
-    func toolResultRoundTrip() async throws {
+    func toolResultRoundTrip()
+        async throws
+    {
         let call = LLMToolCall(id: "call_bd4d55c2", name: "resolve_date", arguments: ["relative": "today"])
         let messages: [LLMMessage] = [
-            .user("What is today's date? Use the tool."),
-            .assistant(toolCalls: [call]),
+            .user("What is today's date? Use the tool."), .assistant(toolCalls: [call]),
             .tool(callId: "call_bd4d55c2", content: #"{"date": "2026-09-29"}"#),
         ]
         let (response, transport) = try await complete(
             "chat_after_tool_result.json",
             messages: messages,
-            tools: [ResolveDateTool()]
+            tools: [ResolveDateTool()],
         )
         #expect(response.content == "Today's date is **September 29, 2026** (2026-09-29).")
         #expect(response.toolCalls.isEmpty)
-        let sent = try jsonBody(try await transport.onlyRequest())["messages"]
+        let sent = try await jsonBody(transport.onlyRequest())["messages"]
         #expect(sent == .array(OpenAIMessageAdapter.adapt(messages)))
         guard case .array(let sentMessages)? = sent else {
             Issue.record("expected a messages array")
             return
         }
         #expect(
-            sentMessages.last
-                == ["role": "tool", "content": #"{"date": "2026-09-29"}"#, "tool_call_id": "call_bd4d55c2"]
+            sentMessages.last == [
+                "role": "tool", "content": #"{"date": "2026-09-29"}"#, "tool_call_id": "call_bd4d55c2",
+            ]
         )
     }
 
     @Test("truncation during thinking maps to finish reason length with content unchanged")
-    func truncated() async throws {
+    func truncated()
+        async throws
+    {
         let (response, _) = try await complete("chat_length.json")
         #expect(response.finishReason == .length)
         #expect(response.providerFinishReason == "length")
@@ -190,14 +190,16 @@ struct OMLXChatResponseTests {
     }
 
     @Test("an unknown model is a provider error carrying the status and the error body")
-    func modelNotFound() async throws {
-        let transport = FakeRequestTransport(try .fixture("error_model_not_found.json", status: 404))
+    func modelNotFound()
+        async throws
+    {
+        let transport = try FakeRequestTransport(.fixture("error_model_not_found.json", status: 404))
         let failure = await httpFailure {
             _ = try await omlxGateway(transport).complete(
                 model: "nope",
                 messages: [.user("hi")],
                 tools: nil,
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         }
         #expect(failure?.status == 404)
@@ -208,20 +210,19 @@ struct OMLXChatResponseTests {
 @Suite("oMLX gateway structured output")
 struct OMLXStructuredOutputTests {
     private let schema: JSONValue = [
-        "type": "object",
-        "properties": ["name": ["type": "string"], "age": ["type": "integer"]],
+        "type": "object", "properties": ["name": ["type": "string"], "age": ["type": "integer"]],
         "required": ["name", "age"],
     ]
 
     private func structured(
         headers: [HTTPHeader] = []
     ) async throws -> (StructuredGatewayResponse, FakeRequestTransport) {
-        let transport = FakeRequestTransport(try .fixture("chat_json_schema.json", headers: headers))
+        let transport = try FakeRequestTransport(.fixture("chat_json_schema.json", headers: headers))
         let response = try await omlxGateway(transport).completeStructured(
             model: omlxFixtureModel,
             messages: [.user("Ada, 36")],
             schema: schema,
-            config: CompletionConfig(responseFormat: .text)
+            config: CompletionConfig(responseFormat: .text),
         )
         return (response, transport)
     }
@@ -229,11 +230,10 @@ struct OMLXStructuredOutputTests {
     @Test("the schema is sent as a json_schema response format named response, without strict mode")
     func requestShape() async throws {
         let (response, transport) = try await structured()
-        let body = try jsonBody(try await transport.onlyRequest())
+        let body = try await jsonBody(transport.onlyRequest())
         #expect(
             body["response_format"] == [
-                "type": "json_schema",
-                "json_schema": ["name": "response", "schema": schema],
+                "type": "json_schema", "json_schema": ["name": "response", "schema": schema],
             ]
         )
         #expect(body["tools"] == nil)
@@ -243,7 +243,9 @@ struct OMLXStructuredOutputTests {
     }
 
     @Test("a Warning header is recorded in metadata, several joined with a comma")
-    func warningHeader() async throws {
+    func warningHeader()
+        async throws
+    {
         let (response, _) = try await structured(headers: [
             HTTPHeader(name: "Warning", value: #"199 omlx "grammar not enforced""#),
             HTTPHeader(name: "warning", value: #"199 omlx "second""#),
@@ -257,7 +259,7 @@ struct OMLXStructuredOutputTests {
 
     @Test(
         "a requested JSON response format records the Warning header",
-        arguments: [ResponseFormat.jsonObject, .jsonSchema(["type": "object"])]
+        arguments: [ResponseFormat.jsonObject, .jsonSchema(["type": "object"])],
     )
     func warningForJSONFormats(format: ResponseFormat) async throws {
         let metadata = try await completeMetadata(format: format)
@@ -266,7 +268,7 @@ struct OMLXStructuredOutputTests {
 
     @Test(
         "text or absent response formats ignore the Warning header",
-        arguments: [ResponseFormat.text, nil]
+        arguments: [ResponseFormat.text, nil],
     )
     func noWarningForText(format: ResponseFormat?) async throws {
         let metadata = try await completeMetadata(format: format)
@@ -275,27 +277,29 @@ struct OMLXStructuredOutputTests {
 
     @Test("non-JSON content for structured output is a decoding error")
     func nonJSONContent() async throws {
-        let transport = FakeRequestTransport(try .fixture("chat_thinking.json"))
+        let transport = try FakeRequestTransport(.fixture("chat_thinking.json"))
         await #expect(throws: MojenticError.self) {
             _ = try await omlxGateway(transport).completeJSON(
                 model: omlxFixtureModel,
                 messages: [.user("hi")],
                 schema: schema,
-                config: CompletionConfig()
+                config: CompletionConfig(),
             )
         }
     }
 
     private func completeMetadata(format: ResponseFormat?) async throws -> [String: JSONValue]? {
-        let transport = FakeRequestTransport(
-            try .fixture(
-                "chat_json_schema.json", headers: [HTTPHeader(name: "Warning", value: "199 omlx degraded")])
+        let transport = try FakeRequestTransport(
+            .fixture(
+                "chat_json_schema.json",
+                headers: [HTTPHeader(name: "Warning", value: "199 omlx degraded")],
+            )
         )
         return try await omlxGateway(transport).complete(
             model: omlxFixtureModel,
             messages: [.user("hi")],
             tools: nil,
-            config: CompletionConfig(responseFormat: format)
+            config: CompletionConfig(responseFormat: format),
         ).metadata
     }
 }

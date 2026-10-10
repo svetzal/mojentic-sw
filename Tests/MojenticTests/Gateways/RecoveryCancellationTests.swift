@@ -1,13 +1,15 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("Recovery cancellation and capture boundaries")
 struct RecoveryCancellationTests {
     @Test(arguments: RecoveryBoundary.all, ["request", "headers", "body"])
-    func captureFailureIsTerminal(_ boundary: RecoveryBoundary, _ phase: String) async throws {
-        let server = try RecoveryLoopback(replies: [try boundary.success()])
+    func captureFailureIsTerminal(
+        _ boundary: RecoveryBoundary,
+        _ phase: String,
+    ) async throws {
+        let server = try RecoveryLoopback(replies: [boundary.success()])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.wireObserver = { event in
@@ -36,8 +38,10 @@ struct RecoveryCancellationTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func cancellationBeforeDispatchMakesZeroRequests(_ boundary: RecoveryBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [try boundary.success()])
+    func cancellationBeforeDispatchMakesZeroRequests(
+        _ boundary: RecoveryBoundary
+    ) async throws {
+        let server = try RecoveryLoopback(replies: [boundary.success()])
         let recorder = RecoveryRecorder()
         let ready = AsyncStream<Void>.makeStream()
         let start = AsyncStream<Void>.makeStream()
@@ -64,11 +68,16 @@ struct RecoveryCancellationTests {
     @Test(arguments: RecoveryBoundary.all, ["active", "admission", "backoff", "success"])
     func cancellationWinsAtEveryBoundary(_ boundary: RecoveryBoundary, _ phase: String) async throws {
         let reply =
-            phase == "active"
-            ? RecoveryReply(body: " ", truncated: true, hold: true)
-            : phase == "success"
-                ? try boundary.success(tools: true) : RecoveryReply(status: 503, body: "busy")
-        let server = try RecoveryLoopback(replies: [reply, try boundary.success()])
+            if phase == "active" {
+                RecoveryReply(body: " ", truncated: true, hold: true)
+            } else {
+                if phase == "success" {
+                    try boundary.success(tools: true)
+                } else {
+                    RecoveryReply(status: 503, body: "busy")
+                }
+            }
+        let server = try RecoveryLoopback(replies: [reply, boundary.success()])
         defer { server.release() }
         let recorder = RecoveryRecorder()
         let ready = AsyncStream<Void>.makeStream()
@@ -91,14 +100,18 @@ struct RecoveryCancellationTests {
         }
         if phase == "active" {
             policy.wireObserver = { event in
-                if case .body = event { ready.continuation.yield(()) }
+                if case .body = event {
+                    ready.continuation.yield(())
+                }
             }
         }
         let handle = RecoveryLocked<Task<LLMGatewayResponse, any Error>?>(nil)
         let launch = AsyncStream<Void>.makeStream()
         if phase == "success" {
             policy.wireObserver = { event in
-                if case .body = event { handle.withLock { $0?.cancel() } }
+                if case .body = event {
+                    handle.withLock { $0?.cancel() }
+                }
             }
         }
         let gateway = boundary.gateway(server, policy: policy)
@@ -143,7 +156,9 @@ struct RecoveryCancellationTests {
     }
 
     @Test(arguments: RecoveryBoundary.all)
-    func healthyActiveGenerationOutlivesRecoveryBudget(_ boundary: RecoveryBoundary) async throws {
+    func healthyActiveGenerationOutlivesRecoveryBudget(
+        _ boundary: RecoveryBoundary
+    ) async throws {
         let reply = try boundary.success()
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: reply.body, hold: true)])
         let recorder = RecoveryRecorder()

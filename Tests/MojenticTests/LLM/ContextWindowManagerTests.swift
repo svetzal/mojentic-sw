@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 @Suite("TokenBudgetContextWindowManager")
 struct ContextWindowManagerTests {
@@ -9,13 +8,13 @@ struct ContextWindowManagerTests {
         TokenBudgetContextWindowManager(
             budget: budget,
             model: "test",
-            tokenizer: ApproximateTokenizerGateway(charactersPerToken: 4, perMessageOverhead: 0)
+            tokenizer: ApproximateTokenizerGateway(charactersPerToken: 4, perMessageOverhead: 0),
         )
     }
 
     @Test("returns input unchanged when it already fits")
     func passThroughWhenFits() async throws {
-        let manager = makeManager(budget: 1_000)
+        let manager = makeManager(budget: 1000)
         let messages: [LLMMessage] = [.system("rules"), .user("hi")]
         let trimmed = try await manager.trim(messages, reserving: 0)
         #expect(trimmed == messages)
@@ -25,10 +24,8 @@ struct ContextWindowManagerTests {
     func evictOldest() async throws {
         let manager = makeManager(budget: 15)
         let messages: [LLMMessage] = [
-            .system("pinned system prompt"),
-            .user(String(repeating: "a", count: 80)),
-            .assistant(String(repeating: "b", count: 80)),
-            .user("latest question"),
+            .system("pinned system prompt"), .user(String(repeating: "a", count: 80)),
+            .assistant(String(repeating: "b", count: 80)), .user("latest question"),
         ]
         let trimmed = try await manager.trim(messages, reserving: 0)
         #expect(trimmed.first?.role == .system)
@@ -41,9 +38,7 @@ struct ContextWindowManagerTests {
     func preservesLatestUser() async throws {
         let manager = makeManager(budget: 5)
         let messages: [LLMMessage] = [
-            .system("rules"),
-            .user(String(repeating: "x", count: 200)),
-            .user("only the latest matters"),
+            .system("rules"), .user(String(repeating: "x", count: 200)), .user("only the latest matters"),
         ]
         let trimmed = try await manager.trim(messages, reserving: 0)
         #expect(trimmed.contains(where: { $0.content == "only the latest matters" }))

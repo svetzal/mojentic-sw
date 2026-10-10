@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import Mojentic
+import Testing
 
 private func makeSandbox() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -14,7 +13,7 @@ private func makeSandbox() throws -> URL {
 @Suite("FilesystemGateway and file tools")
 struct FileToolsTests {
     @Test("rejects paths that escape the sandbox via ..")
-    func sandboxEscape() async throws {
+    func sandboxEscape() throws {
         let root = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: root) }
         let fs = FilesystemGateway(rootURL: root)
@@ -22,7 +21,9 @@ struct FileToolsTests {
             _ = try fs.resolve("../escape.txt")
             Issue.record("expected sandbox escape to throw")
         } catch let error as MojenticError {
-            if case .invalidArgument = error { return }
+            if case .invalidArgument = error {
+                return
+            }
             Issue.record("wrong error: \(error)")
         }
     }
@@ -34,9 +35,7 @@ struct FileToolsTests {
         let fs = FilesystemGateway(rootURL: root)
 
         let writer = WriteFileTool(fs: fs)
-        _ = try await writer.execute(
-            arguments: ["path": "notes/hello.txt", "content": "hi from mojentic"]
-        )
+        _ = try await writer.execute(arguments: ["path": "notes/hello.txt", "content": "hi from mojentic"])
 
         let lister = ListAllFilesTool(fs: fs)
         let listed = try await lister.execute(arguments: ["path": "."])
@@ -55,9 +54,7 @@ struct FileToolsTests {
         #expect(existsResult.objectValue?["exists"] == .bool(true))
 
         let mover = MoveFileTool(fs: fs)
-        _ = try await mover.execute(
-            arguments: ["from": "notes/hello.txt", "to": "notes/renamed.txt"]
-        )
+        _ = try await mover.execute(arguments: ["from": "notes/hello.txt", "to": "notes/renamed.txt"])
 
         let deleter = DeleteFileTool(fs: fs)
         _ = try await deleter.execute(arguments: ["path": "notes/renamed.txt"])
