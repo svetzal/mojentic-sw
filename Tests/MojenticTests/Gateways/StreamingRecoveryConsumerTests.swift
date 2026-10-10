@@ -99,8 +99,8 @@ struct StreamingRecoveryConsumerTests {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
         var terminals = 0
-        for await event in broker.generateStreamEvents(model: "fixture", messages: []) {
-            if case .error(.recovery(let failure)) = event {
+        for await event in broker.generateRecoveryStreamEvents(model: "fixture", messages: []) {
+            if case .recoveryFailure(let failure) = event {
                 terminals += 1
                 #expect(failure.outcome == .exhausted)
                 #expect(failure.history.count == 2)

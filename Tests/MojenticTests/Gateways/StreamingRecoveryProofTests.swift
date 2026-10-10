@@ -21,7 +21,7 @@ struct StreamingRecoveryProofTests {
         policy.reportObserver = { report in reports.withLock { $0.append(report) } }
         let gateway = RecoveryBoundary(omlx: omlx, structured: false).gateway(server, policy: policy)
         var content = ""
-        for try await event in gateway.stream(
+        for try await event in gateway.streamRecovering(
             model: "fixture",
             messages: [.user("payload-sentinel")],
             tools: nil,

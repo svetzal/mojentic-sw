@@ -54,12 +54,6 @@ public enum CompletionStreamEvent: Sendable {
     /// Visible assistant content, in the order the provider sent it.
     case content(String)
 
-    /// Validated observed progress for an opt-in recovery stream.
-    case progress(RecoveryProgress)
-
-    /// Provider evidence from a validated recovery streaming frame.
-    case metrics(CompletionEvidence)
-
     /// Terminal success: the provider proved the turn finished normally.
     case completed(CompletionEvidence)
 
@@ -70,7 +64,7 @@ public enum CompletionStreamEvent: Sendable {
     /// Whether this event ends the stream.
     public var isTerminal: Bool {
         switch self {
-        case .content, .progress, .metrics: return false
+        case .content: return false
         default: break
         }
         return true

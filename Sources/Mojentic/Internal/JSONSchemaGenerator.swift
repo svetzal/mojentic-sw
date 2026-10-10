@@ -21,7 +21,7 @@ public enum JSONSchemaGenerator {
     ///
     /// Throws `MojenticError.schema` if the type cannot be schematised by
     /// either route.
-    public static func schema(for type: (some Codable & Sendable).Type) throws -> JSONValue {
+    public static func schema<T: Codable & Sendable>(for type: T.Type) throws -> JSONValue {
         if let providing = type as? any JSONSchemaProviding.Type {
             return providing.jsonSchema
         }

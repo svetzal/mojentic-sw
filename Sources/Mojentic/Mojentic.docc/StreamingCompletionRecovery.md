@@ -2,8 +2,9 @@
 
 Enable request recovery without replaying tools or appending a replacement to partial output.
 
-The same ``CompletionRecoveryPolicy`` now covers Ollama and oMLX `stream` and
-`completeStreamEvents`, including ``LLMBroker`` and ``ChatSession`` callers.
+The same ``CompletionRecoveryPolicy`` now covers Ollama and oMLX `streamRecovering` and
+`completeStreamEventsRecovering`, including the internal opt-in routing used by
+``LLMBroker`` tool streams and ``ChatSession`` callers.
 Initializers without `recovery:` retain their legacy parsing and one-send behavior.
 Policy presence defaults to one attempt. Request bytes are encoded once and remain
 identical across explicitly admitted retries; client IDs provide correlation,
@@ -42,19 +43,19 @@ rules; the caller owns any subsequent session recovery.
 ## Consume a single turn with typed terminal errors
 
 ```swift
-for await event in broker.generateStreamEvents(model: "local-model", messages: messages) {
+for await event in broker.generateRecoveryStreamEvents(model: "local-model", messages: messages) {
     switch event {
     case .content(let text): displayPartial(text)
     case .progress(let counts): recordProgress(counts)
     case .metrics(let metrics): recordProviderMetrics(metrics)
     case .completed(let evidence): acceptFinishedAnswer(evidence)
-    case .error(.recovery(let failure)): recordSafeSummary(failure.description)
+    case .recoveryFailure(let failure): recordSafeSummary(failure.description)
     case .error(let error): recordSafeSummary(error.description)
     }
 }
 ```
 
-``MojenticError/recovery(_:)`` retains the structured history and original cause.
+``RecoveryCompletionStreamEvent/recoveryFailure(_:)`` retains the structured history and original cause.
 Gateway tool streams throw ``RecoveryError`` directly. Observed reasoning, content,
 tool fragments or completed tools prevent transparent recovery even if capture failed
 before delivery. Delivery is counted separately; single-turn reasoning is observed
@@ -108,7 +109,7 @@ outside `next()`:
 
 ```swift
 try await withRecoveryStreamCancellation {
-    for try await event in gateway.stream(
+    for try await event in gateway.streamRecovering(
         model: model, messages: messages, tools: nil, config: config
     ) {
         try await consume(event)
@@ -139,3 +140,24 @@ unrelated work does not install a cancellation handler for that work. Migrate th
 consumer operation to this scope for the paused-consumer guarantee. Create streams
 inside the scope, and use a separate scope inside detached tasks. Local cleanup
 still provides no evidence that a remote request stopped.
+
+## Release baseline compatibility
+
+Legacy `GatewayStreamEvent`, `CompletionStreamEvent`, and `MojenticError` keep
+all v2.1.0 cases so existing exhaustive switches remain valid. The legacy
+`stream`, `completeStreamEvents`, and broker `generateStreamEvents` entrypoints
+retain their original single-request completion behavior even on a gateway
+configured with a recovery policy. No recovery error conversion occurs on these
+legacy streaming entrypoints.
+
+Migrate gateway consumers to `streamRecovering` or `completeStreamEventsRecovering`
+and single-turn broker consumers to `generateRecoveryStreamEvents` to receive
+`RecoveryGatewayStreamEvent` or `RecoveryCompletionStreamEvent`. Match
+`.recoveryFailure(let failure)` explicitly on the recovery completion stream;
+`failure.failure.inspectEvidence()` retains the original typed cause, and
+`failure.history` retains bounded attempt history.
+Progress and metrics remain nonterminal and preserve provider values and order.
+Broker tool streams and ChatSession streams retain their existing result types
+and use the opt-in gateway boundary internally. Buffered recovery still throws
+`RecoveryError` directly. Continue to use `withRecoveryStreamCancellation` for
+cleanup while a consumer is paused outside iteration.

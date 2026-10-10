@@ -19,7 +19,7 @@ struct PausedRecoveryDeliveryTests {
         let task = Task {
             try await withRecoveryStreamCancellation {
                 if boundary.single {
-                    let stream = try gateway.completeStreamEvents(
+                    let stream = try gateway.completeStreamEventsRecovering(
                         model: "fixture",
                         messages: [],
                         config: .init(),
@@ -39,7 +39,8 @@ struct PausedRecoveryDeliveryTests {
                     await pause.wait()
                     withExtendedLifetime(iterator) {}
                 } else {
-                    let stream = gateway.stream(model: "fixture", messages: [], tools: nil, config: .init())
+                    let stream = gateway.streamRecovering(
+                        model: "fixture", messages: [], tools: nil, config: .init())
                     var iterator = stream.makeAsyncIterator()
                     while let event = try await iterator.next() {
                         switch event {

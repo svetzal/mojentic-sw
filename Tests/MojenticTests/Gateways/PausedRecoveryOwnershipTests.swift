@@ -80,11 +80,12 @@ struct PausedRecoveryOwnershipTests {
         let task = Task {
             try await withRecoveryStreamCancellation {
                 if boundary.single {
-                    let stream: AsyncStream<CompletionStreamEvent> =
+                    let stream: AsyncStream<RecoveryCompletionStreamEvent> =
                         if path == "gateway" {
-                            try gateway.completeStreamEvents(model: "fixture", messages: [], config: .init())
+                            try gateway.completeStreamEventsRecovering(
+                                model: "fixture", messages: [], config: .init())
                         } else {
-                            broker.generateStreamEvents(model: "fixture", messages: [])
+                            broker.generateRecoveryStreamEvents(model: "fixture", messages: [])
                         }
                     var wire = wireReady.stream.makeAsyncIterator()
                     _ = await wire.next()
@@ -92,7 +93,8 @@ struct PausedRecoveryOwnershipTests {
                     await pause.wait()
                     withExtendedLifetime(stream) {}
                 } else if path == "gateway" {
-                    let stream = gateway.stream(model: "fixture", messages: [], tools: nil, config: .init())
+                    let stream = gateway.streamRecovering(
+                        model: "fixture", messages: [], tools: nil, config: .init())
                     var wire = wireReady.stream.makeAsyncIterator()
                     _ = await wire.next()
                     ready.continuation.yield(())

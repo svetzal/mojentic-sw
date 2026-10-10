@@ -17,7 +17,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     private let singleTurn: Bool
     private var buffer = Data()
     private var progress = RecoveryProgress()
-    private var pending: [GatewayStreamEvent] = []
+    private var pending: [RecoveryGatewayStreamEvent] = []
     private var tools: [LLMToolCall] = []
     private var fragments: [Int: ToolBuilder] = [:]
 
@@ -32,13 +32,13 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     private var evidence = CompletionEvidence()
     private var terminal = false
     private var failure: MojenticError?
-    let events: AsyncStream<GatewayStreamEvent>
-    private let continuation: AsyncStream<GatewayStreamEvent>.Continuation
+    let events: AsyncStream<RecoveryGatewayStreamEvent>
+    private let continuation: AsyncStream<RecoveryGatewayStreamEvent>.Continuation
 
     init(provider: String, singleTurn: Bool) {
         self.provider = provider
         self.singleTurn = singleTurn
-        let pair = AsyncStream<GatewayStreamEvent>.makeStream()
+        let pair = AsyncStream<RecoveryGatewayStreamEvent>.makeStream()
         events = pair.stream
         continuation = pair.continuation
     }
@@ -89,7 +89,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     }
 
     /// The public relay acknowledges semantic delivery separately from wire observation.
-    func delivered(_ event: GatewayStreamEvent) {
+    func delivered(_ event: RecoveryGatewayStreamEvent) {
         lock.lock()
         defer { lock.unlock() }
         switch event {
@@ -158,7 +158,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         guard !(frame.promptEvalCount ?? 0).addingReportingOverflow(frame.evalCount ?? 0).overflow else {
             throw invalidFrame()
         }
-        let events = chunk.toEvents()
+        let events = chunk.toEvents().map(RecoveryStreamBridge.lift)
         evidence = CompletionEvidence(
             finishReason: chunk.doneReason ?? evidence.finishReason,
             usage: frame.usage ?? evidence.usage,
@@ -192,7 +192,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
                 failure = .incompleteCompletion(evidence)
                 return
             }
-            pending += tools.map(GatewayStreamEvent.toolCallRequest)
+            pending += tools.map(RecoveryGatewayStreamEvent.toolCallRequest)
         }
     }
 
@@ -251,7 +251,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             providerModel: frame.model ?? evidence.providerModel,
             metadata: frame.envelope.metadata ?? evidence.metadata,
         )
-        let events = legacy.consume(line: line)
+        let events = legacy.consume(line: line).map(RecoveryStreamBridge.lift)
         observeSemantic(events)
         pending += events
         // The no-tool evidence parser supplies only provider-reported fields.
@@ -303,10 +303,10 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             calls.append(LLMToolCall(id: builder.id, name: name, arguments: arguments))
         }
         progress.observed.completedToolCalls = calls.count
-        pending += calls.map(GatewayStreamEvent.toolCallRequest)
+        pending += calls.map(RecoveryGatewayStreamEvent.toolCallRequest)
     }
 
-    private func observeSemantic(_ events: [GatewayStreamEvent]) {
+    private func observeSemantic(_ events: [RecoveryGatewayStreamEvent]) {
         for event in events {
             switch event {
             case .textDelta(let text): progress.observed.contentBytes += text.utf8.count

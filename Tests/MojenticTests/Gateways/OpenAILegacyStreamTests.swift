@@ -5,16 +5,12 @@ import Testing
 /// A comparable rendering of ``GatewayStreamEvent`` for assertions.
 enum SeenGatewayEvent: Equatable {
     case text(String)
-    case progress(RecoveryProgress)
-    case metrics(CompletionEvidence)
     case thinking(String)
     case toolCall(LLMToolCall)
     case done(FinishReason?, Usage?)
 
     init(_ event: GatewayStreamEvent) {
         switch event {
-        case .progress(let progress): self = .progress(progress)
-        case .metrics(let evidence): self = .metrics(evidence)
         case .textDelta(let text): self = .text(text)
         case .thinkingDelta(let text): self = .thinking(text)
         case .toolCallRequest(let call): self = .toolCall(call)

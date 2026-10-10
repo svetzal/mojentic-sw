@@ -11,7 +11,7 @@ import Logging
 /// schema for structured output is forwarded as the `format` field; tools
 /// are forwarded as OpenAI-shaped function descriptors; `think: true`
 /// enables reasoning traces when `CompletionConfig.reasoning` is set.
-public struct OllamaGateway: LLMGateway {
+public struct OllamaGateway: RecoveryStreamingGateway {
     private let baseURL: URL
     private let client: HTTPClient
     private var recovery: CompletionRecoveryPolicy?
@@ -195,16 +195,7 @@ public struct OllamaGateway: LLMGateway {
             format: Self.formatPayload(config.responseFormat),
         )
         let url = baseURL.appendingPathComponent("api/chat")
-        if let recovery {
-            return StreamingRecovery.gatewayEvents(
-                policy: recovery,
-                provider: "ollama",
-                url: url,
-                headers: headers,
-                body: body,
-                timeout: client.bufferedRequestTimeout,
-            )
-        }
+
         let transport = lineTransport
         let headers = headers
 
@@ -245,6 +236,59 @@ public struct OllamaGateway: LLMGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
+
+        CompletionEventStreaming.events(
+            transport: lineTransport,
+            url: baseURL.appendingPathComponent("api/chat"),
+            body: buildChatRequest(
+                model: model,
+                messages: messages,
+                tools: nil,
+                config: config,
+                stream: true,
+                format: Self.formatPayload(config.responseFormat),
+            ),
+            headers: headers,
+            parser: OllamaCompletionEventParser(),
+        )
+    }
+
+    /// Stream with opt-in recovery telemetry and typed failures.
+    public func streamRecovering(
+        model: String,
+        messages: [LLMMessage],
+        tools: [any LLMTool]?,
+        config: CompletionConfig,
+    ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        let body = buildChatRequest(
+            model: model,
+            messages: messages,
+            tools: tools,
+            config: config,
+            stream: true,
+            format: Self.formatPayload(config.responseFormat),
+        )
+        let url = baseURL.appendingPathComponent("api/chat")
+        if let recovery {
+            return StreamingRecovery.gatewayEvents(
+                policy: recovery,
+                provider: "ollama",
+                url: url,
+                headers: headers,
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+            )
+        }
+        return RecoveryStreamBridge.lift(
+            stream(model: model, messages: messages, tools: tools, config: config))
+    }
+
+    /// Stream with opt-in recovery telemetry and typed failures.
+    public func completeStreamEventsRecovering(
+        model: String,
+        messages: [LLMMessage],
+        config: CompletionConfig,
+    ) -> AsyncStream<RecoveryCompletionStreamEvent> {
         if let recovery {
             return StreamingRecovery.completionEvents(
                 policy: recovery,
@@ -262,20 +306,8 @@ public struct OllamaGateway: LLMGateway {
                 timeout: client.bufferedRequestTimeout,
             )
         }
-        return CompletionEventStreaming.events(
-            transport: lineTransport,
-            url: baseURL.appendingPathComponent("api/chat"),
-            body: buildChatRequest(
-                model: model,
-                messages: messages,
-                tools: nil,
-                config: config,
-                stream: true,
-                format: Self.formatPayload(config.responseFormat),
-            ),
-            headers: headers,
-            parser: OllamaCompletionEventParser(),
-        )
+        return RecoveryStreamBridge.lift(
+            completeStreamEvents(model: model, messages: messages, config: config))
     }
 
     // MARK: - Request building

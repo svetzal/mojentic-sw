@@ -80,7 +80,7 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
 
     func consume(_ gateway: any LLMGateway, record: RecoveryLocked<[String]>? = nil) async throws {
         if single {
-            for await event in try gateway.completeStreamEvents(
+            for await event in try gateway.completeStreamEventsRecovering(
                 model: "fixture",
                 messages: [.user("payload-sentinel")],
                 config: .init(),
@@ -90,12 +90,12 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
                 case .progress: record?.withLock { $0.append("progress") }
                 case .metrics: record?.withLock { $0.append("metrics") }
                 case .completed: record?.withLock { $0.append("completed") }
-                case .error(.recovery(let error)): throw error
+                case .recoveryFailure(let error): throw error
                 case .error(let error): throw error
                 }
             }
         } else {
-            for try await event in gateway.stream(
+            for try await event in gateway.streamRecovering(
                 model: "fixture",
                 messages: [.user("payload-sentinel")],
                 tools: nil,

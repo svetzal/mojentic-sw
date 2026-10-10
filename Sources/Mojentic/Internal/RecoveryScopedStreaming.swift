@@ -4,8 +4,9 @@ import Foundation
 enum RecoveryScopedStreaming {
     typealias Delivery<Element: Sendable> = @Sendable (Element) async throws -> Void
     typealias Operation<Element: Sendable> = @Sendable (@escaping Delivery<Element>) async throws -> Void
-    typealias CompletionDelivery = Delivery<CompletionStreamEvent>
-    typealias CompletionRelay = @Sendable (@escaping CompletionDelivery) async throws -> CompletionStreamEvent
+    typealias CompletionDelivery = Delivery<RecoveryCompletionStreamEvent>
+    typealias CompletionRelay =
+        @Sendable (@escaping CompletionDelivery) async throws -> RecoveryCompletionStreamEvent
 
     static func throwing<Element: Sendable>(
         operation: @escaping Operation<Element>
@@ -37,8 +38,8 @@ enum RecoveryScopedStreaming {
 
     static func completion(
         operation: @escaping CompletionRelay
-    ) -> AsyncStream<CompletionStreamEvent> {
-        let delivery = RecoveryDelivery<CompletionStreamEvent>()
+    ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        let delivery = RecoveryDelivery<RecoveryCompletionStreamEvent>()
         let scope = RecoveryCancellationScope.current
         let id = UUID()
         scope?.prepare(id)

@@ -74,7 +74,7 @@ struct StreamingRecoveryCancellationTests {
         let task = Task {
             try await withRecoveryStreamCancellation {
                 if single {
-                    let stream = try gateway.completeStreamEvents(
+                    let stream = try gateway.completeStreamEventsRecovering(
                         model: "fixture", messages: [], config: .init(),
                     )
                     var iterator = stream.makeAsyncIterator()
@@ -88,7 +88,8 @@ struct StreamingRecoveryCancellationTests {
                     // AsyncStream returns nil when next() begins on an already cancelled task.
                     #expect(next == nil)
                 } else {
-                    let stream = gateway.stream(model: "fixture", messages: [], tools: nil, config: .init())
+                    let stream = gateway.streamRecovering(
+                        model: "fixture", messages: [], tools: nil, config: .init())
                     var iterator = stream.makeAsyncIterator()
                     guard case .progress? = try await iterator.next() else {
                         Issue.record("Expected progress")

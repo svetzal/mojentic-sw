@@ -8,9 +8,9 @@ import Testing
 
 struct SenderRegistrationCancellationTests {
     private enum RetainedStream: Sendable {
-        case gateway(AsyncThrowingStream<GatewayStreamEvent, any Error>)
+        case gateway(AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>)
         case relay(AsyncThrowingStream<StreamEvent, any Error>)
-        case completion(AsyncStream<CompletionStreamEvent>)
+        case completion(AsyncStream<RecoveryCompletionStreamEvent>)
     }
 
     @Test(arguments: StreamingBoundary.all, ["gateway", "broker", "session"])
@@ -118,10 +118,10 @@ struct SenderRegistrationCancellationTests {
 
     private func senderType(boundary: StreamingBoundary, path: String) -> String {
         if boundary.single {
-            return "Mojentic.CompletionStreamEvent"
+            return "Mojentic.RecoveryCompletionStreamEvent"
         }
         if path == "gateway" {
-            return "Mojentic.GatewayStreamEvent"
+            return "Mojentic.RecoveryGatewayStreamEvent"
         }
         return "Mojentic.StreamEvent"
     }
@@ -162,8 +162,8 @@ struct SenderRegistrationCancellationTests {
         if boundary.single {
             return try .completion(
                 path == "gateway"
-                    ? gateway.completeStreamEvents(model: "fixture", messages: [], config: .init())
-                    : broker.generateStreamEvents(model: "fixture", messages: [])
+                    ? gateway.completeStreamEventsRecovering(model: "fixture", messages: [], config: .init())
+                    : broker.generateRecoveryStreamEvents(model: "fixture", messages: [])
             )
         }
         if path != "gateway" {
@@ -171,7 +171,7 @@ struct SenderRegistrationCancellationTests {
                 path == "session" ? chat.stream("fixture") : broker.stream(model: "fixture", messages: [])
             )
         }
-        return .gateway(gateway.stream(model: "fixture", messages: [], tools: nil, config: .init()))
+        return .gateway(gateway.streamRecovering(model: "fixture", messages: [], tools: nil, config: .init()))
     }
 
     private func assertAttempt(
@@ -255,7 +255,7 @@ struct SenderRegistrationCancellationTests {
         case .completion(let stream):
             var errors = 0
             for await event in stream {
-                if case .error(.recovery(let error)) = event {
+                if case .recoveryFailure(let error) = event {
                     #expect(error.outcome == .cancelled)
                     #expect(error.history.count == 1)
                     errors += 1

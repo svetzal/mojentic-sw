@@ -9,8 +9,8 @@ enum StreamingRecovery {
         headers: [String: String],
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
-    ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
-        let delivery = RecoveryDelivery<GatewayStreamEvent>()
+    ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        let delivery = RecoveryDelivery<RecoveryGatewayStreamEvent>()
         let scope = RecoveryCancellationScope.current
         let producerID = UUID()
         scope?.prepare(producerID)
@@ -54,8 +54,8 @@ enum StreamingRecovery {
         headers: [String: String],
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
-    ) -> AsyncStream<CompletionStreamEvent> {
-        let delivery = RecoveryDelivery<CompletionStreamEvent>()
+    ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        let delivery = RecoveryDelivery<RecoveryCompletionStreamEvent>()
         let scope = RecoveryCancellationScope.current
         let producerID = UUID()
         scope?.prepare(producerID)
@@ -70,7 +70,7 @@ enum StreamingRecovery {
                     timeout: timeout,
                     singleTurn: true,
                 ) { event in
-                    let output: CompletionStreamEvent
+                    let output: RecoveryCompletionStreamEvent
                     switch event {
                     case .textDelta(let text): output = .content(text)
                     case .progress(let progress): output = .progress(progress)
@@ -81,7 +81,7 @@ enum StreamingRecovery {
                 }
                 try Task.checkCancellation()
                 try await delivery.send(.completed(evidence))
-            } catch let error as RecoveryError { delivery.terminal(.error(.recovery(error))) } catch {
+            } catch let error as RecoveryError { delivery.terminal(.recoveryFailure(error)) } catch {
                 delivery.terminal(
                     .error(Task.isCancelled ? .cancelled : .requestFailed(message: "Recovery setup failed"))
                 )
@@ -106,7 +106,7 @@ enum StreamingRecovery {
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
         singleTurn: Bool,
-        deliver: @escaping @Sendable (GatewayStreamEvent) async throws -> Void,
+        deliver: @escaping @Sendable (RecoveryGatewayStreamEvent) async throws -> Void,
     ) async throws -> CompletionEvidence {
         var engine = BufferedRecovery(policy: policy, provider: provider, operation: "streaming")
         try engine.validatePolicy()
@@ -202,7 +202,7 @@ enum StreamingRecovery {
         timeout: TimeInterval?,
         number: Int,
         decoder: RecoveryStreamDecoder,
-        deliver: @escaping @Sendable (GatewayStreamEvent) async throws -> Void,
+        deliver: @escaping @Sendable (RecoveryGatewayStreamEvent) async throws -> Void,
     ) async throws -> RecoveryHTTPResult {
         try await withThrowingTaskGroup(of: RecoveryHTTPResult?.self) { group in
             group.addTask {
@@ -211,7 +211,7 @@ enum StreamingRecovery {
                         break
                     }
                     do {
-                        let output: GatewayStreamEvent
+                        let output: RecoveryGatewayStreamEvent
                         if case .progress(var progress) = event {
                             progress.delivered = decoder.snapshot().progress.delivered
                             output = .progress(progress)

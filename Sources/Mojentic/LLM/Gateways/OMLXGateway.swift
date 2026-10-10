@@ -54,7 +54,7 @@ import Logging
 /// gateway records its value in ``LLMGatewayResponse/metadata`` under
 /// `response_format_warning` and logs a warning. It does not retry or fail.
 /// Validate the content yourself.
-public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
+public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
     private let configuration: OMLXConfiguration
     private var recovery: CompletionRecoveryPolicy?
     private let transport: any RequestTransport
@@ -209,16 +209,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             stream: true,
             responseFormat: config.responseFormat.map(OpenAIGateway.responseFormatPayload),
         )
-        if let recovery {
-            return StreamingRecovery.gatewayEvents(
-                policy: recovery,
-                provider: "omlx",
-                url: url("chat/completions"),
-                headers: authHeaders(),
-                body: body,
-                timeout: configuration.timeout,
-            )
-        }
+
         return OpenAILegacyStreaming.events(
             transport: lineTransport,
             url: url("chat/completions"),
@@ -251,22 +242,22 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             fields["stream_options"] = ["include_usage": true]
             body = .object(fields)
         }
-        if let recovery {
-            return StreamingRecovery.completionEvents(
-                policy: recovery,
-                provider: "omlx",
-                url: url("chat/completions"),
-                headers: authHeaders(),
-                body: body,
-                timeout: configuration.timeout,
-            )
-        }
+
         return CompletionEventStreaming.events(
             transport: lineTransport,
             url: url("chat/completions"),
             body: body,
             headers: authHeaders(),
             parser: OpenAICompletionEventParser(),
+        )
+    }
+
+    var recoveryStreamConfiguration: OMLXRecoveryStreamConfiguration {
+        OMLXRecoveryStreamConfiguration(
+            policy: recovery,
+            url: url("chat/completions"),
+            headers: authHeaders(),
+            timeout: configuration.timeout,
         )
     }
 

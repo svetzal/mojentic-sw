@@ -65,9 +65,6 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
     /// The gateway does not support single-turn event streams.
     case streamEventsUnsupported
 
-    /// Inspectable request recovery failure with a safe default summary.
-    case recovery(RecoveryError)
-
     /// Human-readable representation of the error suitable for logging.
     public var description: String {
         switch self {
@@ -91,7 +88,6 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
             "Provider error\(status.map { " (HTTP \($0))" } ?? ""): \(detail)"
         case .requestFailed(let message): "Request failed: \(message)"
         case .invalidStreamEvent(let message): "Invalid stream event: \(message)"
-        case .recovery(let error): error.description
         case .streamEventsUnsupported: "Gateway does not support single-turn event streams"
         }
     }

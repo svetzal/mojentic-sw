@@ -11,12 +11,6 @@ public enum GatewayStreamEvent: Sendable {
     /// A delta of model reasoning trace (provider-supplied).
     case thinkingDelta(String)
 
-    /// Validated observed progress for an opt-in recovery stream.
-    case progress(RecoveryProgress)
-
-    /// Provider evidence from a validated recovery streaming frame.
-    case metrics(CompletionEvidence)
-
     /// One fully-assembled tool-call request the model wants to invoke.
     case toolCallRequest(LLMToolCall)
 

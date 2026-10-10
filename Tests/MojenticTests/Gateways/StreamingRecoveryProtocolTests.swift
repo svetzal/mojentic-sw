@@ -76,7 +76,7 @@ struct StreamingRecoveryProtocolTests {
         let recorder = RecoveryRecorder()
         let gateway = boundary.gateway(server, recoveryPolicy(recorder))
         if boundary.single {
-            for await event in try gateway.completeStreamEvents(
+            for await event in try gateway.completeStreamEventsRecovering(
                 model: "fixture",
                 messages: [],
                 config: .init(),
@@ -90,7 +90,7 @@ struct StreamingRecoveryProtocolTests {
                 }
             }
         } else {
-            for try await event in gateway.stream(
+            for try await event in gateway.streamRecovering(
                 model: "fixture", messages: [], tools: nil, config: .init(),
             ) {
                 #expect(!String(describing: event).contains("sentinel"))

@@ -306,7 +306,7 @@ public actor LLMBroker {
 
         let clock = ContinuousClock()
         let start = clock.now
-        let upstream = gateway.stream(
+        let upstream = gateway.streamRecovering(
             model: model,
             messages: messages,
             tools: tools.isEmpty ? nil : tools,
