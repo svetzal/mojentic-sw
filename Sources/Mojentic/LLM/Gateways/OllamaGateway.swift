@@ -14,6 +14,7 @@ import Logging
 public struct OllamaGateway: LLMGateway {
     private let baseURL: URL
     private let client: HTTPClient
+    private var recovery: CompletionRecoveryPolicy?
     private let lineTransport: any LineStreamingTransport
     private let headers: [String: String]
     private let logger: Logger
@@ -29,13 +30,28 @@ public struct OllamaGateway: LLMGateway {
         return url
     }()
 
-    /// Create an Ollama gateway pointed at `baseURL`.
+    /// Create a legacy Ollama gateway with one send per buffered completion.
     public init(
         baseURL: URL = OllamaGateway.defaultBaseURL,
         client: HTTPClient = HTTPClient(),
         headers: [String: String] = [:]
     ) {
+        self.init(baseURL: baseURL, client: client, headers: headers, recovery: nil)
+    }
+
+    /// Create an Ollama gateway pointed at `baseURL`.
+    ///
+    /// `recovery` opts buffered completions into isolated wire sessions; the supplied
+    /// client's idle timeout is preserved but its custom protocol/TLS session configuration is not inherited.
+    /// Streaming always follows the existing client path.
+    public init(
+        baseURL: URL = OllamaGateway.defaultBaseURL,
+        client: HTTPClient = HTTPClient(),
+        headers: [String: String] = [:],
+        recovery: CompletionRecoveryPolicy?
+    ) {
         self.init(baseURL: baseURL, client: client, headers: headers, lineTransport: client)
+        self.recovery = recovery
     }
 
     /// Create an Ollama gateway whose streaming requests go through `lineTransport`.
@@ -69,8 +85,18 @@ public struct OllamaGateway: LLMGateway {
             stream: false,
             format: Self.formatPayload(config.responseFormat)
         )
-        logger.debug("Ollama complete", metadata: ["model": .string(model)])
+        if recovery == nil {
+            logger.debug("Ollama complete", metadata: ["model": .string(model)])
+        }
         let url = baseURL.appendingPathComponent("api/chat")
+        if let recovery {
+            var engine = BufferedRecovery(policy: recovery, provider: "ollama", operation: "ordinary")
+            return try await engine.run(
+                url: url, headers: headers, body: body, timeout: client.bufferedRequestTimeout
+            ) { data, _ in
+                try JSONDecoder().decode(OllamaChatResponse.self, from: data).toGatewayResponse()
+            }
+        }
         let response = try await client.postJSON(
             url: url,
             body: body,
@@ -112,6 +138,21 @@ public struct OllamaGateway: LLMGateway {
             format: schema
         )
         let url = baseURL.appendingPathComponent("api/chat")
+        if let recovery {
+            var engine = BufferedRecovery(policy: recovery, provider: "ollama", operation: "structured")
+            return try await engine.run(
+                url: url,
+                headers: headers,
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+                decode: { data, _ in
+                    try JSONDecoder().decode(OllamaChatResponse.self, from: data).toGatewayResponse()
+                },
+                project: { response in
+                    let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
+                    return StructuredGatewayResponse(value: value, response: response)
+                })
+        }
         let wire = try await client.postJSON(
             url: url,
             body: body,
@@ -417,50 +458,7 @@ private struct OllamaToolFunction: Encodable {
     let parameters: JSONValue
 }
 
-/// Provider evidence Ollama reports on a response or final stream frame.
-struct OllamaResponseEvidence: Decodable {
-    let model: String?
-    let createdAt: String?
-    let promptEvalCount: Int?
-    let evalCount: Int?
-    let totalDuration: Int?
-    let loadDuration: Int?
-    let promptEvalDuration: Int?
-    let evalDuration: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case model
-        case createdAt = "created_at"
-        case promptEvalCount = "prompt_eval_count"
-        case evalCount = "eval_count"
-        case totalDuration = "total_duration"
-        case loadDuration = "load_duration"
-        case promptEvalDuration = "prompt_eval_duration"
-        case evalDuration = "eval_duration"
-    }
-
-    /// Reported token counts; `nil` when Ollama reported neither.
-    var usage: Usage? {
-        guard promptEvalCount != nil || evalCount != nil else { return nil }
-        return Usage(
-            promptTokens: promptEvalCount,
-            completionTokens: evalCount,
-            totalTokens: (promptEvalCount ?? 0) + (evalCount ?? 0)
-        )
-    }
-
-    /// Reported timestamps and durations; `nil` when none were reported.
-    var metadata: [String: JSONValue]? {
-        var fields: [String: JSONValue] = [:]
-        if let createdAt { fields["created_at"] = .string(createdAt) }
-        if let totalDuration { fields["total_duration"] = .integer(totalDuration) }
-        if let loadDuration { fields["load_duration"] = .integer(loadDuration) }
-        if let promptEvalDuration { fields["prompt_eval_duration"] = .integer(promptEvalDuration) }
-        if let evalDuration { fields["eval_duration"] = .integer(evalDuration) }
-        return fields.isEmpty ? nil : fields
-    }
-}
-
+/// Buffered Ollama chat envelope and provider evidence.
 struct OllamaChatResponse: Decodable {
     let message: OllamaResponseMessage
     let done: Bool?

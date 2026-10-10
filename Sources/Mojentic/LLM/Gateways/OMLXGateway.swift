@@ -55,12 +55,23 @@ import Logging
 /// Validate the content yourself.
 public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     private let configuration: OMLXConfiguration
+    private var recovery: CompletionRecoveryPolicy?
     private let transport: any RequestTransport
     private let lineTransport: any LineStreamingTransport
     private let logger: Logger
 
     /// Metadata key for the `Warning` header of an unenforced response format.
     public static let responseFormatWarningKey = "response_format_warning"
+
+    /// Create a legacy oMLX gateway with one send per buffered completion.
+    public init(
+        host: URL? = nil,
+        apiKey: String? = nil,
+        timeout: TimeInterval? = nil,
+        session: URLSession = .shared
+    ) {
+        self.init(host: host, apiKey: apiKey, timeout: timeout, session: session, recovery: nil)
+    }
 
     /// Create an oMLX gateway.
     ///
@@ -71,12 +82,14 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     ///     requests carry no `Authorization` header.
     ///   - timeout: idle timeout in seconds for every request; falls back to
     ///     `OMLX_TIMEOUT` (in milliseconds), then 600 seconds.
-    ///   - session: the `URLSession` requests go through.
+    ///   - session: the `URLSession` legacy requests go through.
+    ///   - recovery: Optional buffered recovery using an isolated session per wire attempt.
     public init(
         host: URL? = nil,
         apiKey: String? = nil,
         timeout: TimeInterval? = nil,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        recovery: CompletionRecoveryPolicy?
     ) {
         let configuration = OMLXConfiguration.resolve(
             host: host,
@@ -86,6 +99,7 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
         )
         let client = HTTPClient(session: session, requestTimeout: configuration.timeout)
         self.init(configuration: configuration, transport: client, lineTransport: client)
+        self.recovery = recovery
     }
 
     /// Create an oMLX gateway over the supplied transports.
@@ -150,6 +164,12 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
             stream: false,
             responseFormat: OpenAIGateway.responseFormatPayload(.jsonSchema(schema))
         )
+        if recovery != nil {
+            return try await recoveryChat(body: body, structured: true, operation: "structured") { response in
+                let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
+                return StructuredGatewayResponse(value: value, response: response)
+            }
+        }
         let response = try await chat(body: body, structured: true)
         do {
             let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
@@ -325,19 +345,56 @@ public struct OMLXGateway: LLMGateway, EmbeddingsGateway {
     }
 
     private func chat(body: JSONValue, structured: Bool) async throws -> LLMGatewayResponse {
+        if recovery != nil {
+            return try await recoveryChat(body: body, structured: structured, operation: "ordinary") { $0 }
+        }
         let response = try await send(
             TransportRequest(method: "POST", url: url("chat/completions"), body: body))
-        let wire = try Self.decode(OpenAIChatResponse.self, from: response.body)
-        let extras = try Self.decode(OMLXChatExtras.self, from: response.body)
+        return try decodeChat(response.body, headers: response.headers, structured: structured)
+    }
+
+    private func recoveryChat<Result: Sendable>(
+        body: JSONValue,
+        structured: Bool,
+        operation: String,
+        project: (LLMGatewayResponse) throws -> Result
+    ) async throws -> Result {
+        guard let recovery else {
+            throw MojenticError.invalidArgument(message: "Recovery policy is required")
+        }
+        var engine = BufferedRecovery(policy: recovery, provider: "omlx", operation: operation)
+        return try await engine.run(
+            url: url("chat/completions"),
+            headers: authHeaders(),
+            body: body,
+            timeout: configuration.timeout,
+            decode: { data, headers in try decodeChat(data, headers: headers, structured: structured) },
+            project: project)
+    }
+
+    private func decodeChat(
+        _ data: Data, headers: [HTTPHeader], structured: Bool
+    ) throws -> LLMGatewayResponse {
+        let wire =
+            try recovery == nil
+            ? Self.decode(OpenAIChatResponse.self, from: data)
+            : JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+        let extras =
+            try recovery == nil
+            ? Self.decode(OMLXChatExtras.self, from: data)
+            : JSONDecoder().decode(OMLXChatExtras.self, from: data)
         var metadata = wire.envelope.metadata ?? [:]
         if let usage = extras.usage {
             metadata["usage"] = usage
         }
-        let warnings = response.values(for: "Warning")
+        let warnings = headers.filter { $0.name.caseInsensitiveCompare("Warning") == .orderedSame }.map(
+            \.value)
         if structured, !warnings.isEmpty {
             let warning = warnings.joined(separator: ", ")
             metadata[Self.responseFormatWarningKey] = .string(warning)
-            logger.warning("oMLX did not enforce the requested response format: \(warning)")
+            if recovery == nil {
+                logger.warning("oMLX did not enforce the requested response format: \(warning)")
+            }
         }
         let base = wire.toGatewayResponse()
         return LLMGatewayResponse(
@@ -509,38 +566,6 @@ extension ResponseFormat {
         case .text: return false
         case .jsonObject, .jsonSchema: return true
         }
-    }
-}
-
-/// The fields of an oMLX chat response that the OpenAI decoding drops.
-private struct OMLXChatExtras: Decodable {
-    /// `choices[0].message.reasoning_content`.
-    let reasoningContent: String?
-    /// `usage` exactly as reported, including oMLX's own fields.
-    let usage: JSONValue?
-
-    private enum CodingKeys: String, CodingKey {
-        case choices
-        case usage
-    }
-
-    private struct Choice: Decodable {
-        let message: Message?
-    }
-
-    private struct Message: Decodable {
-        let reasoningContent: String?
-
-        enum CodingKeys: String, CodingKey {
-            case reasoningContent = "reasoning_content"
-        }
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let choices = try container.decodeIfPresent([Choice].self, forKey: .choices)
-        reasoningContent = choices?.first?.message?.reasoningContent
-        usage = try container.decodeIfPresent(JSONValue.self, forKey: .usage)
     }
 }
 

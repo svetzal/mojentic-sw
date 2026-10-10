@@ -84,6 +84,11 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
         self.requestTimeout = requestTimeout
     }
 
+    /// Preserve the caller's idle-timeout configuration on the isolated recovery session.
+    var bufferedRequestTimeout: TimeInterval {
+        requestTimeout ?? session.configuration.timeoutIntervalForRequest
+    }
+
     /// Issue a JSON POST and return the decoded response body.
     public func postJSON<Response: Decodable>(
         url: URL,
