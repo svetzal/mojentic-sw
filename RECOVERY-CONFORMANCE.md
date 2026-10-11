@@ -5,18 +5,21 @@
 Delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` contains the recovery
 corrections described in cycles 7–11 below. Those sections are preserved historical
 records: their statements that worker changes await integration do not describe
-this delivered main. The stream metadata identity correction below remains uncommitted
-for Foundry finalization.
+this delivered main. The stream metadata work is integrated in controller-synchronized
+origin/main `3cc1d1f` and preserved here. Read-only inspection found clean worker HEAD
+`c72394b` with local and remote origin/main at `3cc1d1f`; no refs were reconciled.
+The JSON/status assertion correction below remains uncommitted for Foundry finalization.
 
 [The independent whole-mission acceptance ledger](RECOVERY-ACCEPTANCE.md) reviews
 actual public provider/operation paths and assertion strength against both normative
 documents, the October 10 supplement and exact Rust
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Its verdict is conditional: strong
-Linux terminal, capture and tool-safety evidence exists, but several assertion
-conjunctions, direct JSON convenience cases and populated native-history retry
-fixtures remain unproved. Unsupported-request-option coverage remains limited. The stream metadata
-identity correction below adds public per-event correlation assertions. This is not an unconditional
-whole-port alignment claim.
+Linux terminal, capture and tool-safety evidence exists. The JSON/status correction
+below closes the targeted assertion conjunctions and direct JSON retry cases;
+populated native-history retry and streaming tool-follow-up expansion remain open.
+Unsupported-request-option coverage remains limited. The stream metadata identity
+correction below adds public per-event correlation assertions. This is not an
+unconditional whole-port alignment claim.
 Apple/Darwin validation passed on October 11, 2026 in CI run
 [38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
 at `0cea3ed346e9b47a2afdfefe0066953123b68e87`, after the Darwin corrections in
@@ -592,3 +595,39 @@ bodies) and `b8685d4` (ten-second sender-registration readiness) are already pre
 preserved source and retained without worker ref mutations. Historical green CI on `0cea3ed` does not validate
 this slice: controller integration must require green existing `build-macos` and
 `build-linux-minimum` jobs for the exact landed revision before acceptance.
+
+## JSON/permanent-status/persistent-504 assertion correction
+
+The new `RecoveryJSONConformanceTests.completeJSONRetrySuccess` directly invokes
+`completeJSON` across Ollama, oMLX, OpenAI and trait-enabled Anthropic, with a 503
+followed by valid structured JSON. `RecoveryStatusConformanceTests` directly
+exercises `complete`, `completeStructured`, `completeJSON`, `streamRecovering` and
+`completeStreamEventsRecovering` through the shared test boundary. No runtime,
+dependency, native-history or streaming follow-up behavior changes are included.
+
+Permanent truncated 400/401/403 responses stay one-send ineligible even with those
+statuses selected, transport eligibility enabled and permissive admission. Persistent
+504 responses exhaust configured limits one and three; complete and truncated
+variants retain their original typed status/transport causes. Every matrix case
+jointly checks ordered exact socket request bytes against opt-in captures, immutable
+retry payloads, full logical/attempt UUIDs and wire numbers across captures,
+admissions, lifecycle, public failures and report history, exact response headers
+and complete/partial bytes, and observed/delivered progress. Exact lifecycle ordering
+ends in ineligibility or exhaustion without semantic delivery or a success event.
+The JSON success case checks the JSON result, schema shaping and successful counters.
+[Acceptance evidence Q](RECOVERY-ACCEPTANCE.md) identifies the assertion helpers and
+actual public entrypoints without upgrading unrelated JSON cells or historical tests.
+
+Before expansion, the Ollama `completeJSON` proof required an original partial-transfer
+`URLError` from a permanent 401. A complete-body input rejected that assertion
+(exit 1); changing the input to synchronized truncation passed (exit 0). This
+establishes the assertion gap through the real HTTP boundary and does not claim a
+runtime repair. Foundry retains the behavioral proof and full capture logs.
+
+All six unchanged Linux Swift 6.4 gates passed after these test changes, including
+333 default tests and 344 full-trait tests. Standalone SwiftFormat, unfiltered tracked-
+lockfile OSV (no issues) and the native full-trait API audit against `v2.1.0` (no
+breaking changes) passed. Foundry capture retains the complete execution logs.
+Historical platform receipts do not establish this slice as landed: Foundry/controller must
+finalize it and validate existing `build-macos` and `build-linux-minimum` jobs on the
+exact integrated commit. No worker ref mutation or release is part of this task.
