@@ -13,6 +13,17 @@ move independently.
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.
 
+### Fixed
+
+- On Apple platforms, a recovery attempt whose non-2xx body ends before its
+  `Content-Length` now keeps a `URLError.networkConnectionLost` cause.
+  URLSession on Apple platforms reports such a body as complete;
+  FoundationNetworking reports the lost connection. The status still decides
+  the failure category and eligibility.
+- On Apple platforms, legacy streaming calls that get a non-2xx status now
+  throw `MojenticError.http(status:body:)` with the response body, as on Linux.
+  The body was empty before.
+
 ## [2.1.0] - 2026-09-30
 
 - Reject malformed completion stream control fields instead of ignoring them.

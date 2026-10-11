@@ -37,6 +37,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
+        let policy = policy.map { reportingDeliveries(to: server, $0) }
         #if anthropic
             if anthropic {
                 let session = URLSessionConfiguration.ephemeral
@@ -179,6 +180,25 @@ func recoveryPolicy(_ recorder: RecoveryRecorder, attempts: Int = 2) -> Completi
         recorder.wires.withLock { $0.append(event) }
         if case .request(let identity, _, _, let data) = event {
             recorder.requests.withLock { $0.append((identity, data)) }
+        }
+    }
+    return policy
+}
+
+/// Reports received body bytes to the loopback after the caller's wire observer, even when it throws.
+private func reportingDeliveries(
+    to server: RecoveryLoopback,
+    _ policy: CompletionRecoveryPolicy,
+) -> CompletionRecoveryPolicy {
+    var policy = policy
+    let observe = policy.wireObserver
+    server.expectDeliveryReports()
+    policy.wireObserver = { event in
+        if case .body(_, let data) = event {
+            defer { server.reportDelivery(data.count) }
+            try observe?(event)
+        } else {
+            try observe?(event)
         }
     }
     return policy

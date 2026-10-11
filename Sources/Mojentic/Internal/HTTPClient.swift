@@ -140,7 +140,9 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     /// `URLSession.bytes(for:)`. Linux (swift-corelibs-foundation) lacks
     /// `URLSession.AsyncBytes`, so this falls back to buffering the full
     /// response and yielding lines from it. The line-iterating contract is
-    /// identical; only the back-pressure characteristics differ.
+    /// identical; only the back-pressure characteristics differ. A non-2xx
+    /// response throws ``MojenticError/http(status:body:)`` with the full
+    /// response body on both platforms.
     public func streamLines(
         url: URL,
         body: some Encodable,
@@ -159,6 +161,14 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
             return Self.linesStream(from: data)
         #else
             let (bytes, response) = try await session.bytes(for: request)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                // Read the finite error body so the HTTP error matches the buffered Linux path.
+                var errorBody = Data()
+                for try await byte in bytes {
+                    errorBody.append(byte)
+                }
+                try assertSuccess(response: response, sampleBody: errorBody)
+            }
             try assertSuccess(response: response, sampleBody: Data())
             return AsyncThrowingStream { continuation in
                 let task = Task {

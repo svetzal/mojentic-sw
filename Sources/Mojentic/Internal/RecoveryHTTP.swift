@@ -174,7 +174,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         let result = RecoveryHTTPResult(
             response: response,
             body: bytes,
-            cause: captureCause ?? error,
+            cause: captureCause ?? error ?? Self.lostConnection(response: response, received: bytes.count),
             captureFailed: captureCause != nil,
             observed: observed,
         )
@@ -184,6 +184,27 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         lock.unlock()
         continuation?.resume(returning: result)
         session.finishTasksAndInvalidate()
+    }
+}
+
+extension RecoveryHTTP {
+    /// Reports a body that ended before its advertised length as a lost connection.
+    ///
+    /// Apple URLSession completes a non-2xx response without an error when the
+    /// server closes before sending `Content-Length` bytes; FoundationNetworking
+    /// and Apple's own 2xx handling report the lost connection. Recovery keeps the
+    /// transport cause on every platform. A body with a content coding is not
+    /// checked, because URLSession delivers decoded bytes but advertises the
+    /// encoded length.
+    static func lostConnection(response: HTTPURLResponse?, received: Int) -> URLError? {
+        guard
+            let response,
+            ![204, 304].contains(response.statusCode),
+            response.expectedContentLength > Int64(received),
+            (response.value(forHTTPHeaderField: "Content-Encoding") ?? "identity")
+                .caseInsensitiveCompare("identity") == .orderedSame
+        else { return nil }
+        return URLError(.networkConnectionLost)
     }
 }
 
