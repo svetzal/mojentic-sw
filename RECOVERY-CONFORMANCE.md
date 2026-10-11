@@ -544,16 +544,37 @@ The library cannot observe discarded bytes, so it cannot refuse replay on them.
 
 ## Stream metadata identity correction
 
-The public `RecoveryMetadataIdentityTests.publicLoopbackIdentity` loopback assertion
-first rejected missing progress identity, then passed after the decoder attached
-transport-assigned identity. `RecoveryMetadataConformanceTests` checks full logical
-and attempt UUIDs and wire numbers against captured requests, lifecycle transitions
-and reports, including a 503 retry with identical captured/socket request bytes.
-Ollama progress and metrics and OpenAI usage metrics retain provider ordering and
-restart frame indices per wire attempt. Anthropic retains its existing Messages
-metrics; oMLX has no fabricated progress or metrics. UTF-8 counters use bytes,
-not character counts. Local identity and frame indices are separate from provider
-fields and absent in legacy evidence.
+The preserved `637e470` slice retains transport-assigned metadata identity in the
+coupled decoder, delivery relay, gateways and single-turn broker. Its transport/body
+handling, delivery synchronization and ten-second sender-registration readiness
+match delivered `a57afdf`; this correction leaves those behaviors intact.
+
+`RecoveryMetadataConformanceTests.publicMetadata` replaces the 503-only retry with
+HTTP 200 metadata followed by a deliberately short body and an eligible disconnect.
+The real loopback holds the close until the wire observer reports the complete
+first body. Attempt two begins with distinct nonsemantic provider values before
+UTF-8 content and successful termination. Tests exercise tool and single-turn
+gateway streams plus single-turn broker streams for Ollama, OpenAI and Anthropic.
+oMLX runs the same boundary checks while asserting its truthful telemetry absence.
+
+Assertions compare full logical/attempt UUIDs and wire numbers with the exact
+socket request bodies and wire captures, both response bodies, ordered public
+metadata and provider values, frame-index reset, zero first-attempt semantic
+progress, admission, lifecycle transitions, failure history and final report.
+Ambiguous remote acceptance requires an explicit local admission callback;
+`metadataDisconnectRequiresAdmission` proves that omitting it stops at one request.
+Ollama metrics keep numeric provider values and omit provider model names;
+OpenAI metrics keep usage alone; Anthropic keeps Messages model/identifier evidence.
+Local attribution remains separate from those provider fields and absent in legacy
+evidence. UTF-8 counters use bytes rather than character counts.
+
+The early public-boundary probe for this correction ran only the Ollama tool stream,
+before matrix expansion or full gates. With the old 503 fixture, the stronger
+assertions rejected missing first-attempt metadata and disconnect evidence (exit 1).
+Changing the first reply to synchronized nonsemantic metadata plus truncation passed
+(exit 0). This is new execution evidence; it does not establish historical red/green
+proof for the preserved feature. Foundry retains the probe, full logs and independent
+scoped review as execution scratch outside committed project artifacts.
 
 The intended behavior was compared read-only with Rust
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`, specifically recovery `frames.rs`
@@ -567,8 +588,7 @@ single-turn forwarding remain coupled; cancellation and terminal accounting are
 unchanged.
 
 Controller source corrections from `0cea3ed` (Darwin transport evidence and error
-bodies) and `b8685d4` (ten-second sender-registration readiness) are reconciled as
-working-tree edits without worker ref mutations. The historical synchronization
-receipt was checked read-only. Historical green CI on `0cea3ed` does not validate
+bodies) and `b8685d4` (ten-second sender-registration readiness) are already present in the
+preserved source and retained without worker ref mutations. Historical green CI on `0cea3ed` does not validate
 this slice: controller integration must require green existing `build-macos` and
 `build-linux-minimum` jobs for the exact landed revision before acceptance.

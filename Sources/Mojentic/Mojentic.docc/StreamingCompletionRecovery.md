@@ -276,3 +276,16 @@ Ollama exposes validated progress and numeric usage/duration metrics. OpenAI exp
 usage metrics, Anthropic exposes its existing Messages evidence, and oMLX exposes
 no additional telemetry. Missing provider values remain absent. Progress delivery
 counts reflect accepted public semantic events, independently of observed bytes.
+
+Nonsemantic telemetry can precede a failed attempt and appear again on its replacement.
+Keep both attempts' metrics and match their full identities to wire captures and report
+history. Frame indices restart at one for the replacement; usage remains the provider's
+per-attempt value and is not a cumulative logical-request total. Ollama metric events
+retain numeric values and omit provider model names, while Anthropic retains its
+Messages model and identifier evidence.
+
+Receiving metadata alone does not authorize replay. An eligible disconnect can leave
+remote acceptance unknown even when observed and delivered semantic counters are zero.
+The caller's admission hook must explicitly allow the next attempt; without that hook,
+recovery ends with `admissionRequired`. The replacement starts a fresh provider parser,
+while the failed attempt's metadata keeps its original local identity.
