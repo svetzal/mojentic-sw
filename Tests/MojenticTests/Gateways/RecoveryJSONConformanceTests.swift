@@ -10,7 +10,7 @@ struct RecoveryJSONConformanceTests {
         let server = try RecoveryLoopback(replies: [rejected, success])
         let recorder = RecoveryRecorder()
         let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
-        let reports = AsyncStream<CompletionRecoveryReport>.makeStream()
+        let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder)
         policy.admission = { failure, next in
             admissions.withLock { $0.append((failure, next)) }
@@ -20,8 +20,7 @@ struct RecoveryJSONConformanceTests {
             }
         }
         policy.reportObserver = { report in
-            reports.continuation.yield(report)
-            reports.continuation.finish()
+            reports.withLock { $0.append(report) }
         }
         let delivered = RecoveryLocked<[String]>([])
         try await boundary.invoke(boundary.provider.gateway(server, policy: policy), delivered: delivered)
@@ -44,8 +43,9 @@ struct RecoveryJSONConformanceTests {
         #expect(admitted.map(\.0.identity) == [first])
         #expect(admitted.map(\.1) == [2])
         try assertStatusFailure(#require(admitted.first?.0), identity: first, reply: rejected)
-        var iterator = reports.stream.makeAsyncIterator()
-        let report = try #require(await iterator.next())
+        let published = reports.withLock { $0 }
+        #expect(published.count == 1)
+        let report = try #require(published.first)
         #expect(report.logicalID == last.logicalID)
         #expect(report.identity == last)
         #expect(report.history.map(\.identity) == [first])

@@ -67,6 +67,10 @@ The targeted permanent-status and persistent-504 cells now use the new assertion
 other J D cells retain their narrower scope rather than inheriting unrelated JSON
 coverage. Direct J retry success is established by Q. Populated native-history
 retry and streaming tool-follow-up expansion remain open, as do controller gates.
+Cycle 17 reconciles preservation commit `da8cd59` against read-only verified main
+`3cc1d1f`, preserving its integrated metadata and Darwin corrections. Ordered wire
+captures also require the previous response's exact bytes before the next request;
+terminal and successful operations must publish exactly one recovery report.
 These worker changes await Foundry integration and exact-commit platform validation.
 
 ## Requirement by provider by operation ledger
@@ -352,7 +356,7 @@ OSV and native full-trait API audit against `v2.1.0` are required for this revie
 Historical successful gates are not used as current executions.
 
 
-## Current correction verification
+## Preservation-run correction verification
 
 All six unchanged required gates passed on Linux Swift 6.4 after the test changes:
 native format, strict SwiftLint, release build, default parallel tests (333 tests),
@@ -367,3 +371,24 @@ This is local working-tree verification, not landed acceptance. Controller valid
 of `build-macos` and `build-linux-minimum` on the exact integrated commit remains
 required after Foundry finalization; historical CI cannot satisfy it. Native-history
 retry and streaming tool-follow-up coverage remain open. No refs were changed.
+
+## Cycle-17 reconciliation verification
+
+The reconciled files retain the cycle-16 public JSON/permanent-status/persistent-504
+matrix on controller main `3cc1d1f`. Capture ordering now checks each prior response's
+exact bytes before the next request, and report observers retain every callback
+rather than finishing a stream after the first report. Both success and terminal
+failure require a single report, with the existing history and evidence assertions.
+The permanent-401 socket proof was re-executed before these refinements: complete
+body rejection exited 1 and synchronized truncation passed with exit 0.
+
+Fresh cycle-17 foreground captures passed all six discovered gates on Linux Swift
+6.4: strict native format, SwiftLint, release build, 333 default tests, 344 full-trait
+tests and DocC with warnings as errors. Standalone SwiftFormat, unfiltered OSV
+(three tracked packages, no issues) and the unchanged native full-trait API audit
+against `v2.1.0` (no breaking changes) also passed. These are local file validation
+results, not receipts for an integrated main commit.
+
+Foundry owns integration directly onto main. Green `build-macos` and
+`build-linux-minimum` on the exact integrated commit remain required before landed
+acceptance; no worker refs or runtime behavior are changed by this reconciliation.

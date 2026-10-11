@@ -6,9 +6,12 @@ Delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` contains the recovery
 corrections described in cycles 7–11 below. Those sections are preserved historical
 records: their statements that worker changes await integration do not describe
 this delivered main. The stream metadata work is integrated in controller-synchronized
-origin/main `3cc1d1f` and preserved here. Read-only inspection found clean worker HEAD
-`c72394b` with local and remote origin/main at `3cc1d1f`; no refs were reconciled.
-The JSON/status assertion correction below remains uncommitted for Foundry finalization.
+origin/main `3cc1d1f` and preserved here. Cycle 17 started at clean preservation HEAD
+`da8cd59`; read-only remote inspection confirmed controller main at `3cc1d1f` and
+the cycle-16 preservation ref at `da8cd59`. The runtime tree already matches main,
+including Darwin corrections. Main's existing changelog entries are restored as
+file content, without replaying metadata ancestry or changing refs. The scoped
+JSON/status assertion correction remains uncommitted for Foundry finalization.
 
 [The independent whole-mission acceptance ledger](RECOVERY-ACCEPTANCE.md) reviews
 actual public provider/operation paths and assertion strength against both normative
@@ -624,10 +627,22 @@ Before expansion, the Ollama `completeJSON` proof required an original partial-t
 establishes the assertion gap through the real HTTP boundary and does not claim a
 runtime repair. Foundry retains the behavioral proof and full capture logs.
 
-All six unchanged Linux Swift 6.4 gates passed after these test changes, including
+The preserved cycle-16 run passed all six unchanged Linux Swift 6.4 gates, including
 333 default tests and 344 full-trait tests. Standalone SwiftFormat, unfiltered tracked-
 lockfile OSV (no issues) and the native full-trait API audit against `v2.1.0` (no
 breaking changes) passed. Foundry capture retains the complete execution logs.
 Historical platform receipts do not establish this slice as landed: Foundry/controller must
 finalize it and validate existing `build-macos` and `build-linux-minimum` jobs on the
 exact integrated commit. No worker ref mutation or release is part of this task.
+
+Cycle 17 preserves this matrix and strengthens its wire-order and report assertions:
+every previous response must have its exact captured bytes before another request;
+observers retain all reports and require exactly one callback on success or terminal
+failure. The real-socket 401 proof was rerun, rejecting the complete-body input
+(exit 1) and passing with synchronized truncation (exit 0), before these refinements.
+
+Fresh cycle-17 foreground captures verify the reconciled files with all six
+unchanged gates (333 default tests; 344 full-trait tests), standalone SwiftFormat,
+unfiltered tracked-lockfile OSV (three packages, no issues), and the native
+full-trait API audit against `v2.1.0` (no breaking changes). Platform acceptance
+still requires both existing CI jobs on the exact controller-integrated commit.

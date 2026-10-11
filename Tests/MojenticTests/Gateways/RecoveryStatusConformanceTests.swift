@@ -70,7 +70,7 @@ struct RecoveryStatusConformanceTests {
         let server = try RecoveryLoopback(replies: replies)
         let recorder = RecoveryRecorder()
         let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
-        let reports = AsyncStream<CompletionRecoveryReport>.makeStream()
+        let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         let delivered = RecoveryLocked<[String]>([])
         var policy = recoveryPolicy(recorder, attempts: attempts)
         policy.retryableStatuses = [400, 401, 403, 504]
@@ -83,8 +83,7 @@ struct RecoveryStatusConformanceTests {
             }
         }
         policy.reportObserver = { report in
-            reports.continuation.yield(report)
-            reports.continuation.finish()
+            reports.withLock { $0.append(report) }
         }
         let gateway = boundary.provider.gateway(server, policy: policy)
         let error = try await recoveryFailure { try await boundary.invoke(gateway, delivered: delivered) }
@@ -133,8 +132,9 @@ struct RecoveryStatusConformanceTests {
                 #expect(event.progress.headersReceived)
             }
         }
-        var iterator = reports.stream.makeAsyncIterator()
-        let report = try #require(await iterator.next())
+        let published = reports.withLock { $0 }
+        #expect(published.count == 1)
+        let report = try #require(published.first)
         #expect(report.identity == last)
         #expect(report.logicalID == last.logicalID)
         #expect(report.progress == error.failure.progress)

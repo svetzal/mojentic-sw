@@ -98,11 +98,15 @@ func assertStatusWires(
         switch event {
         case .request(let identity, _, _, let bytes):
             let index = requestIDs.count
+            try #require(identities.indices.contains(index))
+            #expect(headerIDs == Array(identities.prefix(index)))
+            #expect(bodies == replies.prefix(index).map { Data($0.body.utf8) })
             #expect(identity == identities[index])
             #expect(bytes == requests[index].1)
             requestIDs.append(identity)
         case .headers(let identity, let status, let headers):
             let index = headerIDs.count
+            try #require(identities.indices.contains(index))
             #expect(requestIDs == Array(identities.prefix(index + 1)))
             #expect(identity == identities[index])
             #expect(status == replies[index].status)
