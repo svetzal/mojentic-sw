@@ -9,13 +9,15 @@ import Testing
 struct RecoveryBoundary: Sendable, CustomStringConvertible {
     let omlx: Bool
     let structured: Bool
+    var openAI = false
     var description: String {
-        "\(omlx ? "omlx" : "ollama")/\(structured ? "structured" : "ordinary")"
+        "\(openAI ? "openai" : omlx ? "omlx" : "ollama")/\(structured ? "structured" : "ordinary")"
     }
 
     static let all = [
         Self(omlx: false, structured: false), Self(omlx: false, structured: true),
         Self(omlx: true, structured: false), Self(omlx: true, structured: true),
+        Self(omlx: true, structured: false, openAI: true), Self(omlx: true, structured: true, openAI: true),
     ]
 
     func gateway(
@@ -23,6 +25,16 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
+        if openAI {
+            let session = URLSessionConfiguration.ephemeral
+            session.timeoutIntervalForRequest = idleTimeout
+            return OpenAIGateway(
+                apiKey: "credential-sentinel",
+                baseURL: server.url,
+                client: HTTPClient(session: URLSession(configuration: session)),
+                recovery: policy,
+            )
+        }
         if omlx {
             return OMLXGateway(
                 host: server.url,

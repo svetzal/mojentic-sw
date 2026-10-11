@@ -37,7 +37,8 @@ struct SenderRegistrationCancellationTests {
         let sendCounts = RecoveryLocked<[String: Int]>([:])
         let finished = RecoveryLocked<[String]>([])
         let target = senderType(boundary: boundary, path: path)
-        let targetNumber = path == "session" || (boundary.single && path == "broker") ? 2 : 1
+        let targetNumber =
+            (path == "session" && !boundary.openAI) || (boundary.single && path == "broker") ? 2 : 1
         let retained = RecoveryLocked<RetainedStream?>(nil)
         let arrived = AsyncStream<Void>.makeStream()
         let delivered = AsyncStream<Void>.makeStream()
@@ -81,7 +82,9 @@ struct SenderRegistrationCancellationTests {
         defer { task.cancel() }
         try #require(await waitForSignals(arrived.stream, count: 1))
         if path != "gateway" {
-            try #require(await waitForSignals(delivered.stream, count: path == "session" ? 2 : 1))
+            try #require(
+                await waitForSignals(delivered.stream, count: path == "session" && !boundary.openAI ? 2 : 1)
+            )
         }
         // The sender passed its initial check and installed its handler, but has
         // no continuation yet. Neither stream iteration nor fixture release can
@@ -223,10 +226,10 @@ struct SenderRegistrationCancellationTests {
         var delivered = RecoverySemanticProgress()
         if path != "gateway" {
             if path == "session" {
-                delivered.reasoningBytes = 3
+                delivered.reasoningBytes = boundary.openAI ? 0 : 3
                 delivered.contentBytes = 2
-            } else if boundary.omlx, !boundary.single {
-                delivered.reasoningBytes = 3
+            } else if boundary.omlx, !boundary.single, !boundary.openAI {
+                delivered.reasoningBytes = boundary.openAI ? 0 : 3
             } else {
                 delivered.contentBytes = 2
             }

@@ -3,10 +3,15 @@ import Foundation
 import Testing
 
 struct StreamingRecoveryConsumerTests {
-    @Test(arguments: [false, true], [(false, false), (false, true), (true, false), (true, true)])
-    func completedToolRunsOnceAcrossFollowUp(_ omlx: Bool, _ mode: (Bool, Bool)) async throws {
+    @Test(
+        arguments: StreamingBoundary.all.filter { !$0.single },
+        [(false, false), (false, true), (true, false), (true, true)],
+    )
+    func completedToolRunsOnceAcrossFollowUp(
+        _ boundary: StreamingBoundary,
+        _ mode: (Bool, Bool),
+    ) async throws {
         let (session, recover) = mode
-        let boundary = StreamingBoundary(omlx: omlx, single: false)
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(body: boundary.frame(tool: true, done: true)),
             RecoveryReply(status: 503, body: "busy"),
@@ -71,9 +76,8 @@ struct StreamingRecoveryConsumerTests {
         }
     }
 
-    @Test(arguments: [false, true])
-    func recoveryPreservesStreamingToolDepth(_ omlx: Bool) async throws {
-        let boundary = StreamingBoundary(omlx: omlx, single: false)
+    @Test(arguments: StreamingBoundary.all.filter { !$0.single })
+    func recoveryPreservesStreamingToolDepth(_ boundary: StreamingBoundary) async throws {
         let toolReply = try RecoveryReply(body: boundary.frame(tool: true, done: true))
         let server = try RecoveryLoopback(replies: [
             toolReply, RecoveryReply(status: 503, body: "busy"), toolReply,
@@ -93,9 +97,8 @@ struct StreamingRecoveryConsumerTests {
         #expect(server.requests.withLock { $0.count } == 3)
     }
 
-    @Test(arguments: [false, true])
-    func brokerSingleTurnRetainsTypedRecovery(_ omlx: Bool) async throws {
-        let boundary = StreamingBoundary(omlx: omlx, single: true)
+    @Test(arguments: StreamingBoundary.all.filter { !$0.single })
+    func brokerSingleTurnRetainsTypedRecovery(_ boundary: StreamingBoundary) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
         var terminals = 0

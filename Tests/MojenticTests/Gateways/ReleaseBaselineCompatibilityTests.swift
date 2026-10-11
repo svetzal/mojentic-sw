@@ -6,11 +6,10 @@ import Testing
 struct ReleaseBaselineCompatibilityTests {
     private func legacyError(_ error: MojenticError) -> String {
         switch error {
-        case .http, .transport, .decoding, .schema, .toolNotFound, .toolExecution,
-            .toolDepthExceeded, .recursionDepthExceeded, .structuredDecoding, .cancelled,
-            .invalidArgument, .incompleteCompletion, .incompleteStream, .unexpectedToolCalls,
-            .providerError, .requestFailed, .invalidStreamEvent, .streamEventsUnsupported:
-            "legacy"
+        case .http, .transport, .decoding, .schema, .toolNotFound, .toolExecution: "legacy"
+        case .toolDepthExceeded, .recursionDepthExceeded, .structuredDecoding, .cancelled: "legacy"
+        case .invalidArgument, .incompleteCompletion, .incompleteStream, .unexpectedToolCalls: "legacy"
+        case .providerError, .requestFailed, .invalidStreamEvent, .streamEventsUnsupported: "legacy"
         }
     }
 
@@ -31,22 +30,26 @@ struct ReleaseBaselineCompatibilityTests {
     }
 
     private func genericSchema<T: Codable & Sendable>(_ type: T.Type) throws -> JSONValue {
-        try JSONSchemaGenerator.schema(for: type)
+        let concreteType: T.Type = type
+        return try JSONSchemaGenerator.schema(for: concreteType)
     }
 
     private func genericSubscription<E: Event>(
-        _ router: Router, agent: any BaseAgent, event: E.Type
+        _ router: Router, agent: any BaseAgent, event: E.Type,
     ) async {
-        await router.subscribe(agent, to: event)
+        let concreteType: E.Type = event
+        await router.subscribe(agent, to: concreteType)
     }
 
-    @Test func exhaustiveConsumersAndGenericSchemaCompile() throws {
+    @Test
+    func exhaustiveConsumersAndGenericSchemaCompile() throws {
         #expect(legacyGateway(.textDelta("original")) == "original")
         #expect(legacyCompletion(.error(.cancelled)) == "legacy")
         #expect(try genericSchema(CompatibilitySchema.self) != .null)
     }
 
-    @Test func genericSubscriptionRoutesTheConcreteType() async {
+    @Test
+    func genericSubscriptionRoutesTheConcreteType() async {
         let router = Router()
         let agent = CompatibilityAgent()
         await genericSubscription(router, agent: agent, event: TextEvent.self)
@@ -62,12 +65,13 @@ struct ReleaseBaselineCompatibilityTests {
         ])
         let recorder = RecoveryRecorder()
         let gateway = RecoveryBoundary(omlx: omlx, structured: false).gateway(
-            server, policy: recoveryPolicy(recorder))
+            server, policy: recoveryPolicy(recorder),
+        )
         if path == "gateway" {
             do {
                 for try await event in gateway.stream(
-                    model: "fixture", messages: [], tools: nil, config: .init())
-                {
+                    model: "fixture", messages: [], tools: nil, config: .init(),
+                ) {
                     Issue.record("Unexpected legacy event: \(legacyGateway(event))")
                 }
                 Issue.record("Expected original HTTP failure")
@@ -81,9 +85,11 @@ struct ReleaseBaselineCompatibilityTests {
             }
         } else {
             let stream =
-                path == "broker"
-                ? LLMBroker(gateway: gateway).generateStreamEvents(model: "fixture", messages: [])
-                : try gateway.completeStreamEvents(model: "fixture", messages: [], config: .init())
+                if path == "broker" {
+                    LLMBroker(gateway: gateway).generateStreamEvents(model: "fixture", messages: [])
+                } else {
+                    try gateway.completeStreamEvents(model: "fixture", messages: [], config: .init())
+                }
             var seen = 0
             for await event in stream {
                 seen += 1
@@ -103,9 +109,13 @@ struct ReleaseBaselineCompatibilityTests {
 }
 
 private struct CompatibilitySchema: Codable, Sendable, JSONSchemaProviding {
-    static var jsonSchema: JSONValue { ["type": "object"] }
+    static var jsonSchema: JSONValue {
+        ["type": "object"]
+    }
 }
 
 private actor CompatibilityAgent: BaseAgent {
-    func handle(_: any Event) async throws -> [any Event] { [] }
+    func handle(_: any Event) async throws -> [any Event] {
+        []
+    }
 }

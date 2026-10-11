@@ -3,8 +3,9 @@ import Foundation
 import Testing
 
 struct StreamingRecoveryProofTests {
-    @Test(arguments: [false, true])
-    func publicHTTPRecovery(omlx: Bool) async throws {
+    @Test(arguments: StreamingBoundary.all.filter { !$0.single })
+    func publicHTTPRecovery(_ boundary: StreamingBoundary) async throws {
+        let omlx = boundary.omlx
         let success =
             if omlx {
                 "data: {\"choices\":[{\"delta\":{\"content\":\"é\"},\"finish_reason\":\"stop\"}]}\n\n"
@@ -19,7 +20,7 @@ struct StreamingRecoveryProofTests {
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder)
         policy.reportObserver = { report in reports.withLock { $0.append(report) } }
-        let gateway = RecoveryBoundary(omlx: omlx, structured: false).gateway(server, policy: policy)
+        let gateway = boundary.gateway(server, policy)
         var content = ""
         for try await event in gateway.streamRecovering(
             model: "fixture",
@@ -55,6 +56,7 @@ struct StreamingRecoveryProofTests {
         #expect(report.history.count == 1)
         #expect(failed.identity == first.0)
         #expect(failed.status == 503)
+        #expect(failed.provider == (boundary.openAI ? "openai" : omlx ? "omlx" : "ollama"))
         #expect(failed.inspectEvidence().cause is RecoveryHTTPStatusFailure)
         #expect(failed.inspectEvidence().body == Data("credential-sentinel".utf8))
         let captured = recorder.wires.withLock { wires in

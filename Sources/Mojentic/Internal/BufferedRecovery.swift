@@ -107,6 +107,7 @@ struct BufferedRecovery {
                     )
                 }
                 progress.delivered = progress.observed
+                progress.delivered.reasoningBytes = decoded.thinking?.utf8.count ?? 0
                 policy.reportObserver?(report())
                 if Task.isCancelled {
                     progress.delivered = RecoverySemanticProgress()
@@ -216,7 +217,9 @@ struct BufferedRecovery {
 
     private mutating func observe(_ response: LLMGatewayResponse) {
         progress.observed.contentBytes = response.content.utf8.count
-        progress.observed.reasoningBytes = response.thinking?.utf8.count ?? 0
+        progress.observed.reasoningBytes = max(
+            progress.observed.reasoningBytes, response.thinking?.utf8.count ?? 0,
+        )
         progress.observed.completedToolCalls = response.toolCalls.count
         progress.observed.toolFragments = response.toolCalls.count
     }

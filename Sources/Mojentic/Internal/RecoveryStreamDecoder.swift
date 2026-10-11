@@ -107,7 +107,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
 
     private func parse(_ line: String) {
         var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        if provider == "omlx" {
+        if provider == "omlx" || provider == "openai" {
             guard payload.hasPrefix("data:") else { return }
             payload = String(payload.dropFirst(5)).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" {
@@ -208,6 +208,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         guard case .array(let choices)? = object["choices"] else {
             throw MojenticError.invalidStreamEvent(message: "Missing choices")
         }
+        if provider == "openai" {
+            try validateOpenAIChoices(choices, usage: frame.usage)
+        }
         for choice in choices {
             guard let fields = choice.objectValue else { throw invalidFrame() }
             if let reason = fields["finish_reason"], reason != .null, reason.stringValue == nil {
@@ -226,6 +229,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
                     _ = try JSONDecoder().decode(OpenAIStreamChunk.self, from: data)
                     progress.observed.toolFragments += fragments.count
                     if singleTurn, !fragments.isEmpty {
+                        observeRejectedOpenAITools(values)
                         throw MojenticError.unexpectedToolCalls
                     }
                 }
@@ -253,7 +257,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         )
         let events = legacy.consume(line: line).map(RecoveryStreamBridge.lift)
         observeSemantic(events)
-        pending += events
+        enqueueOpenAIEvents(events, usage: frame.usage)
         // The no-tool evidence parser supplies only provider-reported fields.
         let reported = openAI.consume(line: line)
         if singleTurn, let partial = openAI.partialEvidence {
@@ -262,6 +266,29 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         if singleTurn, case .error(let error)? = reported.last {
             throw error
         }
+    }
+
+    /// Rejected tools cannot erase other validated semantic evidence in the same frame.
+    private func observeRejectedOpenAITools(_ delta: [String: JSONValue]) {
+        guard provider == "openai" else { return }
+        progress.observed.contentBytes += delta["content"]?.stringValue?.utf8.count ?? 0
+        progress.observed.reasoningBytes += delta["reasoning_content"]?.stringValue?.utf8.count ?? 0
+    }
+
+    private func enqueueOpenAIEvents(_ events: [RecoveryGatewayStreamEvent], usage: OpenAIUsage?) {
+        pending += events.filter { event in
+            if provider == "openai", case .thinkingDelta = event {
+                return false
+            }
+            return true
+        }
+        if provider == "openai", let usage = usage?.toUsage() {
+            pending.append(.metrics(CompletionEvidence(usage: usage)))
+        }
+    }
+
+    private func validateOpenAIChoices(_ choices: [JSONValue], usage: OpenAIUsage?) throws {
+        guard choices.count == 1 || (choices.isEmpty && usage != nil) else { throw invalidFrame() }
     }
 
     private func finishOpenAI(_ line: String) {

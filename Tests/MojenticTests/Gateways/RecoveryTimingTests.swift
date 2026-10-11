@@ -94,7 +94,7 @@ struct RecoveryTimingTests {
         decision.continuation.yield(allow ? .allow : .reject)
         decision.continuation.finish()
         if allow {
-            #expect(try await task.value.thinking == "reasoning")
+            #expect(try await task.value.thinking == (boundary.openAI ? nil : "reasoning"))
             #expect(server.requests.withLock { $0.count } == 2)
         } else {
             let failure = try await recoveryFailure { _ = try await task.value }
@@ -194,7 +194,7 @@ struct RecoveryTimeoutTests {
         decisions.continuation.yield(allow ? .allow : .reject)
         decisions.continuation.finish()
         if allow {
-            #expect(try await task.value.thinking == "reasoning")
+            #expect(try await task.value.thinking == (boundary.openAI ? nil : "reasoning"))
             let bodies = server.requests.withLock { $0 }
             #expect(bodies.count == 2)
             #expect(bodies.first == bodies.last)

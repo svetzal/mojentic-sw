@@ -2,7 +2,7 @@
 
 Enable request recovery without replaying tools or appending a replacement to partial output.
 
-The same ``CompletionRecoveryPolicy`` now covers Ollama and oMLX `streamRecovering` and
+The same ``CompletionRecoveryPolicy`` now covers Ollama, oMLX and OpenAI Chat Completions `streamRecovering` and
 `completeStreamEventsRecovering`, including the internal opt-in routing used by
 ``LLMBroker`` tool streams and ``ChatSession`` callers.
 Initializers without `recovery:` retain their legacy parsing and one-send behavior.
@@ -20,6 +20,7 @@ does not prove that remote inference ended.
 ```swift
 let gateway = OllamaGateway(recovery: policy)
 // Alternatively: OMLXGateway(host: localURL, recovery: policy)
+// Or: OpenAIGateway(apiKey: configuredKey, recovery: policy)
 let broker = LLMBroker(gateway: gateway)
 let session = ChatSession(broker: broker, model: "local-model", tools: tools)
 do {
@@ -64,7 +65,7 @@ but remains absent from the content-only API. UTF-8 byte counters are exact.
 ## Completion evidence and telemetry
 
 Recovery-enabled Ollama streams require `done: true` and `done_reason: "stop"`.
-oMLX requires a valid finish reason (`stop`, or `tool_calls` for a tool stream)
+oMLX and OpenAI require a valid finish reason (`stop`, or `tool_calls` for a tool stream)
 and `data: [DONE]`. End of transport is not completion proof. Malformed frames are
 terminal and never retried. Ordinary buffered finish handling is unchanged.
 
@@ -75,7 +76,9 @@ exposed by Swift; its default formatting is safe. A valid length-terminated Olla
 frame produces progress and reported metrics before the original finish failure.
 Its semantic fields remain observed-only, and no completed tool is delivered.
 Malformed frames produce no fabricated telemetry. oMLX has no invented Ollama
-progress or metric events.
+progress or metric events. OpenAI recovery emits metrics only for validated,
+provider-reported usage counts, before success or finish failure; it adds no frame
+counters, durations, provider identifiers or echoed metadata to those metrics.
 
 Gateway consumption applies backpressure to semantic and telemetry delivery. Pausing on
 terminal metadata cannot establish success or release a completed tool. Cancellation
@@ -88,9 +91,8 @@ termination. Drop the stream/iterator to release its producer when stopping earl
 ## Capabilities and sensitive capture
 
 Both local adapters expose local HTTP cancellation. Remote request cancellation,
-exact-attempt status querying and provider idempotency remain unsupported. Recovery
-for OpenAI and Anthropic completion adapters, realtime voice and embeddings is outside
-this slice. Supported message/tool history and generation controls are preserved;
+exact-attempt status querying and provider idempotency remain unsupported. OpenAI Chat Completions also supports recovery; Anthropic, realtime voice and
+embeddings remain outside this slice. Supported message/tool history and generation controls are preserved;
 no native reasoning-history field is invented.
 
 Lifecycle events contain numeric status, identities, progress, classification and
@@ -161,3 +163,19 @@ Broker tool streams and ChatSession streams retain their existing result types
 and use the opt-in gateway boundary internally. Buffered recovery still throws
 `RecoveryError` directly. Continue to use `withRecoveryStreamCancellation` for
 cleanup while a consumer is paused outside iteration.
+
+## OpenAI Chat Completions
+
+Use `OpenAIGateway(apiKey: configuredKey, recovery: policy)` to opt in. Ordinary,
+JSON and structured buffered completions use the policy; tool streams use
+`streamRecovering`, and single turns use `completeStreamEventsRecovering`.
+The broker and applicable chat session paths preserve completed tool results.
+Legacy stream methods retain their original parsers and one-send behavior.
+
+Request shaping still follows the model registry: token parameter, temperature,
+reasoning effort and schema support are unchanged. Encoded request bytes are
+identical across attempts. Received reasoning is observed for replay safety but
+is not delivered as thinking or single-turn content. Neither client identities,
+local socket cancellation nor empty output proves provider idempotency or remote
+termination. Request status and remote cancellation are unsupported; ambiguous
+retries require explicit caller admission. No native reasoning history is invented.

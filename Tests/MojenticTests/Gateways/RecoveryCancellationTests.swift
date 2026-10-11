@@ -173,7 +173,7 @@ struct RecoveryCancellationTests {
         _ = await iterator.next()
         now.withLock { $0 = 100 }
         server.release()
-        #expect(try await task.value.thinking == "reasoning")
+        #expect(try await task.value.thinking == (boundary.openAI ? nil : "reasoning"))
         #expect(server.requests.withLock { $0.count } == 1)
     }
 }

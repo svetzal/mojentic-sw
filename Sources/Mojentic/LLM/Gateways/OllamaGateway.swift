@@ -236,7 +236,6 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
-
         CompletionEventStreaming.events(
             transport: lineTransport,
             url: baseURL.appendingPathComponent("api/chat"),
@@ -280,7 +279,8 @@ public struct OllamaGateway: RecoveryStreamingGateway {
             )
         }
         return RecoveryStreamBridge.lift(
-            stream(model: model, messages: messages, tools: tools, config: config))
+            stream(model: model, messages: messages, tools: tools, config: config)
+        )
     }
 
     /// Stream with opt-in recovery telemetry and typed failures.
@@ -307,7 +307,8 @@ public struct OllamaGateway: RecoveryStreamingGateway {
             )
         }
         return RecoveryStreamBridge.lift(
-            completeStreamEvents(model: model, messages: messages, config: config))
+            completeStreamEvents(model: model, messages: messages, config: config)
+        )
     }
 
     // MARK: - Request building

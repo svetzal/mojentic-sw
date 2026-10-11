@@ -62,7 +62,10 @@ struct StreamingRecoveryTests {
         #expect(progress.observed.reasoningBytes == (kind == "reasoning" ? 3 : 0))
         #expect(progress.observed.toolFragments == (kind == "tool" ? 1 : 0))
         #expect(progress.delivered.contentBytes == (kind == "content" ? 6 : 0))
-        #expect(progress.delivered.reasoningBytes == (kind == "reasoning" && !boundary.single ? 3 : 0))
+        #expect(
+            progress.delivered.reasoningBytes
+                == (kind == "reasoning" && !boundary.single && !boundary.openAI ? 3 : 0)
+        )
         #expect(progress.delivered.completedToolCalls == 0)
         #expect(failure.failure.inspectEvidence().body == Data(body.utf8))
         #expect(!recorder.events.withLock { $0.map(\.transition) }.contains(.attemptSucceeded))

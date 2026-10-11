@@ -86,7 +86,13 @@ struct StreamingRecoveryProtocolTests {
                 if case .metrics(let evidence) = event {
                     #expect(evidence.providerModel == nil)
                     #expect(evidence.metadata?["created_at"] == nil)
-                    #expect(evidence.metadata?["eval_duration"] == .integer(6_000_000_000))
+                    #expect(
+                        evidence.metadata?["eval_duration"]
+                            == (boundary.openAI ? nil : .integer(6_000_000_000))
+                    )
+                    if boundary.openAI {
+                        #expect(evidence.usage?.completionTokens == 12)
+                    }
                 }
             }
         } else {

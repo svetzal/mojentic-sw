@@ -33,7 +33,7 @@ struct RecoveryConformanceTests {
         policy.reportObserver = { final in report.withLock { $0 = final } }
         let result = try await boundary.complete(boundary.gateway(server, policy: policy))
         #expect(result.content == (boundary.structured ? #"{"answer":42}"# : "recovered"))
-        #expect(result.thinking == "reasoning")
+        #expect(result.thinking == (boundary.openAI ? nil : "reasoning"))
         #expect(result.providerModel == "served")
         #expect(result.usage?.promptTokens == 3)
         #expect(result.usage?.completionTokens == 4)
@@ -46,7 +46,7 @@ struct RecoveryConformanceTests {
         if boundary.omlx {
             #expect(fields?["temperature"] == 0.25)
             #expect(fields?["max_tokens"] == 123)
-            #expect(fields?["reasoning_effort"] == "high")
+            #expect(fields?["reasoning_effort"] == (boundary.openAI ? nil : "high"))
             if boundary.structured {
                 #expect(fields?["response_format"] != nil)
             }
@@ -75,7 +75,12 @@ struct RecoveryConformanceTests {
         let safe = try #require(String(bytes: JSONEncoder().encode(events), encoding: .utf8))
         #expect(!safe.contains("credential-sentinel"))
         #expect(!safe.contains("payload-sentinel"))
-        #expect(events.last?.progress.observed == events.last?.progress.delivered)
+        if boundary.openAI {
+            #expect(events.last?.progress.observed.reasoningBytes == 9)
+            #expect(events.last?.progress.delivered.reasoningBytes == 0)
+        } else {
+            #expect(events.last?.progress.observed == events.last?.progress.delivered)
+        }
         #expect(events.prefix(5).allSatisfy { $0.identity == traces[0].0 })
         #expect(events.suffix(3).allSatisfy { $0.identity == traces[1].0 })
         #expect(events.allSatisfy { $0.logicalID == traces[0].0.logicalID })
@@ -85,7 +90,7 @@ struct RecoveryConformanceTests {
         #expect(final.identity == traces[1].0)
         #expect(final.history.first?.identity == traces[0].0)
         #expect(final.history.count == 1)
-        #expect(final.progress.delivered.reasoningBytes == 9)
+        #expect(final.progress.delivered.reasoningBytes == (boundary.openAI ? 0 : 9))
         assertWireEvidence(recorder: recorder, traces: traces, success: success)
     }
 
@@ -257,12 +262,11 @@ struct RecoverySafeguardTests {
         #expect(server.requests.withLock { $0.count } == 1)
     }
 
-    @Test(arguments: [false, true])
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
     func structuredJSONFailureRetainsReceivedSemanticEvidence(
-        _ omlx: Bool
+        _ ordinary: RecoveryBoundary
     ) async throws {
-        let ordinary = RecoveryBoundary(omlx: omlx, structured: false)
-        let structured = RecoveryBoundary(omlx: omlx, structured: true)
+        let structured = RecoveryBoundary(omlx: ordinary.omlx, structured: true, openAI: ordinary.openAI)
         let server = try RecoveryLoopback(replies: [ordinary.success()])
         let failure = try await recoveryFailure {
             _ = try await structured.gateway(server, policy: recoveryPolicy(RecoveryRecorder())).completeJSON(
@@ -308,11 +312,10 @@ struct RecoverySafeguardTests {
         #expect(!recorder.events.withLock { $0.map(\.transition.rawValue) }.contains("retryStarted"))
     }
 
-    @Test(arguments: [false, true])
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
     func ordinaryJSONFormatKeepsLegacySuccessfulResult(
-        _ omlx: Bool
+        _ boundary: RecoveryBoundary
     ) async throws {
-        let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let reply = try boundary.success()
         let oldServer = try RecoveryLoopback(replies: [reply])
         let newServer = try RecoveryLoopback(replies: [reply])

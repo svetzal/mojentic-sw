@@ -4,36 +4,38 @@ import Foundation
 public protocol RecoveryStreamingGateway: LLMGateway {
     /// Stream chat events with recovery metadata when a recovery policy is configured.
     func streamRecovering(
-        model: String, messages: [LLMMessage], tools: [any LLMTool]?, config: CompletionConfig
+        model: String, messages: [LLMMessage], tools: [any LLMTool]?, config: CompletionConfig,
     ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>
 
     /// Stream one turn with explicit terminal recovery failures and provider telemetry.
     func completeStreamEventsRecovering(
-        model: String, messages: [LLMMessage], config: CompletionConfig
+        model: String, messages: [LLMMessage], config: CompletionConfig,
     ) -> AsyncStream<RecoveryCompletionStreamEvent>
 }
 
 extension LLMGateway {
     /// Use the opt-in boundary when supported, otherwise lift the legacy event stream.
     public func streamRecovering(
-        model: String, messages: [LLMMessage], tools: [any LLMTool]?, config: CompletionConfig
+        model: String, messages: [LLMMessage], tools: [any LLMTool]?, config: CompletionConfig,
     ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
         if let recovering = self as? any RecoveryStreamingGateway {
             return recovering.streamRecovering(model: model, messages: messages, tools: tools, config: config)
         }
         return RecoveryStreamBridge.lift(
-            stream(model: model, messages: messages, tools: tools, config: config))
+            stream(model: model, messages: messages, tools: tools, config: config)
+        )
     }
 
     /// Use the opt-in single-turn boundary when supported, otherwise preserve legacy completion events.
     public func completeStreamEventsRecovering(
-        model: String, messages: [LLMMessage], config: CompletionConfig
+        model: String, messages: [LLMMessage], config: CompletionConfig,
     ) throws(MojenticError) -> AsyncStream<RecoveryCompletionStreamEvent> {
         if let recovering = self as? any RecoveryStreamingGateway {
             return recovering.completeStreamEventsRecovering(model: model, messages: messages, config: config)
         }
-        return RecoveryStreamBridge.lift(
-            try completeStreamEvents(model: model, messages: messages, config: config))
+        return try RecoveryStreamBridge.lift(
+            completeStreamEvents(model: model, messages: messages, config: config)
+        )
     }
 }
 

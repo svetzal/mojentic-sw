@@ -19,12 +19,11 @@ struct RecoveryCountingTool: LLMTool {
 
 @Suite("Recovery through broker and session")
 struct RecoveryToolSafetyTests {
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured }, [false, true])
     func completedToolSurvivesRecoveredFollowUp(
-        _ omlx: Bool,
+        _ boundary: RecoveryBoundary,
         _ session: Bool,
     ) async throws {
-        let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let server = try RecoveryLoopback(replies: [
             boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
@@ -67,7 +66,7 @@ struct RecoveryToolSafetyTests {
                 "original-result": "tool-sentinel"
             ]
         )
-        if omlx {
+        if boundary.omlx {
             #expect(messages[2].objectValue?["tool_call_id"] == "original-tool")
         }
         let identities = recorder.requests.withLock { $0.map(\.0) }
@@ -77,12 +76,11 @@ struct RecoveryToolSafetyTests {
         #expect(identities[1].attemptID != identities[2].attemptID)
     }
 
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured }, [false, true])
     func failurePreservesTypedCauseAfterCompletedTool(
-        _ omlx: Bool,
+        _ boundary: RecoveryBoundary,
         _ session: Bool,
     ) async throws {
-        let boundary = RecoveryBoundary(omlx: omlx, structured: false)
         let server = try RecoveryLoopback(replies: [
             boundary.success(tools: true), RecoveryReply(body: " ", truncated: true),
         ])
@@ -115,9 +113,8 @@ struct RecoveryToolSafetyTests {
         #expect(server.requests.withLock { $0.count } == 2)
     }
 
-    @Test(arguments: [false, true])
-    func recoveryDoesNotResetToolDepth(_ omlx: Bool) async throws {
-        let boundary = RecoveryBoundary(omlx: omlx, structured: false)
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
+    func recoveryDoesNotResetToolDepth(_ boundary: RecoveryBoundary) async throws {
         let server = try RecoveryLoopback(replies: [
             boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"),
             boundary.success(tools: true),

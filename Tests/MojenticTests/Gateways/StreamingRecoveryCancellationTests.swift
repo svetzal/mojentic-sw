@@ -89,7 +89,8 @@ struct StreamingRecoveryCancellationTests {
                     #expect(next == nil)
                 } else {
                     let stream = gateway.streamRecovering(
-                        model: "fixture", messages: [], tools: nil, config: .init())
+                        model: "fixture", messages: [], tools: nil, config: .init(),
+                    )
                     var iterator = stream.makeAsyncIterator()
                     guard case .progress? = try await iterator.next() else {
                         Issue.record("Expected progress")

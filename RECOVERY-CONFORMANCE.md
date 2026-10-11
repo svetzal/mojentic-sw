@@ -1,21 +1,28 @@
 # Swift transient recovery conformance
 
-This reconciliation starts at `ce5ae889539ae86316cbad32bac145904406f5da` and
-closes the release-baseline API compatibility gap while preserving the landed
-recovery implementation, including sender-registration cancellation. The initial
-working tree was clean. Read-only `git ls-remote origin refs/heads/main` reported
-the same commit; `.foundry/remote-main.txt` retains that observation. Foundry's
-explicit prohibition on ref mutation supersedes fetch, pull, rebase, commit and
-landing instructions. All work remains uncommitted in this worktree.
+This OpenAI recovery slice starts at verified clean HEAD
+`11e2503130a77924527d81ea0331929bf716d15b`. Controller synchronization is
+recorded in `/home/svetzal/.foundry/operations/mojentic-port-alignment-20261010/status-recovery/receipt.json`
+(observed October 10, 2026 at 23:39:13 UTC), including clean status, fetch,
+pull with rebase, revisions and log hashes. Its Swift revision matches this HEAD.
+Workers perform no ref mutation; changes remain uncommitted for controller integration.
+The normative documents and binding October 10 supplement in that receipt were
+reviewed against Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3`.
 
 ## Release-baseline reconciliation and migration
 
-The original, unfiltered `v2.1.0` audit rejected the starting source with exactly
-seven diagnostics: generic signature changes in `Router.subscribe` and
-`JSONSchemaGenerator.schema`, `MojenticError.recovery`, and progress/metrics
-additions to `GatewayStreamEvent` and `CompletionStreamEvent`. The generic
-signatures and legacy enum cases now match the release baseline. The final audit
-uses the same v2.1.0 tag with no exclusions, allowlists, or substituted baseline.
+The prior reconciliation reported seven release-baseline diagnostics: generic
+signature changes in `Router.subscribe` and `JSONSchemaGenerator.schema`,
+`MojenticError.recovery`, and progress/metrics additions to the legacy streaming
+enums. Its historical receipts are absent from this delivered trunk. This slice
+preserves the reconciled named generic signatures and exhaustive legacy enum
+vocabulary. The current API audit uses `v2.1.0` without exclusions, allowlists or
+substituted baselines.
+
+Mandatory standalone formatting also reconciles pre-existing whitespace in recovery
+and broker wrappers. Explicitly typed local metatype aliases preserve the two named
+generic APIs against formatter conversion to opaque parameters. No formatter rule,
+lint threshold, security scope or dependency is changed.
 
 Policy semantics in `TRANSIENT-RECOVERY-2026-10.md` license a separate opt-in API
 where a legacy error vocabulary cannot safely grow. Recovery telemetry now uses
@@ -27,8 +34,8 @@ values remain available through explicit properties.
 
 | Caller | Recovery entrypoint | Legacy entrypoint |
 | --- | --- | --- |
-| Ollama / oMLX tool stream | `streamRecovering` | `stream` |
-| Ollama / oMLX single turn | `completeStreamEventsRecovering` | `completeStreamEvents` |
+| Ollama / oMLX / OpenAI tool stream | `streamRecovering` | `stream` |
+| Ollama / oMLX / OpenAI single turn | `completeStreamEventsRecovering` | `completeStreamEvents` |
 | Broker single turn | `generateRecoveryStreamEvents` | `generateStreamEvents` |
 | Broker tool stream / ChatSession | Existing API internally routes to the opt-in gateway boundary | Existing public result vocabulary |
 
@@ -36,7 +43,8 @@ Legacy streaming entrypoints retain their original single-request parsers and
 completion rules, even when an instance has a recovery policy. They do not convert
 recovery errors into legacy errors. Buffered recovery still throws RecoveryError
 directly. Gateways without recovery support are lifted without fabricated telemetry
-or retries; OpenAI/Anthropic provider recovery is not expanded.
+or retries. OpenAI Chat Completions now supports opt-in per-request recovery;
+Anthropic remains outstanding.
 
 Structural callers were inspected before migration: Router feeds dispatcher
 subscriptions; schema generation feeds broker structured completion; stream events
@@ -87,45 +95,95 @@ attemptStarted/attemptFailed/cancelled. Paused ownership/delivery and scoped rel
 suites preserve cleanup and session rollback checks. Fixtures are scripted local
 HTTP; no live inference or benchmark restart is performed.
 
+## Provider capabilities
+
+| Completion adapter | Recovery | Reasoning delivery | Recovery telemetry | Remote status / cancellation / idempotency |
+| --- | --- | --- | --- | --- |
+| Ollama | Buffered, tools, single turn | Tool stream thinking; single turn observed-only | Validated progress and reported metrics | Unsupported; local HTTP cancellation only |
+| oMLX | Buffered, tools, single turn | Buffered/tool thinking; single turn observed-only | Existing evidence; no invented Ollama events | Unsupported; local HTTP cancellation only |
+| OpenAI Chat Completions | Buffered, tools, single turn | Observed-only; registry-supported effort request unchanged | Validated provider usage metrics and completion evidence | Unsupported; local HTTP cancellation only |
+| Anthropic | Outstanding | Existing legacy behavior | Existing legacy behavior | No new recovery claims |
+
+## Current OpenAI acceptance evidence
+
+`.foundry/proof.json` records a real public buffered HTTP rejection and correction:
+a received response contains UTF-8 content, reasoning and a tool call, then the
+capture hook throws. The corrected boundary retains exact body bytes, typed capture
+cause, observed byte/fragment counts, zero delivered progress, one failed attempt
+and one wire request. The rejecting boundary ignored the opt-in policy. Both full
+captures and actual exits are retained; the intermediate reasoning-accounting
+failure is retained separately. A second rejecting/corrected public probe in
+`.foundry/combined-proof.json` verifies single-turn content + reasoning + tool
+fragments survive unsupported-tool rejection, with or without a failing capture
+hook, while delivery stays zero and one wire request is made.
+
+The expanded acceptance run passed 67 tests in 25 suites. These assertions include
+OpenAI as well as the existing Ollama/oMLX cases:
+
+| Public boundary | Actual acceptance assertions |
+| --- | --- |
+| Ordinary / structured buffered gateway | Admitted 503-success preserves received request bytes, logical ID, distinct attempt IDs, usage, model-dependent parameters, typed HTTP history and lifecycle order; numeric/date Retry-After use injected timing; bounded 504 has actual wire counts |
+| completeJSON / completeStructured | Model registry schema selection is preserved; malformed structured content retains original decoding cause and received semantics with zero delivery |
+| Buffered and streaming failures | Selected 400/401/403 plus truncated bodies remain permanent despite transport eligibility; partial headers/body and original URLError are privately inspectable; malformed data never resends |
+| Admission / backoff / active HTTP | Pending and rejected hooks cannot authorize sends; cancellation wins at requests, admission, sleeping, limits and capture; healthy active generation outlives recovery budgets |
+| Tool and single-turn recovery streams | Content, reasoning and tool fragments block replay after partial output; reasoning remains observed-only for OpenAI; keepalive-only failures need explicit admission; received capture-hook evidence survives zero delivery |
+| Terminal OpenAI usage | Validated usage-only metrics precede stop success or original length-finish failure; malformed multiple choices and negative counts produce no telemetry; identifiers and metadata echoes stay out of metric values and safe lifecycle serialization |
+| Gateway / broker / applicable session cancellation | Terminal usage is buffered while consumers and streams are held; cleanup, failed history, exact captures and cancellation order are asserted before resume/drain; sender-registration tests require peer FIN with held replies |
+| Broker / session tools | A completed tool followed by recovered or rejected completion runs exactly once; follow-up retries preserve exact tool-result bytes and tool depth |
+| Disabled recovery and legacy APIs | One-send HTTP errors, legacy enum cases, malformed/missing-DONE legacy handling, OpenAI reasoning omission and successful results are preserved; gpt-4o/o3 request fields match disabled calls |
+
+OpenAI has its own `openai` identity and SSE selection. Shared message/response types
+and `responseFormatPayload` retain their existing oMLX and legacy behavior. Its
+recovery decoder emits only provider-reported usage metrics, without inventing local
+frame telemetry, durations, remote termination, status querying or idempotency.
+
 ## Durable evidence and validation limits
 
-The delivered trunk lacked referenced prior .foundry artifacts. This run retains
-fresh evidence rather than claiming those historical receipts exist:
+The starting trunk lacks the referenced historical `.foundry` artifacts from earlier
+runs. Historical source-compatibility rejection/passing evidence is not reconstructed
+or claimed as current. This run retains fresh evidence:
 
-- `.foundry/rejecting-sources.tar` retains starting Sources from the exact commit.
-- `.foundry/logs/rejecting-native/` retains the seven rejecting API diagnostics and
-  `.foundry/logs/rejecting-native.exit` records the actual nonzero exit.
-- `.foundry/logs/corrected-api/` retains the initial corrected passing audit;
-  `.foundry/logs/final-api/` retains the final-source audit.
-- `.foundry/logs/probe/` and `.foundry/logs/compatibility-tests/` retain the first
-  passing public recovery boundary and legacy compatibility probes.
-- `.foundry/logs/final-*/`, `.foundry/gates.json` and `.foundry/source-revisions.json`
-  retain complete captures, actual exit codes, commands and source hashes.
-- `.foundry/proof.json` records the direct source-compatibility acceptance probe;
-  `.foundry/compatibility-audit.json` links rejecting/passing evidence separately.
-- `.foundry/independent-review.md` records scoped independent source/evidence review,
-  concerns and their reconciliation. Historical conformance text is retained in
-  `.foundry/previous-conformance.md` solely as history.
+- `.foundry/logs/` records capture summaries and actual exit files, including failures.
+- `.foundry/capture-manifest.json` links full durable stdout/stderr captures and hashes
+  under `/home/svetzal/.foundry/tool-logs`.
+- `.foundry/gates.json` records current commands, actual exits and full-capture hashes.
+- `.foundry/source-revisions.json` records the verified source and release/Rust revisions,
+  controller receipt and hash, toolchain versions and pending platform validation.
+- `.foundry/independent-review.md` records independent source and assertion review.
 
-The API audit uses SwiftPM's native build system because the default system's
-baseline digester attempted to write a read-only global clang cache. XDG_CACHE_HOME
-points into this worktree; this changes neither audit scope nor source baseline.
-The failed environmental invocations, native-system deprecation and SwiftPM
-user-cache warnings are retained. No source warning suppression, formatter/linter
-threshold change, advisory exclusion or dependency change is used.
+The API audit uses SwiftPM's native build system with XDG_CACHE_HOME inside this
+worktree, without changing the baseline or audit scope. The prior report described
+a read-only global clang-cache failure, but its historical captures are unavailable.
+Current command exits, environment warnings and complete captures are recorded.
+No source warning suppression, formatter/linter threshold change, advisory exclusion
+or dependency change is used.
 
-The project gates are strict Swift format, strict SwiftLint, release/debug builds,
+The project gates are strict Swift format, strict SwiftLint, release builds,
 unfiltered parallel/default and full-trait tests, and DocC with warnings as errors.
-The unfiltered OSV scan uses tracked Package.resolved. Actual current results and
-counts are recorded in `.foundry/gates.json`; failures remain in the logs.
+The unfiltered OSV scan uses tracked Package.resolved. All nine final gates passed after the combined-frame correction. Default parallel
+Swift Testing ran 321 tests in 81 suites; full traits ran 322 tests in 82 suites.
+Standalone SwiftFormat 0.63.1, native format, strict SwiftLint, release build,
+DocC, unfiltered tracked-lockfile OSV and the native `v2.1.0` API audit all exited
+zero. OSV found no issues; the API audit found no breaking changes. Complete
+commands, hashes and exits are recorded in `.foundry/gates.json`; earlier failures
+remain in separate logs. The expanded loopback matrix required raising the process
+open-file soft limit from 1,024 to 8,192, preserving suite concurrency and scope.
+The first descriptor-exhaustion failure is retained, not treated as a passing run.
+
+Independent review found no blocking findings and verified final capture hashes,
+public entrypoints, shared-provider preservation, private evidence, observed-only
+reasoning and completed-tool accounting. The review and final source snapshot are
+retained in `.foundry/independent-review.md` and `.foundry/reviewed-sources.tar.gz`,
+with a durable copy under `/home/svetzal/.foundry/tool-logs/mojentic-sw-openai-recovery-c7-0179ac`.
+`.foundry/durable-evidence.json` identifies that copy.
 
 Validation here is Linux Swift 6.4. Apple URLSession/Darwin sockets, strict
 concurrency and DocC checks remain pending. The declared Swift 6.1 minimum remains
-pending. The separate `swiftformat` executable is unavailable here; the repository
-and required gates use `swift format`, whose strict check is executed. No historical
-whole-repository SwiftFormat result is claimed as current evidence.
+pending. Standalone SwiftFormat 0.63.1 is installed by the controller and its unfiltered
+`swiftformat --lint .` check is required alongside strict `swift format`. Current
+results are retained separately; historical formatting evidence remains missing.
 
-Whole-mission gaps remain OpenAI/Anthropic recovery, oMLX telemetry parity, remote
+Whole-mission gaps remain Anthropic recovery, oMLX telemetry parity, remote
 termination/status/idempotency and Apple/minimum-toolchain validation. This task
 makes no whole-port parity claim. Foundry owns final review and finalization; no
 release, tag, PR, push, sibling write or ref mutation is performed.

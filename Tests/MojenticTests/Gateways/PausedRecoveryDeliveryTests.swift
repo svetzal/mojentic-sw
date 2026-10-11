@@ -40,7 +40,8 @@ struct PausedRecoveryDeliveryTests {
                     withExtendedLifetime(iterator) {}
                 } else {
                     let stream = gateway.streamRecovering(
-                        model: "fixture", messages: [], tools: nil, config: .init())
+                        model: "fixture", messages: [], tools: nil, config: .init(),
+                    )
                     var iterator = stream.makeAsyncIterator()
                     while let event = try await iterator.next() {
                         switch event {
@@ -49,7 +50,9 @@ struct PausedRecoveryDeliveryTests {
                         case .progress: values.withLock { $0.append("progress") }
                         default: Issue.record("Unexpected event before pause")
                         }
-                        if values.withLock({ $0.filter { $0 != "progress" }.count }) == 2 {
+                        if values.withLock({ $0.filter { $0 != "progress" }.count })
+                            == (boundary.openAI ? 1 : 2)
+                        {
                             break
                         }
                     }
@@ -72,11 +75,11 @@ struct PausedRecoveryDeliveryTests {
         #expect(report?.progress.observed.contentBytes == 2)
         #expect(report?.progress.observed.reasoningBytes == 3)
         #expect(report?.progress.delivered.contentBytes == 2)
-        #expect(report?.progress.delivered.reasoningBytes == (boundary.single ? 0 : 3))
+        #expect(report?.progress.delivered.reasoningBytes == (boundary.single || boundary.openAI ? 0 : 3))
         #expect(report?.progress.delivered.completedToolCalls == 0)
         let semantic = values.withLock { $0.filter { $0 != "progress" } }
         let expected =
-            if boundary.single {
+            if boundary.single || boundary.openAI {
                 ["content:é"]
             } else {
                 if boundary.omlx {

@@ -353,7 +353,7 @@ public enum RecoveryCapabilitySupport: String, Sendable, Codable {
     case unknown
 }
 
-/// Verified local-provider facilities for completion recovery.
+/// Verified provider facilities for completion recovery.
 public struct CompletionRecoveryCapabilities: Sendable {
     /// Cancelling the local HTTP task is supported, without remote termination proof.
     public let localRequestCancellation: RecoveryCapabilitySupport = .supported

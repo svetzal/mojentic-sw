@@ -5,17 +5,19 @@ import Testing
 struct StreamingBoundary: Sendable, CustomStringConvertible {
     let omlx: Bool
     let single: Bool
+    var openAI = false
     var description: String {
-        "\(omlx ? "omlx" : "ollama")/\(single ? "single" : "tools")"
+        "\(openAI ? "openai" : omlx ? "omlx" : "ollama")/\(single ? "single" : "tools")"
     }
 
     static let all = [
         Self(omlx: false, single: false), Self(omlx: true, single: false), Self(omlx: false, single: true),
         Self(omlx: true, single: true),
+        Self(omlx: true, single: false, openAI: true), Self(omlx: true, single: true, openAI: true),
     ]
 
     func gateway(_ server: RecoveryLoopback, _ policy: CompletionRecoveryPolicy?) -> any LLMGateway {
-        RecoveryBoundary(omlx: omlx, structured: false).gateway(server, policy: policy)
+        RecoveryBoundary(omlx: omlx, structured: false, openAI: openAI).gateway(server, policy: policy)
     }
 
     func frame(

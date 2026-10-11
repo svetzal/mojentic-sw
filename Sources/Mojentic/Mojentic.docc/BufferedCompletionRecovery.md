@@ -1,6 +1,6 @@
-# Recovering Buffered Local Completions
+# Recovering Buffered Completions
 
-Opt Ollama or oMLX into request recovery without replaying a broker or session.
+Opt Ollama, oMLX or OpenAI Chat Completions into request recovery without replaying a broker or session.
 
 Existing gateway initializers keep their one-send behavior and existing error
 conversion. Pass a ``CompletionRecoveryPolicy`` through the new `recovery:`
@@ -151,3 +151,19 @@ or six-port parity. Apple controller validation and the declared Swift 6.1
 minimum-toolchain validation remain pending when only Linux Swift 6.4 evidence
 is available. See the repository's `RECOVERY-CONFORMANCE.md` for actual assertions
 and gate outcomes.
+
+## OpenAI Chat Completions
+
+Use `OpenAIGateway(apiKey: configuredKey, recovery: policy)` to opt in. Ordinary,
+JSON and structured buffered completions use the policy; tool streams use
+`streamRecovering`, and single turns use `completeStreamEventsRecovering`.
+The broker and applicable chat session paths preserve completed tool results.
+Legacy stream methods retain their original parsers and one-send behavior.
+
+Request shaping still follows the model registry: token parameter, temperature,
+reasoning effort and schema support are unchanged. Encoded request bytes are
+identical across attempts. Received reasoning is observed for replay safety but
+is not delivered as thinking or single-turn content. Neither client identities,
+local socket cancellation nor empty output proves provider idempotency or remote
+termination. Request status and remote cancellation are unsupported; ambiguous
+retries require explicit caller admission. No native reasoning history is invented.

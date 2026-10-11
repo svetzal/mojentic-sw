@@ -14,7 +14,9 @@ public actor Router {
 
     /// Subscribe `agent` to events of type `eventType`.
     public func subscribe<E: Event>(_ agent: any BaseAgent, to eventType: E.Type) {
-        let key = ObjectIdentifier(eventType)
+        // Keep the named generic signature compatible with the released API.
+        let concreteType: E.Type = eventType
+        let key = ObjectIdentifier(concreteType)
         var current = subscribers[key] ?? []
         if !current.contains(where: { $0 === agent }) {
             current.append(agent)

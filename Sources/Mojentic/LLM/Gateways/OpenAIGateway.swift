@@ -16,7 +16,8 @@ import Logging
 ///
 /// > Note: the gateway never reads `OPENAI_API_KEY` from the environment.
 /// > Callers must thread the key through their app configuration.
-public struct OpenAIGateway: LLMGateway {
+public struct OpenAIGateway: RecoveryStreamingGateway {
+    private var recovery: CompletionRecoveryPolicy?
     private let baseURL: URL
     private let apiKey: String
     private let client: HTTPClient
@@ -46,6 +47,18 @@ public struct OpenAIGateway: LLMGateway {
             registry: registry,
             lineTransport: client,
         )
+    }
+
+    /// Opt into bounded per-request recovery using isolated HTTP attempts.
+    public init(
+        apiKey: String,
+        baseURL: URL = OpenAIGateway.defaultBaseURL,
+        client: HTTPClient = HTTPClient(),
+        registry: OpenAIModelRegistry = .shared,
+        recovery: CompletionRecoveryPolicy?,
+    ) {
+        self.init(apiKey: apiKey, baseURL: baseURL, client: client, registry: registry)
+        self.recovery = recovery
     }
 
     /// Create an OpenAI gateway whose streaming requests go through `lineTransport`.
@@ -83,6 +96,18 @@ public struct OpenAIGateway: LLMGateway {
             responseFormat: config.responseFormat.map(Self.responseFormatPayload),
         )
         let url = baseURL.appendingPathComponent("chat/completions")
+        if let recovery {
+            var engine = BufferedRecovery(policy: recovery, provider: "openai", operation: "complete")
+            return try await engine.run(
+                url: url,
+                headers: authHeaders(),
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+                decode: { data, _ in
+                    try Self.decodeRecoveryChat(data)
+                },
+            )
+        }
         let response = try await client.postJSON(
             url: url,
             body: body,
@@ -129,6 +154,24 @@ public struct OpenAIGateway: LLMGateway {
             responseFormat: responseFormat,
         )
         let url = baseURL.appendingPathComponent("chat/completions")
+        if let recovery {
+            var engine = BufferedRecovery(
+                policy: recovery, provider: "openai", operation: "completeStructured",
+            )
+            return try await engine.run(
+                url: url,
+                headers: authHeaders(),
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+                decode: { data, _ in
+                    try Self.decodeRecoveryChat(data)
+                },
+                project: { response in
+                    let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
+                    return StructuredGatewayResponse(value: value, response: response)
+                },
+            )
+        }
         let wire = try await client.postJSON(
             url: url,
             body: body,
@@ -214,6 +257,69 @@ public struct OpenAIGateway: LLMGateway {
         )
     }
 
+    /// Stream tool-capable completions with bounded recovery and typed failures.
+    public func streamRecovering(
+        model: String,
+        messages: [LLMMessage],
+        tools: [any LLMTool]?,
+        config: CompletionConfig,
+    ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        guard let recovery else {
+            return RecoveryStreamBridge.lift(
+                stream(model: model, messages: messages, tools: tools, config: config)
+            )
+        }
+        let body = buildRequest(
+            model: model,
+            messages: messages,
+            tools: tools,
+            config: config,
+            stream: true,
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload),
+        )
+        return StreamingRecovery.gatewayEvents(
+            policy: recovery,
+            provider: "openai",
+            url: baseURL.appendingPathComponent("chat/completions"),
+            headers: authHeaders(),
+            body: body,
+            timeout: client.bufferedRequestTimeout,
+        )
+    }
+
+    /// Stream one turn with recovery while requiring stop and the SSE DONE marker.
+    public func completeStreamEventsRecovering(
+        model: String,
+        messages: [LLMMessage],
+        config: CompletionConfig,
+    ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        guard let recovery else {
+            return RecoveryStreamBridge.lift(
+                completeStreamEvents(model: model, messages: messages, config: config)
+            )
+        }
+        var body = buildRequest(
+            model: model,
+            messages: messages,
+            tools: nil,
+            config: config,
+            stream: true,
+            responseFormat: config.responseFormat.map(Self.responseFormatPayload),
+        )
+        if case .object(var fields) = body {
+            fields["stream_options"] = ["include_usage": true]
+            body = .object(fields)
+        }
+        return StreamingRecovery.completionEvents(
+            policy: recovery,
+            provider: "openai",
+            url: baseURL.appendingPathComponent("chat/completions"),
+            headers: authHeaders(),
+            body: body,
+            timeout: client.bufferedRequestTimeout,
+        )
+    }
+
     // MARK: - Helpers
 
     /// Map a configured ``ResponseFormat`` onto OpenAI's `response_format` payload.
@@ -224,6 +330,26 @@ public struct OpenAIGateway: LLMGateway {
         case .jsonSchema(let schema):
             ["type": "json_schema", "json_schema": ["name": "response", "schema": schema]]
         }
+    }
+
+    /// Validate recovery responses without changing shared legacy or oMLX decoding.
+    private static func decodeRecoveryChat(_ data: Data) throws -> LLMGatewayResponse {
+        let wire = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+        guard wire.choices.count == 1 else {
+            throw MojenticError.decoding(message: "Expected one OpenAI completion choice")
+        }
+        for count in [wire.usage?.promptTokens, wire.usage?.completionTokens, wire.usage?.totalTokens] {
+            if let count, count < 0 {
+                throw MojenticError.decoding(message: "Invalid OpenAI usage count")
+            }
+        }
+        for call in wire.choices.first?.message.toolCalls ?? [] {
+            let arguments = try JSONDecoder().decode(JSONValue.self, from: Data(call.function.arguments.utf8))
+            guard !call.function.name.isEmpty, arguments.objectValue != nil else {
+                throw MojenticError.decoding(message: "Invalid OpenAI tool call")
+            }
+        }
+        return wire.toGatewayResponse()
     }
 
     private func authHeaders() -> [String: String] {

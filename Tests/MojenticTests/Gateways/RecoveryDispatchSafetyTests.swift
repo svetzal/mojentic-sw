@@ -101,7 +101,7 @@ struct RecoveryDispatchSafetyTests {
         now.withLock { $0 = 100 }
         server.release()
         let response = try await task.value
-        #expect(response.thinking == "reasoning")
+        #expect(response.thinking == (boundary.openAI ? nil : "reasoning"))
         let captures = recorder.requests.withLock { $0 }
         #expect(captures.count == 2)
         let first = try #require(captures.first)
@@ -120,7 +120,9 @@ struct RecoveryDispatchSafetyTests {
         #expect(final.history.first?.inspectEvidence().body == Data(" ".utf8))
         #expect(final.history.first?.progress.observed == RecoverySemanticProgress())
         #expect(final.history.first?.progress.delivered == RecoverySemanticProgress())
-        #expect(final.progress.observed == final.progress.delivered)
+        #expect(final.progress.observed.reasoningBytes == 9)
+        #expect(final.progress.delivered.reasoningBytes == (boundary.openAI ? 0 : 9))
+        #expect(final.progress.observed.contentBytes == final.progress.delivered.contentBytes)
         #expect(
             recorder.events.withLock { $0.map(\.transition) } == [
                 .attemptStarted, .attemptFailed, .admissionPending, .admissionAllowed, .delayScheduled,
@@ -155,7 +157,7 @@ struct RecoveryDispatchSafetyTests {
             }
         }
         let response = try await boundary.complete(boundary.gateway(server, policy: policy))
-        #expect(response.thinking == "reasoning")
+        #expect(response.thinking == (boundary.openAI ? nil : "reasoning"))
         let captures = recorder.requests.withLock { $0 }
         #expect(captures.count == 2)
         #expect(server.requests.withLock { $0 } == captures.map(\.1))

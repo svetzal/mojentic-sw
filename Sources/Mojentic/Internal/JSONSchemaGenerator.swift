@@ -22,17 +22,19 @@ public enum JSONSchemaGenerator {
     /// Throws `MojenticError.schema` if the type cannot be schematised by
     /// either route.
     public static func schema<T: Codable & Sendable>(for type: T.Type) throws -> JSONValue {
-        if let providing = type as? any JSONSchemaProviding.Type {
+        // Keep the named generic signature compatible with the released API.
+        let concreteType: T.Type = type
+        if let providing = concreteType as? any JSONSchemaProviding.Type {
             return providing.jsonSchema
         }
-        if let sampleProviding = type as? any JSONSchemaSampleProviding.Type {
+        if let sampleProviding = concreteType as? any JSONSchemaSampleProviding.Type {
             return try schema(forMirrorOf: sampleProviding.jsonSchemaSample)
         }
-        if let sample = try? defaultInstance(of: type) {
+        if let sample = try? defaultInstance(of: concreteType) {
             return try schema(forMirrorOf: sample)
         }
         throw MojenticError.schema(
-            message: "Cannot derive schema for \(type). Conform it to JSONSchemaProviding "
+            message: "Cannot derive schema for \(concreteType). Conform it to JSONSchemaProviding "
                 + "or JSONSchemaSampleProviding."
         )
     }

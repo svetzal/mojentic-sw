@@ -28,7 +28,8 @@ extension OMLXGateway {
             )
         }
         return RecoveryStreamBridge.lift(
-            stream(model: model, messages: messages, tools: tools, config: config))
+            stream(model: model, messages: messages, tools: tools, config: config)
+        )
     }
 
     /// Stream with opt-in recovery telemetry and typed failures.
@@ -61,9 +62,9 @@ extension OMLXGateway {
             )
         }
         return RecoveryStreamBridge.lift(
-            completeStreamEvents(model: model, messages: messages, config: config))
+            completeStreamEvents(model: model, messages: messages, config: config)
+        )
     }
-
 }
 
 /// Immutable settings for the opt-in streaming boundary.
