@@ -16,8 +16,9 @@ actual public provider/operation paths and assertion strength against both norma
 documents, the October 10 supplement and exact Rust
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Its verdict is conditional: strong
 Linux terminal, capture and tool-safety evidence exists. The JSON/status correction
-below closes the targeted assertion conjunctions and direct JSON retry cases;
-populated native-history retry and streaming tool-follow-up expansion remain open.
+below closes the targeted assertion conjunctions and direct JSON retry cases.
+The streaming tool-follow-up correction below closes that assertion gap; populated
+native-history retry remains open.
 Unsupported-request-option coverage remains limited. The stream metadata identity
 correction below adds public per-event correlation assertions. This is not an
 unconditional whole-port alignment claim.
@@ -644,3 +645,40 @@ unchanged gates (333 default tests; 344 full-trait tests), standalone SwiftForma
 unfiltered tracked-lockfile OSV (three packages, no issues), and the native
 full-trait API audit against `v2.1.0` (no breaking changes). Platform acceptance
 still requires both existing CI jobs on the exact controller-integrated commit.
+
+## Streaming tool-follow-up assertion correction (October 11, 2026)
+
+This scoped correction starts from read-only verified controller main `d99d5c4`.
+`StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp` exercises
+public `LLMBroker.stream` and `ChatSession.stream` over real loopback HTTP for
+Ollama, oMLX, OpenAI and trait-enabled Anthropic, with both admitted recovery and
+admission rejection after a completed tool turn. The test independently decodes
+actual socket payloads and compares the entire ordered original user, assistant
+call and tool-result messages. It checks the exact `resolve_date` name,
+`{"relative":"tomorrow"}` arguments and `{"original-result":"tool-sentinel"}`
+result. OpenAI-compatible IDs and Anthropic `tool_use`/`tool_result` linkage equal
+`original-tool`; Ollama's existing request encoding omits the call ID.
+
+Ordered socket request bytes equal ordered per-wire captures, and the successful
+follow-up retry reuses identical bytes. Each captured request, status and complete
+response body is matched in wire order. Full logical/attempt UUIDs and wire numbers
+match admission, lifecycle, failures and both reports, distinguishing the initial
+successful tool completion from the failed follow-up and its retry. The rejected
+follow-up retains HTTP 503, the original `RecoveryHTTPStatusFailure`, `busy` body,
+failed-attempt history and zero semantic progress. It cannot resend or emit a
+successful public terminal. Public events equal tool request, exact tool result,
+recovered content and one terminal on success; rejection ends after the tool result.
+The tool executes once. Session history commits only on success. The depth test
+now exercises both broker and session, requiring limit 2 to survive recovery and
+prevent a fourth request, with exact retried history bytes and session rollback.
+
+An early incorrect original-user expectation rejected all 16 public follow-up
+cases; correcting that expectation passed all 16 before expansion. This tests
+history assertion strength, without changing runtime behavior. Independent scoped
+review and foreground gate/audit results are execution evidence retained by Foundry.
+
+These fixtures establish supported tool history, not populated native reasoning
+history across retries. Signed Anthropic thinking/signatures and OpenAI native
+reasoning-history omissions remain limits; no history API is expanded. Controller
+integration must retain green `build-macos` and `build-linux-minimum` on the exact
+landed commit. That prerequisite remains pending until verified by the controller.

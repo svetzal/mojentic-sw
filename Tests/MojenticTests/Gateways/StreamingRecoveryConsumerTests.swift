@@ -12,21 +12,24 @@ struct StreamingRecoveryConsumerTests {
         _ mode: (Bool, Bool),
     ) async throws {
         let (session, recover) = mode
-        let server = try RecoveryLoopback(replies: [
+        let replies = try [
             RecoveryReply(body: boundary.frame(tool: true, done: true)),
             RecoveryReply(status: 503, body: "busy"),
             RecoveryReply(body: boundary.frame(content: "recovered", done: true)),
-        ])
+        ]
+        let server = try RecoveryLoopback(replies: replies)
         let recorder = RecoveryRecorder()
+        let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
+        let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder)
-        if !recover {
-            policy.admission = { _, _ in
-                AsyncStream {
-                    $0.yield(.reject)
-                    $0.finish()
-                }
+        policy.admission = { failure, next in
+            admissions.withLock { $0.append((failure, next)) }
+            return AsyncStream {
+                $0.yield(recover ? .allow : .reject)
+                $0.finish()
             }
         }
+        policy.reportObserver = { report in reports.withLock { $0.append(report) } }
         let count = RecoveryToolCounter()
         let broker = LLMBroker(gateway: boundary.gateway(server, policy))
         let tools: [any LLMTool] = [RecoveryCountingTool(calls: count)]
@@ -43,62 +46,104 @@ struct StreamingRecoveryConsumerTests {
                     config: config,
                 )
             }
-        var content = ""
+        var order: [String] = []
+        var publicCall: LLMToolCall?
+        var rejection: RecoveryError?
         do {
             for try await event in stream {
-                if case .textDelta(let text) = event {
-                    content += text
+                switch event {
+                case .toolCallRequested(let call):
+                    order.append("tool")
+                    publicCall = call
+                    #expect(call.name == "resolve_date")
+                    #expect(call.arguments == ["relative": "tomorrow"])
+                    if boundary.omlx {
+                        #expect(call.id == "original-tool")
+                    }
+                case .toolCallResult(let id, let result):
+                    order.append("result")
+                    #expect(id == publicCall?.id)
+                    #expect(result == ["original-result": "tool-sentinel"])
+                case .textDelta(let text):
+                    order.append("content")
+                    #expect(text == "recovered")
+                case .done(let response):
+                    order.append("done")
+                    #expect(response.content == "recovered")
+                    #expect(response.finishReason == .stop)
+                case .thinkingDelta:
+                    Issue.record("Unexpected public reasoning event")
                 }
             }
             #expect(recover)
         } catch let failure as RecoveryError {
+            rejection = failure
+            order.append("rejected")
             #expect(!recover)
             #expect(failure.outcome == .admissionRejected)
             #expect(failure.failure.inspectEvidence().cause is RecoveryHTTPStatusFailure)
             #expect(failure.history.count == 1)
         }
         #expect(count.value.withLock { $0 } == 1)
-        #expect(content == (recover ? "recovered" : ""))
+        #expect(order == (recover ? ["tool", "result", "content", "done"] : ["tool", "result", "rejected"]))
         let bodies = server.requests.withLock { $0 }
         #expect(bodies.count == (recover ? 3 : 2))
         if recover {
             #expect(bodies[1] == bodies[2])
         }
-        let fields = try JSONDecoder().decode(JSONValue.self, from: bodies[1]).objectValue
-        if case .array(let messages)? = fields?["messages"] {
-            #expect(messages.contains { $0.objectValue?["role"] == (boundary.anthropic ? "user" : "tool") })
-            if boundary.anthropic {
-                #expect(String(describing: messages).contains("tool_use_id"))
-                #expect(String(describing: messages).contains("original-tool"))
-            }
-            #expect(String(describing: messages).contains("tool-sentinel"))
-        } else {
-            Issue.record("Missing follow-up tool history")
+        let initial = try JSONDecoder().decode(JSONValue.self, from: bodies[0])
+        #expect(initial.objectValue?["messages"] == [["role": "user", "content": "original-user"]])
+        for body in bodies.dropFirst() {
+            try assertStreamingFollowUpHistory(body, boundary: boundary)
         }
+        try assertStreamingFollowUpEvidence(
+            recorder,
+            server: server,
+            replies: Array(replies.prefix(recover ? 3 : 2)),
+            admissions: admissions.withLock { $0 },
+            reports: reports.withLock { $0 },
+            rejection: rejection,
+        )
         if session {
-            #expect(await chat.messages().map(\.role) == (recover ? [.user, .assistant] : []))
+            let history = await chat.messages()
+            #expect(history.map(\.role) == (recover ? [.user, .assistant] : []))
+            #expect(history.map(\.content) == (recover ? ["original-user", "recovered"] : []))
         }
     }
 
-    @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single })
-    func recoveryPreservesStreamingToolDepth(_ boundary: StreamingBoundary) async throws {
+    @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single }, [false, true])
+    func recoveryPreservesStreamingToolDepth(_ boundary: StreamingBoundary, _ session: Bool) async throws {
         let toolReply = try RecoveryReply(body: boundary.frame(tool: true, done: true))
         let server = try RecoveryLoopback(replies: [
             toolReply, RecoveryReply(status: 503, body: "busy"), toolReply,
         ])
         let count = RecoveryToolCounter()
-        let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
+        let recorder = RecoveryRecorder()
+        let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(recorder)))
+        let tools: [any LLMTool] = [RecoveryCountingTool(calls: count)]
+        let config = CompletionConfig(maxToolIterations: 2)
+        let chat = ChatSession(broker: broker, model: "fixture", tools: tools, config: config)
+        let stream =
+            if session {
+                chat.stream("original-user")
+            } else {
+                broker.stream(
+                    model: "fixture", messages: [.user("original-user")], tools: tools, config: config,
+                )
+            }
         do {
-            for try await _ in broker.stream(
-                model: "fixture",
-                messages: [],
-                tools: [RecoveryCountingTool(calls: count)],
-                config: CompletionConfig(maxToolIterations: 2),
-            ) {}
+            for try await _ in stream {}
             Issue.record("Expected tool depth failure")
         } catch MojenticError.toolDepthExceeded(let limit) { #expect(limit == 2) }
         #expect(count.value.withLock { $0 } == 2)
-        #expect(server.requests.withLock { $0.count } == 3)
+        let bodies = server.requests.withLock { $0 }
+        #expect(bodies.count == 3)
+        #expect(bodies == recorder.requests.withLock { $0.map(\.1) })
+        #expect(bodies[1] == bodies[2])
+        try assertStreamingFollowUpHistory(bodies[2], boundary: boundary)
+        if session {
+            #expect(await chat.messages().isEmpty)
+        }
     }
 
     @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single })

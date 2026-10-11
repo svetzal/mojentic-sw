@@ -66,7 +66,8 @@ review and A/C limitations remain historical descriptions of those earlier tests
 The targeted permanent-status and persistent-504 cells now use the new assertions;
 other J D cells retain their narrower scope rather than inheriting unrelated JSON
 coverage. Direct J retry success is established by Q. Populated native-history
-retry and streaming tool-follow-up expansion remain open, as do controller gates.
+retry remains open, as do controller gates. The streaming tool-follow-up correction
+below closes the follow-up assertion gap.
 Cycle 17 reconciles preservation commit `da8cd59` against read-only verified main
 `3cc1d1f`, preserving its integrated metadata and Darwin corrections. Ordered wire
 captures also require the previous response's exact bytes before the next request;
@@ -392,3 +393,37 @@ results, not receipts for an integrated main commit.
 Foundry owns integration directly onto main. Green `build-macos` and
 `build-linux-minimum` on the exact integrated commit remain required before landed
 acceptance; no worker refs or runtime behavior are changed by this reconciliation.
+
+## Streaming follow-up acceptance correction
+
+On controller-synchronized main `d99d5c4`, the public streaming G cells now use
+`StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp` and
+`StreamingFollowUpAssertions`. All four providers execute both broker/session
+paths for admitted 503 recovery and rejected admission. Assertions compare every
+ordered decoded message in actual socket bodies: original user, assistant tool
+call with exact name/arguments, and exact tool result. IDs remain `original-tool`
+where supported, including Anthropic's native block linkage. Ollama's request
+encoding remains ID-less; its emitted call/result IDs must still agree.
+
+The ordered socket bytes equal the full ordered request captures; response headers
+and concatenated body bytes match each request identity in order. Retry bytes are
+identical. Initial tool completion and follow-up attempts use separate logical IDs,
+distinct attempt IDs and wire numbers 1 then 1/2. Exact identity and transition
+sequences match admission, lifecycle, both reports and original typed HTTP 503
+failure/history/body. Success emits exactly tool/result/content/done, rejection
+exactly tool/result then the typed rejection, with one tool execution and no resend
+or success terminal after rejection. Successful session history retains exact user
+and assistant content; rejected history rolls back. Both public paths also retain
+interaction limit 2 across the recovered tool follow-up, rejecting further recursion.
+
+The early public-boundary proof deliberately expected a different original user;
+all 16 cases rejected it (exit 1). Restoring the exact original user passed all 16
+(exit 0) before expanding identities and event assertions. Foundry retains that
+proof, complete foreground logs and independent scoped review as execution evidence.
+This correction changes tests and acceptance documentation only.
+
+Populated native reasoning-history retry remains open under N: tool-history
+assertions do not establish signed thinking or unsupported native reasoning fields.
+Local Linux verification cannot replace controller `build-macos` and
+`build-linux-minimum` on the exact landed commit. Both remain pending prerequisites
+for integrated acceptance until the controller verifies them.
