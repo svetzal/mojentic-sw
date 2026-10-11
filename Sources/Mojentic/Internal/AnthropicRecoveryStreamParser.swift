@@ -74,7 +74,8 @@ struct AnthropicRecoveryStreamParser {
         case "message_stop":
             guard stopped else { throw malformed() }
             terminal = true
-            guard finishReason == "end_turn" || finishReason == "tool_use" else {
+            guard finishReason == "end_turn" || finishReason == "stop_sequence" || finishReason == "tool_use"
+            else {
                 throw MojenticError.incompleteCompletion(evidence)
             }
             return try blocks.keys.sorted().compactMap { index in

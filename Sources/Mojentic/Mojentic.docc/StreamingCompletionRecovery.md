@@ -206,8 +206,10 @@ try await withRecoveryStreamCancellation {
 
 The recovery decoder accepts named SSE events with one JSON object per `data:`
 line. It validates block indices, delta types, tool arguments, usage and message
-ordering. A normal finish requires `message_delta` with `end_turn` or `tool_use`,
-then `message_stop`. Tools remain buffered until that accepted terminal response;
+ordering. A normal finish requires `message_delta` with `end_turn`, `stop_sequence` or `tool_use`,
+then `message_stop`. Recovery maps `stop_sequence` to `.stop` and retains the raw
+reason in metrics/completion evidence. Legacy streaming keeps its existing `.other`
+mapping for this reason. Tools remain buffered until that accepted terminal response;
 a rejected finish cannot execute completed tools. Single-turn streams reject tool
 blocks. Tool streams preserve thinking deltas; single-turn streams observe thinking
 for replay safety without rendering it as content. Any observed text, thinking or

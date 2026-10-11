@@ -190,9 +190,11 @@ tool-result history, generation controls and schema instructions are encoded onc
 and reused byte for byte. Successful responses keep provider input/output usage,
 model, message ID, thinking text and tools.
 
-Only `end_turn` and `tool_use` are accepted recovery finishes. Other finishes
+Recovery accepts `end_turn`, `stop_sequence` and `tool_use` finishes. Other finishes
 (including `max_tokens`) retain observed evidence and fail without delivering
-tools. The original initializer and legacy finish handling remain unchanged.
+tools. Accepted `stop_sequence` responses preserve exact content/JSON, raw finish
+reason, usage, model and message ID; the buffered typed mapping remains `.other`.
+The original initializer and legacy finish handling remain unchanged.
 Retries require explicit admission; request IDs do not imply idempotency. Status,
 remote cancellation and termination proof remain unsupported. Recovery uses the
 existing idle request timeout and adds no generation deadline.

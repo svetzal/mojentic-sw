@@ -35,7 +35,7 @@ import Foundation
                 else { throw invalidRecoveryMessage() }
             }
             let response = wire.toGatewayResponse()
-            guard wire.stopReason == "end_turn" || wire.stopReason == "tool_use" else {
+            guard ["end_turn", "stop_sequence", "tool_use"].contains(wire.stopReason ?? "") else {
                 throw MojenticError.incompleteCompletion(
                     CompletionEvidence(
                         finishReason: wire.stopReason,

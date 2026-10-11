@@ -30,7 +30,7 @@ enum StreamingRecovery {
                     .done(
                         finishReason: evidence.finishReason.map { reason in
                             if provider == "anthropic" {
-                                return reason == "end_turn" ? .stop : .toolCalls
+                                return reason == "tool_use" ? .toolCalls : .stop
                             }
                             return FinishReason(rawValue: reason) ?? .other
                         },

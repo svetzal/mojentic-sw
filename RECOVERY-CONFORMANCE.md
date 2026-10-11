@@ -4,7 +4,7 @@ The historical OpenAI recovery slice started at verified clean HEAD
 `11e2503130a77924527d81ea0331929bf716d15b`. Controller synchronization is
 recorded in `/home/svetzal/.foundry/operations/mojentic-port-alignment-20261010/status-recovery/receipt.json`
 (observed October 10, 2026 at 23:39:13 UTC), including clean status, fetch,
-pull with rebase, revisions and log hashes. Its Swift revision matches the preserved slice’s parent revision.
+pull with rebase, revisions and log hashes. Its Swift revision is historical synchronization evidence, not the current worker HEAD.
 Workers perform no ref mutation; changes remain uncommitted for controller integration.
 The normative documents and binding October 10 supplement in that receipt were
 reviewed against Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3`.
@@ -342,3 +342,76 @@ caller cancelling from inside the already-delivered `attemptSucceeded` callback
 can subsequently receive cancellation. The tested guarantee here is cancellation
 before terminal capture/reporting, including paused consumers; no shared landed
 engine behavior was changed to erase an event already delivered to an observer.
+
+
+## Anthropic stop-sequence correction (cycle 10)
+
+The clean worker HEAD was verified read-only as
+`63211f58ba4992b4a4423a545d6e782f1cd9caf7`, the preserved cycle-9 slice from
+`foundry-task/mojentic-sw-mojentic-sw-transient-recovery-v2-c9-a341c5`.
+The controller receipt named above records the earlier canonical Swift
+`11e2503130a77924527d81ea0331929bf716d15b` fetch/pull, not synchronization of
+this corrected worktree or integration of this slice. No worker fetch, rebase,
+commit, push, release or ref mutation occurred. Controller integration remains pending.
+
+The cycle-9 claim of no blocking Anthropic defect was incomplete: recovery
+rejected successful `stop_sequence` finishes in both buffered and SSE decoding.
+The recovery tool-stream mapper would also classify the newly accepted reason
+as `toolCalls`. Cycle-9 passing gates and review remain historical evidence;
+they did not characterize this terminal reason. Their earlier failing captures,
+missing-evidence disclosures and inherited cancellation-observer limitation are
+preserved above and are not converted into success claims.
+
+`AnthropicStopSequenceTests.successfulStopSequencePreservesEvidence` first failed
+through real scripted loopback HTTP at all five public entrypoints: `complete`,
+`completeJSON`, `completeStructured`, `streamRecovering` and
+`completeStreamEventsRecovering`. The command
+`./scripts/with-gate-environment swift test --traits full --filter AnthropicStopSequenceTests`
+exited 1 before the fix and 0 after the three recovery-only changes. The rejected
+responses carried exact UTF-8 JSON text `{"answer":"é思"}` and a successful
+provider `stop_sequence` reason; they were incorrectly reported as protocol failures.
+The initial rejecting build also recorded an unnecessary `try` warning in the new
+probe, removed before the corrected build. Later preflight lint failed on probe
+length and grouped arguments; those were refactored without rule changes.
+
+Buffered recovery now accepts the provider terminal reason while preserving
+exact content/JSON, raw reason, input/output usage, served model and message ID.
+Its existing typed finish mapping stays `.other`. Recovery SSE accepts
+`stop_sequence` only after the existing valid block/message ordering checks and
+maps tool-stream completion to `.stop`; metrics and single-turn completion retain
+raw `stop_sequence`. Assertions require ordered start metrics, exact content,
+terminal metrics and exactly one final done/completed event. No tool event is
+allowed in this fixture. `legacyStopSequenceMappingRemainsOther` checks buffered
+and streaming legacy public APIs retain `.other` and one HTTP request.
+
+The probe compares every captured request body to actual socket-received bytes,
+validates the Messages endpoint, request model/messages/stream mode and HTTP 200,
+and compares concatenated captured response chunks to the complete scripted body.
+Every wire event and lifecycle event must carry the same full logical UUID,
+attempt UUID and wire number 1. The UUIDs must be distinct and exactly one request
+must reach the socket. `completeJSON` exposes JSON only; original response evidence
+is asserted through `completeStructured` and captured at the HTTP boundary for
+all entrypoints. Optional test-only capture persists socket request headers/bodies,
+wire identities/headers/chunks and lifecycle events when
+`STOP_SEQUENCE_EVIDENCE_DIR` is set by the foreground evidence harness.
+
+The unfiltered suites retain rejecting `max_tokens`, malformed/foreign terminal,
+invalid usage and completed-tool withholding cases, cancellation precedence,
+paused cleanup, broker/session dispatch and completed-tool execution-once tests.
+No dependency, legacy runtime, broker/session or recovery admission change is included.
+Provider limits and signed/redacted thinking-history exclusions remain unchanged.
+
+Current evidence is retained outside the disposable worktree under
+`/home/svetzal/.foundry/tool-logs/mojentic-sw-stop-sequence-c10`: behavioral proof
+and actual exit receipts, complete captures, HTTP artifacts, rejecting/frozen source
+snapshots and SHA-256 manifests, read-only revision/status records and the copied
+controller receipt. `gates.json` records each current foreground gate command,
+actual exit and unchanged source hashes; `independent-review.md` records the
+independent review of this correction and its assertion strength. The validation
+sequence includes all six configured required gates, standalone SwiftFormat,
+full-trait release build/DocC, unfiltered tracked-lockfile OSV and the native
+full-trait API audit against `v2.1.0`, without scope reductions or suppressions.
+Current results must be read from these cycle-10 receipts, not inferred from
+historical cycle-9 successes. Apple/Darwin and declared Swift 6.1 validation
+remain pending until executed; Linux validation does not establish those targets
+or whole-port parity. Foundry/controller owns Git finalization.
