@@ -17,7 +17,11 @@ conjunctions, direct JSON convenience cases and populated native-history retry
 fixtures remain unproved. Unsupported-request-option coverage and per-event
 telemetry identity assertions also remain limited. This is not an unconditional
 whole-port alignment claim.
-Apple/Darwin and Swift 6.1 validation remain pending. The formation-gate timeout
+Apple/Darwin validation passed on October 11, 2026 in CI run
+[38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
+at `0cea3ed346e9b47a2afdfefe0066953123b68e87`, after the Darwin corrections in
+[Apple/Darwin validation](#appledarwin-validation-october-11-2026). The same run
+passed the Linux Swift 6.1 container job. The formation-gate timeout
 requires separate controller resolution; foreground worktree checks do not prove
 that controller gate passed.
 
@@ -499,3 +503,41 @@ Apple/Darwin execution, Swift 6.1 execution or whole-port parity. Apple and mini
 Swift validation remain pending until actually executed. Current gate exits, complete
 captures, source/log hashes, controller evidence and independent review are retained
 in the external cycle-11 evidence store; worker changes remain uncommitted for Foundry.
+
+## Apple/Darwin validation (October 11, 2026)
+
+The recovery corrections above were validated on Linux only. The `build-macos`
+job (Xcode 27, Swift 6.4) failed on every main push from `b1822c1` to `b8685d4`;
+the last failing run was 38120879374. Five recovery tests failed there, and two
+more failed when run locally under parallel load. A raw URLSession probe against
+`RecoveryLoopback` found three Darwin differences:
+
+1. URLSession completes a non-2xx response with no error when the body ends
+   before its `Content-Length`. A truncated 2xx gets
+   `URLError.networkConnectionLost`. FoundationNetworking reports an error for
+   both. Recovery recorded `RecoveryHTTPStatusFailure` as the cause and lost the
+   transport evidence. `RecoveryHTTP.lostConnection(response:received:)` now
+   records `URLError.networkConnectionLost` for a short body with no content
+   coding. The status still sets the category and eligibility.
+2. The legacy Darwin `HTTPClient.streamLines` path threw
+   `MojenticError.http(status:body:)` with an empty body. It now reads the
+   finite error body first, as the Linux path does.
+3. CFNetwork can discard body bytes that it read but did not yet give to its
+   delegate when end of stream arrives in the same read. In 1,500 concurrent
+   truncated replies, 3 to 9 attempts got no body bytes, whether the server
+   closed at once, lingered or waited 20 ms. The affected tests saw
+   zero-progress attempts and retried them. In every retry the first attempt
+   had `rawBytes == 0` and no observed progress; the library did not retry
+   after observed semantic evidence. The loopback now holds a truncated close
+   until the client's wire observer reports the bytes, which matches a real
+   mid-body drop.
+
+No assertion was weakened. Run
+[38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
+on `0cea3ed346e9b47a2afdfefe0066953123b68e87` passed `build-macos`,
+`build-linux`, `build-linux-minimum` (Swift 6.1), `lint` and `format-check`.
+
+Real-world limit on Apple platforms: if a server sends partial bytes and closes
+almost immediately, CFNetwork can discard those bytes. The attempt then shows no
+progress, and replay still requires caller admission with acceptance `.unknown`.
+The library cannot observe discarded bytes, so it cannot refuse replay on them.
