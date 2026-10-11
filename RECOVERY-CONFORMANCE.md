@@ -1,5 +1,38 @@
 # Swift transient recovery conformance
 
+## Current integrated disposition (October 11, 2026)
+
+Delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` contains the recovery
+corrections described in cycles 7–11 below. Those sections are preserved historical
+records: their statements that worker changes await integration do not describe
+this delivered main. The current documentation correction remains uncommitted
+for Foundry finalization; runtime behavior is unchanged.
+
+[The independent whole-mission acceptance ledger](RECOVERY-ACCEPTANCE.md) reviews
+actual public provider/operation paths and assertion strength against both normative
+documents, the October 10 supplement and exact Rust
+`4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Its verdict is conditional: strong
+Linux terminal, capture and tool-safety evidence exists, but several assertion
+conjunctions, direct JSON convenience cases and populated native-history retry
+fixtures remain unproved. Unsupported-request-option coverage and per-event
+telemetry identity assertions also remain limited. This is not an unconditional
+whole-port alignment claim.
+Apple/Darwin and Swift 6.1 validation remain pending. The formation-gate timeout
+requires separate controller resolution; foreground worktree checks do not prove
+that controller gate passed.
+
+[The current evidence index](RECOVERY-REVIEW-EVIDENCE.json) records input/source
+hashes, retained archive verification and fresh gate/audit results. All 247 files
+in the cycle-11 frozen source match this delivered main; all 652 recorded archive
+hashes and 72 gate-log checks match. Historical failing captures, absent baseline
+receipts and overwritten early HTTP artifact disclosures below remain intact.
+Historical `.foundry` references below describe scratch at the time of execution,
+not committed repository artifacts; retained external archive locations and current
+evidence are indexed separately. Earlier slice reviews do not replace the new
+whole-mission review.
+
+## Historical slice record
+
 The historical OpenAI recovery slice started at verified clean HEAD
 `11e2503130a77924527d81ea0331929bf716d15b`. Controller synchronization is
 recorded in `/home/svetzal/.foundry/operations/mojentic-port-alignment-20261010/status-recovery/receipt.json`

@@ -1,0 +1,309 @@
+# Independent whole-mission recovery acceptance review
+
+Reviewed delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` on October 11,
+2026. This is a fresh source and assertion review independent of the earlier
+implementation slices, performed by the correction reviewer. It is not a second
+concurrent reviewer or a controller gate receipt. No recovery code, fixtures,
+dependencies, workflow commands or refs are changed by this review.
+
+The authority is [the contract](TRANSIENT-RECOVERY-2026-10.md), [the original
+request](RECOVERY-REQUEST-2026-10.txt), and Stacey's binding October 10 supplement
+retained in the external cycle-9 `execution/controller-supplement.txt`. Rust was
+inspected from Git objects at exactly `4ca1ed279c02eab37827a1ed07c30e961155ecf3`,
+including recovery engine, adapter, frames, policy, types, public tests,
+`book/src/core/recovery.md` and `RECOVERY-CONFORMANCE.md`; no sibling working-tree
+state is used as normative evidence. Input/source hashes and archive verification
+are recorded in [the evidence index](RECOVERY-REVIEW-EVIDENCE.json).
+
+**Verdict: the independent review is complete; unconditional whole-port alignment
+is not established.** The integrated request engines and public terminal/tool
+boundaries provide substantial Linux conformance evidence. The acceptance ledger
+below preserves the narrower assertion coverage rather than treating passing test
+names or aggregate counts as proof of every cell. Native-history retry fixtures,
+some direct JSON-operation cases, Apple/Darwin and Swift 6.1 validation remain
+unproved. These are evidence limits, not newly demonstrated runtime defects.
+The formation-gate timeout remains a separate controller obligation. Passing
+foreground worktree gates cannot close it.
+
+## Public paths and operation vocabulary
+
+| Provider | B: ordinary | S: structured | J: JSON convenience | T: tool-capable stream | C: single-turn stream |
+| --- | --- | --- | --- | --- | --- |
+| Ollama | `OllamaGateway.complete` | `.completeStructured` | `.completeJSON` delegates to S | `.streamRecovering` | `.completeStreamEventsRecovering` |
+| oMLX | `OMLXGateway.complete` | `.completeStructured` | `.completeJSON` delegates to S | `.streamRecovering` | `.completeStreamEventsRecovering` |
+| OpenAI Chat Completions | `OpenAIGateway.complete` | `.completeStructured` | `.completeJSON` delegates to S | `.streamRecovering` | `.completeStreamEventsRecovering` |
+| Anthropic Messages (`anthropic` trait) | `AnthropicGateway.complete` | `.completeStructured` | `.completeJSON` delegates to S | `.streamRecovering` | `.completeStreamEventsRecovering` |
+
+B/S require a recovery-configured gateway initializer. Their provider request
+builders call `BufferedRecovery.run`; S projects the same decoded response to JSON
+inside that attempt. T/C call `StreamingRecovery.run` with the provider decoder.
+`OMLXGateway+RecoveryStreams.swift` holds oMLX's stream entrypoints;
+`AnthropicGateway+RecoveryDecoding.swift` and `AnthropicRecoveryStreamParser.swift`
+hold Anthropic decoding. The common engine serializes one `Data` payload before
+its attempt loop. `RecoveryHTTP` owns an isolated ephemeral session, request launch,
+header/body observation and local cancellation. The redirect delegate refuses
+redirects; there is no application transport retry loop below the request engine.
+This review does not prove every opaque URLSession transport behavior on Apple.
+
+`LLMBroker.complete`/`generate` and structured generation call the gateway's buffered
+paths. `ChatSession.send` uses broker completion. `Broker.swift` routes tool streams
+to `streamRecovering`; `LLMBroker.generateRecoveryStreamEvents` routes single turns
+to C. `ChatSession.stream` uses the broker relay. `RecoveryScopedStreaming`,
+`RecoveryDelivery`, `RecoveryStreamCancellation` and `RecoveryTerminalAccounting`
+retain ownership and settle the attempt at the outer public terminal delivery;
+broker tool turns settle before tool dispatch, which clears the outer accounting
+scope for arbitrary tool work. None of the request engines executes tools.
+
+Legacy `stream`, `completeStreamEvents` and `generateStreamEvents` retain their
+single-send paths. `RecoveryStreamingGateway` lifts unsupported gateways without
+fabricated recovery telemetry. Realtime and embeddings are outside completion
+recovery; there are no other maintained HTTP completion adapters in this tree.
+
+## Requirement by provider by operation ledger
+
+Each cell names the exercised operations and evidence keys defined below.
+`E` means an applicable public HTTP assertion exists; `L` means limited evidence
+(the precise missing conjunction is disclosed below); `D` means delegation was
+inspected but that operation is not separately exercised for the requirement;
+`S` means inspected public source/documentation without a dedicated HTTP probe;
+`N` means the case is inapplicable. A shared engine is supporting source evidence,
+not a substitute for a missing public-operation assertion. A cell does not claim
+that every listed evidence key individually tests all its operations.
+
+| Requirement / acceptance case | Ollama | oMLX | OpenAI | Anthropic |
+| --- | --- | --- | --- | --- |
+| Typed errors/status/cause/history, safe inspection | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F,H; J D |
+| 503 then success: frozen payload, IDs, lifecycle, wire bytes | B,S E A; T E B; C E D; J D | B,S E A; T E B; C E D; J D | B,S E A; T E B; C E D; J D | B,S E A; T,C E D,H; J D |
+| 429 Retry-After seconds/date/invalid, ceiling/budget refusal | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D |
+| Past dates, exponential bounded delays | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D |
+| Persistent 504 exhaustion and final history | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D |
+| Ambiguous timeout/pending admission/allow/reject | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D,H; J D |
+| Admission required without safe evidence | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D |
+| Cancellation: pre-dispatch, request, admission, backoff | B,S,T,C E E; J D | B,S,T,C E E; J D | B,S,T,C E E; J D | B,S,T,C E E,H; J D |
+| Terminal cancellation, paused consumer, failed-before-cancel order | T,C E F; B,S E E; J D | T,C E F; B,S E E; J D | T,C E F; B,S E E; J D | T,C E F,H; B,S E E,H; J D |
+| Successful terminal acceptance and stream end | T,C E F | T,C E F | T,C E F | T,C E F,H |
+| Observed content/reasoning/tool fragments forbid resend | B,S E I; T,C E C,H; J D | B,S E I; T,C E C,H; J D | B,S E I; T,C E C,H; J D | B,S E I,H; T,C E C,H; J D |
+| Observe before failed capture; typed cause and zero delivery | B,S E A; T,C E C; J D | B,S E A; T,C E C; J D | B,S E A,I; T,C E C; J D | B,S,T,C E H; J D |
+| Permanent 400/401/403 despite selected status and truncated body | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D |
+| Malformed protocol, unsupported options, no blind retries | B,S L A,I; T,C L C; J D | B,S L A,I; T,C L C; J D | B,S L A,I; T,C L C,I; J D | B,S,T,C L H; J D |
+| Keepalive raw-only progress; no implicit approval | T,C E D | T,C E D | T,C E D | T,C E D |
+| Default one attempt, legacy success/API compatibility | B,S E A,K; T,C E K; J D | B,S E A,K; T,C E K; J D | B,S E A,K; T,C E K; J D | B,S E A,H; T E H; legacy C unsupported E H; J D |
+| Privacy against credential/payload metadata echoes | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F,I; J D | B,S,T,C E H; J D |
+| Progress/metrics values, order, per-attempt accounting | T,C L F,M | T,C L F,M | T,C L F,I | T,C L F,H |
+| Rejected length terminal: Progress, Metrics, Failed; no tools | T,C E M | T,C L M | T,C E I | T,C E H |
+| Exact wire traces: request and response, including failures | B,S E A; T E B; T,C E F; J D | B,S E A; T E B; T,C E F; J D | B,S E A; T E B; T,C E F; J D | B,S E A; T,C E F,H; J E H |
+| Completed tool once, failed/recovered follow-up, depth retained | broker/session B E G; T L G (terminal E) | broker/session B E G; T L G (terminal E) | broker/session B E G; T L G (terminal E) | broker/session B E G; T L G (terminal E) |
+| Native reasoning history preserved byte-for-byte across retries | B,S,T,C L N; J D | B,S,T,C L N; J D | B,S,T,C L N (existing omission); J D | B,S,T,C L N (signed history unsupported); J D |
+| Redirect refusal/no added total generation timeout | B,S E A,E; T,C L E; J D | B,S E A,E; T,C L E; J D | B,S E A,E; T,C L E; J D | B,S E A,E; T,C L E; J D |
+| Remote cancellation/status/idempotency truthfulness | B,S,J,T,C S P | B,S,J,T,C S P | B,S,J,T,C S P | B,S,J,T,C S P |
+| Migration examples, all maintained adapters covered | B,S,J,T,C S P | B,S,J,T,C S P | B,S,J,T,C S P | B,S,J,T,C S P |
+
+B/S use `RecoveryBoundary.all` (six default combinations, eight with full traits).
+T/C use `StreamingBoundary.all` or `.withAnthropic` as explicitly noted below.
+The former excludes Anthropic. The matrix does not infer Anthropic coverage from
+an `.all` test. Broker/session tool cases exclude S/C because those are single-turn
+operations that do not dispatch tools. Ordinary finish handling outside recovery
+and disabled-reasoning parity are not added to this correction.
+
+## Assertion evidence and its limits
+
+All paths below are relative to `Tests/MojenticTests/Gateways/` unless specified.
+These descriptions identify assertions to inspect, not just test labels.
+
+**A — buffered request conformance.** `RecoveryConformanceTests.bothOperationsPreserveShapingAndResults`
+uses B/S on `RecoveryBoundary.all`: socket `Data` arrays equal capture `Data` arrays,
+first/last bytes equal, full logical UUIDs equal, attempt UUIDs differ, wire numbers
+are `[1,2]`. It checks exact lifecycle sequence from start through admission/delay/
+retry/success, shaped model/schema/tools/sampling/token controls, decoded usage,
+private 503 bytes and `RecoveryHTTPStatusFailure`. `assertWireEvidence` checks
+captured status/body and capture identity. `successfulCaptureFailureRetainsObservedAndTypedCause`
+requires reasoning/content/completed-tool counters, zero delivery and a
+`RecoveryCaptureSentinel`. `malformedResponseNeverResends` retains `DecodingError`.
+`permanentTruncatedStatusWins` checks selected permanent status, numeric
+status, exact partial bytes/headers, `URLError`, ineligibility and lifecycle.
+However, those permanent-error and `persistent504IsBounded` tests do not themselves
+assert the full socket/capture/identity/lifecycle conjunction. Persistent 504 checks
+history wire numbers `[1,2,3]`, distinct attempts/one logical ID, raw counters and
+three sends; count/set assertions alone do not close the stronger exhaustion cell.
+
+**B — streaming retry.** `StreamingRecoveryProofTests.publicHTTPRecovery` uses T
+on `.all.filter { !$0.single }`: captured and socket request arrays equal, immutable
+first/last request bytes, same logical/different attempt UUIDs, ordered eight-event
+lifecycle, final delivered UTF-8 count 2, failed identity/status/typed HTTP cause,
+and response chunks grouped by the full attempt UUID equal each scripted body.
+It covers Ollama/oMLX/OpenAI, not Anthropic or C.
+
+**C — streaming failure/protocol/privacy.** `StreamingRecoveryTests.numericFailuresAndPrivateEvidence`
+uses T/C `.withAnthropic`: HTTP 400/401/403 with truncated bodies remain permanent
+even after selecting those statuses and transport eligibility; 504 has three failed
+attempts. Exact private body bytes, status, raw/delivered counters and `URLError`
+versus `RecoveryHTTPStatusFailure` are asserted. Descriptions/reflection/event JSON
+exclude sentinel values. It lacks per-attempt socket/capture equality and full
+identity/order assertions for this case. `semanticInterruptionNeverRetries` checks
+content 6 bytes, reasoning 3 bytes, one observed tool fragment, provider-dependent
+reasoning delivery, zero completed delivery, exact retained body and no success.
+`captureAfterObservationPreventsDelivery` observes received semantics before capture
+failure. `StreamingRecoveryProtocolTests` refuses malformed frames/missing terminal,
+invalid counts and privacy echoes without fabricating telemetry.
+
+**D — timing/admission.** `RecoveryTimingTests` B/S checks injected sleeps for
+seconds, HTTP dates and invalid values, `.seconds(31)` limit refusal, past-date
+jitter, exponential ceilings, bounded history, absolute deadlines and pending
+admission. Timeout cases wait for the explicit allow/reject signal and retain typed
+transport evidence. `StreamingRecoveryTimingTests` T/C `.withAnthropic` checks exact
+sleep arrays `[2]`, `[3]`, `[1]`, ceiling/budget refusal, and keepalive-only raw bytes
+with zero observed/delivered semantic progress. `assertRecoveryRequests` compares
+all captured/socket bytes, immutable retries, full logical and attempt identities
+and wire sequence, and requires every lifecycle identity to match a captured
+identity. Past-date/exponential streaming behavior and streaming no-hook refusal
+are supported by the shared engine, but not equivalent dedicated T/C fixtures.
+
+**E — cancellation/ownership/limits.** `RecoveryCancellationTests` B/S exercises
+request, admission and backoff synchronization, pre-dispatch zero sends and healthy
+active generation exceeding the recovery budget. `RecoveryAdmissionSafetyTests`
+checks cancellation precedence over refusal; `RecoveryDispatchSafetyTests` checks
+expiry at capture/start and actual launch accounting. Streaming cancellation,
+`PausedRecoveryOwnershipTests`, `PausedRecoveryDeliveryTests` and
+`ScopedRecoveryRelayTests` exercise T/C, broker and session relays. Paused tests
+assert peer FIN/cleanup while the same iterator is held and before consumer resume,
+exact observed/delivered byte counters and lifecycle failure/cancellation order.
+Local FIN proves local cleanup only. It cannot prove remote model termination.
+Source limits apply to admission/backoff/retry start rather than an active-generation
+wall-clock cutoff; streaming redirect/no-total-timeout evidence is not a full
+provider-by-operation wire fixture.
+
+**F — public terminal receipt.** `TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt`
+uses `.withAnthropic`, gateway/broker/session paths and success/cancel controls;
+C/session is skipped because no session single-turn event API exists. The held
+consumer accepts all expected nonterminal events, pauses immediately before final
+sender registration, then cancels without draining. Failure history and exactly
+`attemptStarted, attemptFailed, cancelled` must exist before resume. Success accepts
+one terminal and stream end and records `attemptStarted, attemptSucceeded`.
+`TerminalRecoveryEvidence.verifyTerminalEvidence` compares actual socket request
+bytes to capture, full UUID identities across lifecycle/report/request, wire number
+1, HTTP 200 and `X-Request-ID`, exact response chunk concatenation, retained body,
+`CancellationError`, observed content/reasoning 2/3 UTF-8 bytes and exact delivered
+counters. `verifyPublicTerminalCancellation` matches public failure identities,
+progress and cause to the retained report. Metrics checks require 3 prompt/12
+completion tokens and Anthropic's initial zero completion count. The probe was
+executed before this review's document edits: 1 test with 48 parameterized cases (40 execute HTTP; eight C/session cases return early),
+exit 0. Historical cycle-11 rejecting delivery proof remains retained separately.
+
+**G — tools across logical requests.** `RecoveryToolSafetyTests.completedToolSurvivesRecoveredFollowUp`
+uses all four providers' B through broker/session: original user/assistant/tool
+history is decoded, tool input equals `{"relative":"tomorrow"}`, result equals
+`{"original-result":"tool-sentinel"}`, original tool ID is retained where encoded,
+and follow-up socket bodies are byte-identical across the 503 retry. Full request
+identities distinguish the first logical tool turn from the follow-up retry;
+`failurePreservesTypedCauseAfterCompletedTool` and `recoveryDoesNotResetToolDepth`
+cover typed failure and preserved interaction limit. `TerminalRecoveryToolTests.completedToolRunsOnceBeforeCancelledFinalDelivery`
+uses T through broker/session on `.withAnthropic`: consumed events are exactly
+`tool, tool-result, content:é`, invocation count is 1, two socket bodies equal the
+capture array, two full logical/attempt IDs differ, each wire number is 1, and
+lifecycle is exactly first success then second failure/cancel with matching
+identities. Final private bytes/cancellation cause and session rollback are checked.
+Follow-up tool name/result/ID assertions there use substring checks; the buffered
+G fixture supplies the stronger decoded history assertions. Count 1 alone is not
+used as tool-safety acceptance.
+
+**H — Anthropic-specific public coverage.** `AnthropicRecoveryTests` covers
+B/S/J shaping and supported thinking controls, failed/successful stream telemetry,
+legacy unsupported C and privacy. Unsupported-option failure before dispatch
+is supported by provider validation code; a complete recovery-enabled public
+fixture matrix for that case was not found. `AnthropicRecoveryCaptureTests.captureAndCancellationRetainExactObservedEvidence`
+uses ordinary/structured/tool/single paths, exact 2/3-byte content/reasoning counts,
+tool fragments/completed calls, zero delivered progress, `RecoveryCaptureSentinel`
+including cancellation precedence, exact private body and lifecycle/request IDs.
+`partialToolArgumentsInterruptWithoutDelivery` retains partial tool fragments and
+`URLError` or original `MojenticError.unexpectedToolCalls` with no replay.
+`AnthropicStopSequenceTests.successfulStopSequencePreservesEvidence` directly calls
+B/S/J/T/C, checks JSON/content, exact provider evidence and stream metadata/terminal
+order, socket/capture equality and raw response bytes. It does not substitute for
+all missing direct J error/admission cases. Signed thinking-history round trips are
+unsupported in the existing message representation.
+
+**I — observed buffered tails and OpenAI.** `RecoveryAdmissionSafetyTests.observedSemanticEvidenceRefusesReplay`
+and `RecoveryConformanceTests.receivedSemanticProgressSurvivesMalformedTail`
+retain reasoning/tool evidence from valid prefixes before malformed tails with
+zero delivery. `OpenAIRecoveryProofTests.captureFailureRetainsReceivedSemanticsWithoutResend`
+uses B: received reasoning/content/tool counters, explicit typed capture cause,
+private bytes and exact failed lifecycle. `OpenAIRecoveryTests` covers the original
+single-turn tool rejection, recovered generation-control shaping, length/unsupported
+terminals and progress/metrics privacy. Unsupported finish reasons here are response
+validation, not proof of unsupported request options. OpenAI's observed reasoning does not become
+legacy delivered reasoning. The review preserves this existing provider behavior.
+
+**K — compatibility.** `ReleaseBaselineCompatibilityTests` imports the public
+module, compiles exhaustive legacy enum switches and checks generic routing/schema
+APIs. Its six legacy HTTP combinations are Ollama/oMLX only: 503/body unchanged,
+one send, no recovery observer event. `RecoveryConformanceTests.successfulLegacyAndRecoveryResultsMatch`
+compares decoded result and request JSON for B/S all providers; disabled recovery
+is one send. OpenAI/Anthropic-specific suites supply their narrower legacy stream
+coverage. No new `MojenticError` case is introduced by this review.
+
+**M — terminal telemetry.** `StreamingRecoveryTests.validatedLengthPreservesTelemetryOnly`
+checks exact UTF-8 content/reasoning, observed tools but no delivered semantics,
+12 completion tokens, 6,000,000,000 eval-duration units and Progress, Metrics, Failure
+order for Ollama T/C. It does not assert all frame indices or throughput values.
+The common terminal and protocol suites exercise oMLX finish evidence and
+semantic order; oMLX supplies no separate recovery progress/metrics events in
+these fixtures. Existing legacy oMLX length tests are not recovery-boundary proof,
+so the oMLX rejected-length recovery cell remains limited.
+Full IDs and socket/capture equality at final delivery come from F, not a count-only
+telemetry assertion. Public progress and metrics event payloads have no identity
+field: F correlates wire, lifecycle, report and public failure identities within
+one logical stream, not an ID attached to every public metadata event. Rust-style
+per-event identity and per-attempt frame-index assertions are not established by
+these tests; fields absent from the normal Swift stream are not fabricated. Malformed frames cannot produce unvalidated metadata.
+
+**N — immutable native history limit.** The engines encode once and reuse bytes,
+and ordinary gateway mapping tests check supported reasoning representations.
+However, `RecoveryBoundary.complete` supplies only a user message; B/S conformance
+therefore does not prove preservation of populated native assistant reasoning
+history across a retry. The tool fixtures prove tool history, not signed reasoning
+history. No universal public-native-history retry fixture was found. Existing
+OpenAI history omission and Anthropic signature limitations remain explicit;
+source immutability alone cannot manufacture support or close this evidence gap.
+
+**P — capabilities and migration.** `LocalRecoveryCapabilities.swift`, Anthropic's
+capabilities and `CompletionRecoveryCapabilities` report unsupported request status
+and remote cancellation and unknown idempotency. A caller's explicit admission
+can authorize a resend, but a correlation UUID or model unload/list cannot establish
+idempotency or exact request termination. The two DocC recovery guides document
+buffered/streaming opt-in migration, typed inspection, sensitive raw captures,
+cancellation scope, provider tables and legacy limitations. Realtime/embeddings,
+remote inference termination, live efficacy and original 504 attribution remain
+outside the proved capabilities.
+
+## Comparison and acceptance disposition
+
+Rust at the pinned revision corroborates permanent-status precedence over body
+transport failure, observed-before-capture accounting, pending admission, bounded
+wire history, safe inspection and no-tool-replay rules. Its wrapper API, typed
+`MojenticError::Recovery` and explicit cancellation token differ idiomatically from
+Swift's opt-in streaming vocabulary, direct buffered `RecoveryError` and task-local
+ownership. Rust's earlier provisional finalization wording is historical. Its lack
+of Anthropic and oMLX telemetry coverage is not imported as a Swift exemption;
+Swift H/F/M evidence is assessed directly. Neither Rust's live harness cells nor
+its gate results prove this Swift revision.
+
+Acceptance remains conditional on the L/D cells and pending platform validation.
+The ledger closes the missing review obligation by documenting those limits, not
+by converting them to passes. No release, coordinated parity assertion, inference,
+benchmark restart or formation-gate success is authorized by this review.
+
+## Current verification
+
+All six required gates and three unfiltered audits exited zero on Linux Swift 6.4:
+323 default tests and 334 full-trait tests passed, OSV reported no issues and the
+API audit reported no breaking changes against `v2.1.0`. Current validation is
+foreground execution, independent of historical slice gate receipts. Documentation
+clarifications made after that run are followed by a second unchanged full check
+set in the same external archive; final receipts apply to the final review files.
+
+Foreground validation results are recorded in `RECOVERY-REVIEW-EVIDENCE.json`.
+Complete captures are external execution evidence in the archive named there;
+repository documentation does not depend on disposable worker scratch paths.
+The six unchanged project gates, standalone SwiftFormat, unfiltered tracked-lockfile
+OSV and native full-trait API audit against `v2.1.0` are required for this review.
+Historical successful gates are not used as current executions.
