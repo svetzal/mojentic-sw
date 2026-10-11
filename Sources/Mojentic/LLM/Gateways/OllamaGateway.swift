@@ -414,6 +414,7 @@ private struct DynamicKey: CodingKey {
 }
 
 private struct OllamaMessage: Encodable {
+    let thinking: String?
     let role: String
     let content: String
     let toolCalls: [OllamaToolCallEnvelope]?
@@ -423,10 +424,12 @@ private struct OllamaMessage: Encodable {
         case role
         case content
         case toolCalls = "tool_calls"
+        case thinking
         case images
     }
 
     init(from message: LLMMessage) {
+        thinking = message.role == .assistant ? message.thinking : nil
         switch message.role {
         case .system:
             role = "system"

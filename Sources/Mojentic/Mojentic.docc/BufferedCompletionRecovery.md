@@ -204,3 +204,39 @@ redacted-thinking blocks. Retrying one frozen request preserves its supported
 history; it does not add native reasoning history to later broker turns. Raw
 capture and `inspectEvidence()` remain explicitly sensitive; safe error summaries
 and lifecycle serialization exclude provider credential/payload echoes.
+
+## Retain native assistant reasoning in caller-owned history
+
+Existing message initializers and `.assistant(_:toolCalls:)` still create history
+with `nil` thinking. Use the additive overload when retaining a supported provider's
+response alongside its content and tool calls:
+
+```swift
+let assistant = LLMMessage.assistant(
+    previous.content,
+    toolCalls: previous.toolCalls,
+    thinking: previous.thinking
+)
+let history: [LLMMessage] = [
+    .user("Resolve tomorrow"), assistant,
+    .tool(callId: "original-call", content: "Retained tool result"),
+    .user("Continue")
+]
+let response = try await gateway.complete(
+    model: "your-local-model", messages: history, tools: nil, config: .init()
+)
+```
+
+Use the original provider tool-call identifier for the result's `callId`. This
+example assumes the previous assistant requested that tool and its result is
+already available. The same history can be supplied to `completeStructured` or
+`completeJSON`; an admitted retry preserves the encoded request bytes.
+
+Ollama sends populated assistant thinking as `thinking`; oMLX sends it as
+`reasoning_content`. Nil values and non-assistant reasoning are omitted.
+OpenAI-native Chat Completions omits this unsigned history field, including through
+the public OpenAI message adapter. Anthropic also omits it: plain text cannot
+represent its signed thinking blocks. This API does not change reasoning settings,
+provider response parsing, or broker/session history construction. Callers manage
+this history explicitly; no signed-history support or automatic broker retention
+is implied.

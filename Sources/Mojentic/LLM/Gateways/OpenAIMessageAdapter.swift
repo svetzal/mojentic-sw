@@ -10,7 +10,20 @@ import Foundation
 public enum OpenAIMessageAdapter {
     /// Convert Mojentic messages to OpenAI Chat Completions message JSON.
     public static func adapt(_ messages: [LLMMessage]) -> [JSONValue] {
-        messages.map(adaptSingle)
+        adapt(messages, nativeReasoning: false)
+    }
+
+    /// Opt in only for compatible servers that support unsigned reasoning history.
+    static func adapt(_ messages: [LLMMessage], nativeReasoning: Bool) -> [JSONValue] {
+        messages.map { message in
+            let value = adaptSingle(message)
+            guard nativeReasoning, message.role == .assistant, let thinking = message.thinking else {
+                return value
+            }
+            guard case .object(var fields) = value else { return value }
+            fields["reasoning_content"] = .string(thinking)
+            return .object(fields)
+        }
     }
 
     /// Convert a tool descriptor to an OpenAI `function` tool definition.

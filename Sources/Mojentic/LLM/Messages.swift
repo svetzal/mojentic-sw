@@ -104,6 +104,12 @@ public struct LLMMessage: Sendable, Codable, Hashable {
     /// turns may carry only a serialised result.
     public let content: String?
 
+    /// Native assistant reasoning retained for supported provider history.
+    ///
+    /// Ollama sends this as `thinking`; oMLX sends it as `reasoning_content`.
+    /// OpenAI-native and Anthropic omit it, as do non-assistant turns.
+    public let thinking: String?
+
     /// Image attachments.
     ///
     /// Set only on `.user` turns; ignored elsewhere.
@@ -128,6 +134,28 @@ public struct LLMMessage: Sendable, Codable, Hashable {
         toolCalls: [LLMToolCall]? = nil,
         toolCallId: String? = nil,
     ) {
+        self.init(
+            role: role,
+            content: content,
+            images: images,
+            toolCalls: toolCalls,
+            toolCallId: toolCallId,
+            thinking: nil,
+        )
+    }
+
+    /// Construct a message retaining optional native assistant reasoning.
+    ///
+    /// Reasoning is sent only by providers that support unsigned assistant history.
+    public init(
+        role: MessageRole,
+        content: String? = nil,
+        images: [ImageContent]? = nil,
+        toolCalls: [LLMToolCall]? = nil,
+        toolCallId: String? = nil,
+        thinking: String?,
+    ) {
+        self.thinking = thinking
         self.role = role
         self.content = content
         self.images = images
@@ -155,6 +183,15 @@ public struct LLMMessage: Sendable, Codable, Hashable {
     /// Build an assistant message with optional content and optional tool calls.
     public static func assistant(_ text: String? = nil, toolCalls: [LLMToolCall]? = nil) -> LLMMessage {
         LLMMessage(role: .assistant, content: text, toolCalls: toolCalls)
+    }
+
+    /// Build an assistant message retaining native reasoning alongside content and tool calls.
+    public static func assistant(
+        _ text: String? = nil,
+        toolCalls: [LLMToolCall]? = nil,
+        thinking: String?,
+    ) -> LLMMessage {
+        LLMMessage(role: .assistant, content: text, toolCalls: toolCalls, thinking: thinking)
     }
 
     /// Build a tool-result message carrying a serialised response.

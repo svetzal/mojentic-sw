@@ -677,8 +677,96 @@ cases; correcting that expectation passed all 16 before expansion. This tests
 history assertion strength, without changing runtime behavior. Independent scoped
 review and foreground gate/audit results are execution evidence retained by Foundry.
 
-These fixtures establish supported tool history, not populated native reasoning
-history across retries. Signed Anthropic thinking/signatures and OpenAI native
-reasoning-history omissions remain limits; no history API is expanded. Controller
+The preceding slice establishes supported tool history. The October 11 reasoning-history
+addition below extends caller-owned history only. Signed Anthropic thinking/signatures
+and OpenAI-native reasoning-history omissions remain limits. Controller
 integration must retain green `build-macos` and `build-linux-minimum` on the exact
 landed commit. That prerequisite remains pending until verified by the controller.
+
+
+## Populated native reasoning history — October 11 authorized slice
+
+Starting HEAD and controller-designated `origin/main` were
+`da193496e68049810fdc69db991c2fad11dcc3e4`. Read-only inspection found a clean
+worktree; HEAD, the local remote-tracking ref and remote `refs/heads/main` matched.
+No separate current controller receipt was supplied beyond the correction-plan
+synchronization statement. This worker performs no fetch or ref mutation. Foundry
+owns review and direct-main integration; no release or dependency change belongs
+to this slice.
+
+`LLMMessage.thinking` is optional, Codable, Sendable and Hashable. The original
+initializer and `.assistant(_:toolCalls:)` signatures remain available and retain
+nil thinking; new overloads require an explicit `thinking:` argument. Older JSON
+without the field still decodes, and nil thinking is omitted when encoding.
+The exact Rust reference `4ca1ed279c02eab37827a1ed07c30e961155ecf3` was inspected
+read-only: `ollama.rs` maps assistant `reasoning_content` to `thinking`,
+`openai_messages_adapter.rs` defaults native reasoning support to false, and
+`omlx.rs` explicitly opts into `reasoning_content`. Swift uses those same
+capability boundaries. Its shared OpenAI adapter retains its public signature and
+default omission; only oMLX opts in internally. Non-assistant reasoning is omitted.
+OpenAI-native omission and Anthropic signed-history limitations are preserved.
+
+The proof-first test `ReasoningHistoryTests.populatedHistorySurvivesStreamingRetry`
+decodes a synthetic public `LLMMessage` containing exact UTF-8/newline reasoning,
+content and a tool call, invokes oMLX `streamRecovering` over a real loopback HTTP
+socket, admits a 503 retry and independently decodes both socket request bodies.
+Before the source correction both requests lacked `reasoning_content`; the probe
+exited 1. With the additive field and provider mapping the unchanged probe exited
+0. Execution logs and the behavioral proof are retained by Foundry as scratch
+evidence, separate from committed project documentation.
+
+`ReasoningHistoryConformanceTests` covers each applicable provider through:
+
+| Public entrypoint | Populated retry | Compatibility controls |
+| --- | --- | --- |
+| `complete` | Ollama, oMLX, OpenAI, Anthropic | Legacy no-policy nil/populated; default policy nil, one attempt |
+| `completeStructured` | Same four providers | Same controls |
+| `completeJSON` | Same four providers | Same controls |
+| `streamRecovering` | Same four providers, with tools enabled | Legacy `stream` nil/populated; default policy nil, one attempt |
+| `completeStreamEventsRecovering` | Same four providers | Legacy `completeStreamEvents` for Ollama/oMLX/OpenAI; explicit Anthropic rejection without a socket request; default policy nil, one attempt |
+
+Tests compare the entire ordered native message array decoded from actual socket
+bytes to independently constructed expectations: original user, assistant content,
+exact `reasoning é猫\nexact`, tool name/arguments, original result and follow-up
+user. They require `thinking` only for Ollama, `reasoning_content` only for oMLX,
+and neither for OpenAI-native or Anthropic. Populated non-assistant sentinels must
+be omitted. Full equality rejects missing, mutated, extra or misrouted fields;
+these are public-boundary assertions, not adapter-only or count-only checks.
+Ollama preserves its existing omission of call IDs and its `type: function` tool
+envelope; OpenAI-compatible and Anthropic history retains original call/result IDs.
+
+`assertStatusWires` matches ordered request captures to actual socket bytes,
+requires byte-identical bodies across the admitted retry, and checks each ordered
+status/header/complete-response capture. Full logical UUIDs, distinct attempt
+UUIDs and one-based wire numbers match lifecycle, admission and final report
+history. The exact lifecycle is attemptStarted, attemptFailed, admissionPending,
+admissionAllowed, delayScheduled, retryStarted, attemptStarted, attemptSucceeded.
+Both admission and final history retain the original HTTP 503 status, body,
+`RecoveryHTTPStatusFailure` cause, headers and zero semantic progress. The default
+policy control requires exactly one wire attempt and attemptStarted,
+attemptFailed, exhausted, with the original typed cause/history. Migration examples
+are in both DocC recovery guides.
+
+Limits: these deterministic socket fixtures prove caller-supplied history transport,
+not live model acceptance, inference idempotency or signed reasoning replay. Broker
+and session construction, response parsing, reasoning configuration and the closed
+metadata/status/tool-follow-up slices are unchanged. Independent review of this
+slice and all discovered gates, standalone SwiftFormat, unfiltered lockfile security
+and full-trait API audit results are retained as execution evidence. Whole-mission
+independent review remains a separate controller prerequisite. Apple validation
+remains pending until executed; controller integration must retain green
+`build-macos` and `build-linux-minimum` on the exact landed commit. Local Linux
+validation does not establish either landed-commit workflow result.
+
+
+Final local validation for this slice passed on Linux Swift 6.4: all six discovered
+project gates, unfiltered standalone `swiftformat --lint .`, tracked-lockfile OSV
+(no issues), and the native full-trait API audit against `v2.1.0` (no breaking
+changes). The parallel run passed 338 tests in 90 suites; full traits passed 350
+tests in 95 suites. Full-trait reasoning-history coverage included 20 populated
+retry cases, 38 supported legacy nil/populated cases, two explicit Anthropic
+legacy rejection cases and 20 default-policy one-attempt cases, plus the proof
+probe and additive/Codable compatibility test. Source hashes stayed unchanged
+through the build, test, documentation and audit runs. Independent scoped review
+inspected both sides of the behavioral proof and found no blocking issue; it does
+not replace the pending whole-mission or landed-commit platform prerequisites.

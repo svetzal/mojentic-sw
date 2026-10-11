@@ -289,3 +289,32 @@ remote acceptance unknown even when observed and delivered semantic counters are
 The caller's admission hook must explicitly allow the next attempt; without that hook,
 recovery ends with `admissionRequired`. The replacement starts a fresh provider parser,
 while the failed attempt's metadata keeps its original local identity.
+
+## Supply retained reasoning to streaming requests
+
+Use the same caller-owned `LLMMessage` history described in
+<doc:BufferedCompletionRecovery> for streaming:
+
+```swift
+let history: [LLMMessage] = [
+    .user("Earlier question"),
+    .assistant("Earlier answer", thinking: "Retained native reasoning"),
+    .user("Continue")
+]
+for try await event in gateway.streamRecovering(
+    model: "your-local-model", messages: history, tools: nil, config: .init()
+) {
+    // Consume each event before requesting the next one.
+    await consume(event)
+}
+```
+
+`completeStreamEventsRecovering` accepts this history too. Ollama uses `thinking`
+and oMLX uses `reasoning_content` on assistant messages; OpenAI-native and Anthropic
+omit unsigned reasoning history. Legacy `stream` and the supported legacy
+`completeStreamEvents` entrypoints use the same provider encoding, with one-send
+behavior when recovery is absent. Anthropic's legacy `completeStreamEvents`
+remains unsupported, while its recovery-aware entrypoint is supported.
+An admitted retry preserves the exact request body, including original reasoning,
+content and completed tool history. This does not authorize replay after semantic
+output, change tool execution, or populate broker/session history automatically.

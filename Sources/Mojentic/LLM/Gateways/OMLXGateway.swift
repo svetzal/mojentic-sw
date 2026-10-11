@@ -14,6 +14,7 @@ import Logging
 /// parameters unchanged, whatever the model is called. It adds what
 /// ``OpenAIGateway`` does not do for a local server:
 ///
+/// - Populated assistant ``LLMMessage/thinking`` is sent as `reasoning_content` history.
 /// - `reasoning_content` becomes ``LLMGatewayResponse/thinking`` and, when
 ///   streaming, ``GatewayStreamEvent/thinkingDelta(_:)``.
 /// - Model load and unload (``loadModel(_:)``, ``unloadModel(_:)``).
@@ -330,7 +331,8 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         responseFormat: JSONValue?,
     ) -> JSONValue {
         var dict: [String: JSONValue] = [
-            "model": .string(model), "messages": .array(OpenAIMessageAdapter.adapt(messages)),
+            "model": .string(model),
+            "messages": .array(OpenAIMessageAdapter.adapt(messages, nativeReasoning: true)),
             "stream": .bool(stream), "temperature": .number(config.temperature),
             "max_tokens": .integer(config.maxTokens),
         ]
