@@ -186,6 +186,7 @@ struct BufferedRecovery {
         progress = RecoveryProgress()
         wire = nil
         identity = candidate
+        stream?.identify(candidate)
         let transport: any BufferedRecoveryTransport = RecoveryHTTP(
             identity: candidate,
             observer: policy.wireObserver,

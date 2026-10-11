@@ -197,12 +197,12 @@ extension RecoveryHTTP {
     /// checked, because URLSession delivers decoded bytes but advertises the
     /// encoded length.
     static func lostConnection(response: HTTPURLResponse?, received: Int) -> URLError? {
+        let coding = response?.value(forHTTPHeaderField: "Content-Encoding") ?? "identity"
         guard
             let response,
             ![204, 304].contains(response.statusCode),
             response.expectedContentLength > Int64(received),
-            (response.value(forHTTPHeaderField: "Content-Encoding") ?? "identity")
-                .caseInsensitiveCompare("identity") == .orderedSame
+            coding.caseInsensitiveCompare("identity") == .orderedSame
         else { return nil }
         return URLError(.networkConnectionLost)
     }

@@ -5,8 +5,9 @@
 Delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` contains the recovery
 corrections described in cycles 7–11 below. Those sections are preserved historical
 records: their statements that worker changes await integration do not describe
-this delivered main. The current documentation correction remains uncommitted
-for Foundry finalization; runtime behavior is unchanged.
+this delivered main. The stream metadata identity correction below was preserved by
+campaign cycle 15 and integrated onto main by hand on October 11, 2026, because its
+stale base conflicted with the Darwin corrections.
 
 [The independent whole-mission acceptance ledger](RECOVERY-ACCEPTANCE.md) reviews
 actual public provider/operation paths and assertion strength against both normative
@@ -14,8 +15,8 @@ documents, the October 10 supplement and exact Rust
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Its verdict is conditional: strong
 Linux terminal, capture and tool-safety evidence exists, but several assertion
 conjunctions, direct JSON convenience cases and populated native-history retry
-fixtures remain unproved. Unsupported-request-option coverage and per-event
-telemetry identity assertions also remain limited. This is not an unconditional
+fixtures remain unproved. Unsupported-request-option coverage remains limited. The stream metadata
+identity correction below adds public per-event correlation assertions. This is not an unconditional
 whole-port alignment claim.
 Apple/Darwin validation passed on October 11, 2026 in CI run
 [38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
@@ -541,3 +542,54 @@ Real-world limit on Apple platforms: if a server sends partial bytes and closes
 almost immediately, CFNetwork can discard those bytes. The attempt then shows no
 progress, and replay still requires caller admission with acceptance `.unknown`.
 The library cannot observe discarded bytes, so it cannot refuse replay on them.
+
+## Stream metadata identity correction
+
+The preserved `637e470` slice retains transport-assigned metadata identity in the
+coupled decoder, delivery relay, gateways and single-turn broker. Its transport/body
+handling, delivery synchronization and ten-second sender-registration readiness
+match delivered `a57afdf`; this correction leaves those behaviors intact.
+
+`RecoveryMetadataConformanceTests.publicMetadata` replaces the 503-only retry with
+HTTP 200 metadata followed by a deliberately short body and an eligible disconnect.
+The real loopback holds the close until the wire observer reports the complete
+first body. Attempt two begins with distinct nonsemantic provider values before
+UTF-8 content and successful termination. Tests exercise tool and single-turn
+gateway streams plus single-turn broker streams for Ollama, OpenAI and Anthropic.
+oMLX runs the same boundary checks while asserting its truthful telemetry absence.
+
+Assertions compare full logical/attempt UUIDs and wire numbers with the exact
+socket request bodies and wire captures, both response bodies, ordered public
+metadata and provider values, frame-index reset, zero first-attempt semantic
+progress, admission, lifecycle transitions, failure history and final report.
+Ambiguous remote acceptance requires an explicit local admission callback;
+`metadataDisconnectRequiresAdmission` proves that omitting it stops at one request.
+Ollama metrics keep numeric provider values and omit provider model names;
+OpenAI metrics keep usage alone; Anthropic keeps Messages model/identifier evidence.
+Local attribution remains separate from those provider fields and absent in legacy
+evidence. UTF-8 counters use bytes rather than character counts.
+
+The early public-boundary probe for this correction ran only the Ollama tool stream,
+before matrix expansion or full gates. With the old 503 fixture, the stronger
+assertions rejected missing first-attempt metadata and disconnect evidence (exit 1).
+Changing the first reply to synchronized nonsemantic metadata plus truncation passed
+(exit 0). This is new execution evidence; it does not establish historical red/green
+proof for the preserved feature. Foundry retains the probe, full logs and independent
+scoped review as execution scratch outside committed project artifacts.
+
+The intended behavior was compared read-only with Rust
+`4ca1ed279c02eab37827a1ed07c30e961155ecf3`, specifically recovery `frames.rs`
+and stream event types. Rust retains validated Progress/Metrics before a rejected
+Ollama finish and discards semantic output. Swift preserves that ordering:
+Progress, Metrics, Failed for validated length termination, with no completed tool
+or success. Swift retains each maintained adapter's existing telemetry capability;
+it does not copy unsupported Rust telemetry into adapters. Malformed input creates
+no telemetry. Decoder metadata emission, dispatch delivery adjustment and gateway/
+single-turn forwarding remain coupled; cancellation and terminal accounting are
+unchanged.
+
+Controller source corrections from `0cea3ed` (Darwin transport evidence and error
+bodies) and `b8685d4` (ten-second sender-registration readiness) are already present in the
+preserved source and retained without worker ref mutations. Historical green CI on `0cea3ed` does not validate
+this slice: controller integration must require green existing `build-macos` and
+`build-linux-minimum` jobs for the exact landed revision before acceptance.

@@ -224,3 +224,13 @@ final class RecoveryLocked<Value: Sendable>: @unchecked Sendable {
         return try action(&value)
     }
 }
+
+/// Terminal evidence preserves provider fields without borrowing metric attribution.
+func assertTerminalProviderEvidence(_ terminal: CompletionEvidence, reported: CompletionEvidence) {
+    #expect(terminal.finishReason == reported.finishReason)
+    #expect(terminal.usage == reported.usage)
+    #expect(terminal.providerModel == reported.providerModel)
+    #expect(terminal.metadata == reported.metadata)
+    #expect(terminal.identity == nil)
+    #expect(terminal.frameIndex == nil)
+}

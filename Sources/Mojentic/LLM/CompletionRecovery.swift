@@ -19,7 +19,7 @@ public enum RecoveryCategory: String, Sendable, Codable, Hashable {
 }
 
 /// Local correlation identities do not provide provider idempotency.
-public struct RecoveryIdentity: Sendable, Codable, Equatable {
+public struct RecoveryIdentity: Sendable, Codable, Hashable {
     /// Correlation identifier shared by all attempts of one completion.
     public let logicalID: UUID
     /// Distinct identifier for this actual HTTP send.
@@ -42,6 +42,10 @@ public struct RecoverySemanticProgress: Sendable, Codable, Equatable {
 
 /// Observed evidence is independent of delivery to the caller.
 public struct RecoveryProgress: Sendable, Codable, Equatable {
+    /// Full local identity of the streaming wire attempt, absent outside recovery telemetry.
+    public var identity: RecoveryIdentity?
+    /// One-based validated provider frame index, reset for each wire attempt.
+    public var frameIndex: Int?
     /// Whether HTTP response headers were received.
     public var headersReceived = false
     /// Total received body bytes, including nonsemantic bytes.

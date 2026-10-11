@@ -62,7 +62,8 @@ import Testing
                         metrics.withLock { $0.append(evidence) }
                         seen.withLock { $0.append("metrics") }
                     case .completed(let evidence):
-                        #expect(evidence == metrics.withLock { $0.last })
+                        let reported = try #require(metrics.withLock { $0.last })
+                        assertTerminalProviderEvidence(evidence, reported: reported)
                         seen.withLock { $0.append("completed") }
                     case .recoveryFailure(let error):
                         failure = error
@@ -102,7 +103,8 @@ import Testing
                 }
             }
             let evidence = metrics.withLock { $0 }
-            assertTerminalMetrics(evidence, single: single, reason: reason)
+            let identity = try #require(recorder.requests.withLock { $0.first?.0 })
+            assertTerminalMetrics(evidence, single: single, reason: reason, identity: identity)
             if reason == "max_tokens" {
                 let error = try #require(failure)
                 let cause = try #require(error.failure.inspectEvidence().cause as? MojenticError)
@@ -110,7 +112,8 @@ import Testing
                     Issue.record("Missing finish cause")
                     return
                 }
-                #expect(original == evidence.last)
+                let reported = try #require(evidence.last)
+                assertTerminalProviderEvidence(original, reported: reported)
                 #expect(error.outcome == (single ? .malformedResponse : .interrupted))
                 #expect(error.failure.progress.observed.completedToolCalls == (single ? 0 : 1))
                 #expect(error.failure.progress.delivered.completedToolCalls == 0)
@@ -141,22 +144,21 @@ import Testing
             assertRecoveryRequests(recorder, server)
         }
 
-        private func assertTerminalMetrics(_ evidence: [CompletionEvidence], single: Bool, reason: String) {
-            #expect(
-                evidence == [
-                    CompletionEvidence(
-                        usage: Usage(promptTokens: 3, completionTokens: 0, totalTokens: 3),
-                        providerModel: "payload-sentinel",
-                        metadata: ["id": "credential-sentinel"],
-                    ),
-                    CompletionEvidence(
-                        finishReason: reason == "end_turn" && !single ? "tool_use" : reason,
-                        usage: Usage(promptTokens: 3, completionTokens: 12, totalTokens: 15),
-                        providerModel: "payload-sentinel",
-                        metadata: ["id": "credential-sentinel"],
-                    ),
-                ]
-            )
+        private func assertTerminalMetrics(
+            _ evidence: [CompletionEvidence], single: Bool, reason: String, identity: RecoveryIdentity,
+        ) {
+            #expect(evidence.map(\.identity) == [identity, identity])
+            #expect(evidence.map(\.frameIndex) == [1, single ? 2 : 4])
+            let finish = reason == "end_turn" && !single ? "tool_use" : reason
+            #expect(evidence.map(\.finishReason) == [nil, finish])
+            let usage = [
+                Usage(promptTokens: 3, completionTokens: 0, totalTokens: 3),
+                Usage(promptTokens: 3, completionTokens: 12, totalTokens: 15),
+            ]
+            #expect(evidence.map(\.usage) == usage)
+            #expect(evidence.map(\.providerModel) == ["payload-sentinel", "payload-sentinel"])
+            let metadata: [String: JSONValue] = ["id": "credential-sentinel"]
+            #expect(evidence.map(\.metadata) == [metadata, metadata])
         }
 
         @Test(arguments: [false, true], [false, true])

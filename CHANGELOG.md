@@ -13,6 +13,13 @@ move independently.
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.
 
+### Added
+
+- Recovery stream progress and metrics events now carry the wire attempt's
+  `RecoveryIdentity` and a one-based `frameIndex` that resets for each attempt.
+  Both are `nil` outside recovery telemetry. `RecoveryIdentity` is now
+  `Hashable`.
+
 ### Fixed
 
 - On Apple platforms, a recovery attempt whose non-2xx body ends before its

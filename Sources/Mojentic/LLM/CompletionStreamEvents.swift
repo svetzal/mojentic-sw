@@ -2,9 +2,15 @@ import Foundation
 
 /// The provider's own evidence about how a single-turn stream ended.
 ///
-/// Every field is exactly what the provider reported, or `nil` when it
+/// Provider fields are exactly what the provider reported, or `nil` when it
 /// reported nothing. The library never estimates any of them.
 public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, CustomDebugStringConvertible {
+    /// Full local wire identity for recovery metrics, absent for legacy evidence.
+    public var identity: RecoveryIdentity?
+
+    /// One-based validated provider frame index for recovery metrics.
+    public var frameIndex: Int?
+
     /// Safe summary; inspect properties explicitly for provider metadata.
     public var description: String {
         "Provider completion evidence"
