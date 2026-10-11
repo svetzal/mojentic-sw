@@ -59,6 +59,20 @@ single-send paths. `RecoveryStreamingGateway` lifts unsupported gateways without
 fabricated recovery telemetry. Realtime and embeddings are outside completion
 recovery; there are no other maintained HTTP completion adapters in this tree.
 
+## Current JSON/status assertion correction
+
+The October 11 correction adds public-boundary evidence Q below. The original
+review and A/C limitations remain historical descriptions of those earlier tests.
+The targeted permanent-status and persistent-504 cells now use the new assertions;
+other J D cells retain their narrower scope rather than inheriting unrelated JSON
+coverage. Direct J retry success is established by Q. Populated native-history
+retry and streaming tool-follow-up expansion remain open, as do controller gates.
+Cycle 17 reconciles preservation commit `da8cd59` against read-only verified main
+`3cc1d1f`, preserving its integrated metadata and Darwin corrections. Ordered wire
+captures also require the previous response's exact bytes before the next request;
+terminal and successful operations must publish exactly one recovery report.
+These worker changes await Foundry integration and exact-commit platform validation.
+
 ## Requirement by provider by operation ledger
 
 Each cell names the exercised operations and evidence keys defined below.
@@ -73,10 +87,10 @@ that every listed evidence key individually tests all its operations.
 | Requirement / acceptance case | Ollama | oMLX | OpenAI | Anthropic |
 | --- | --- | --- | --- | --- |
 | Typed errors/status/cause/history, safe inspection | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F; J D | B,S E A; T,C E C,F,H; J D |
-| 503 then success: frozen payload, IDs, lifecycle, wire bytes | B,S E A; T E B; C E D; J D | B,S E A; T E B; C E D; J D | B,S E A; T E B; C E D; J D | B,S E A; T,C E D,H; J D |
+| 503 then success: frozen payload, IDs, lifecycle, wire bytes | B,S E A; T E B; C E D; J E Q | B,S E A; T E B; C E D; J E Q | B,S E A; T E B; C E D; J E Q | B,S E A; T,C E D,H; J E Q |
 | 429 Retry-After seconds/date/invalid, ceiling/budget refusal | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D |
 | Past dates, exponential bounded delays | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D |
-| Persistent 504 exhaustion and final history | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D | B,S,T,C L A,C; J D |
+| Persistent 504 exhaustion and final history | B,S,J,T,C E Q | B,S,J,T,C E Q | B,S,J,T,C E Q | B,S,J,T,C E Q |
 | Ambiguous timeout/pending admission/allow/reject | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D; J D | B,S,T,C E D,H; J D |
 | Admission required without safe evidence | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D | B,S E D; T,C L D; J D |
 | Cancellation: pre-dispatch, request, admission, backoff | B,S,T,C E E; J D | B,S,T,C E E; J D | B,S,T,C E E; J D | B,S,T,C E E,H; J D |
@@ -84,7 +98,7 @@ that every listed evidence key individually tests all its operations.
 | Successful terminal acceptance and stream end | T,C E F | T,C E F | T,C E F | T,C E F,H |
 | Observed content/reasoning/tool fragments forbid resend | B,S E I; T,C E C,H; J D | B,S E I; T,C E C,H; J D | B,S E I; T,C E C,H; J D | B,S E I,H; T,C E C,H; J D |
 | Observe before failed capture; typed cause and zero delivery | B,S E A; T,C E C; J D | B,S E A; T,C E C; J D | B,S E A,I; T,C E C; J D | B,S,T,C E H; J D |
-| Permanent 400/401/403 despite selected status and truncated body | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D | B,S L A; T,C L C; J D |
+| Permanent 400/401/403 despite selected status and truncated body | B,S,J,T,C E Q | B,S,J,T,C E Q | B,S,J,T,C E Q | B,S,J,T,C E Q |
 | Malformed protocol, unsupported options, no blind retries | B,S L A,I; T,C L C; J D | B,S L A,I; T,C L C; J D | B,S L A,I; T,C L C,I; J D | B,S,T,C L H; J D |
 | Keepalive raw-only progress; no implicit approval | T,C E D | T,C E D | T,C E D | T,C E D |
 | Default one attempt, legacy success/API compatibility | B,S E A,K; T,C E K; J D | B,S E A,K; T,C E K; J D | B,S E A,K; T,C E K; J D | B,S E A,H; T E H; legacy C unsupported E H; J D |
@@ -275,6 +289,39 @@ cancellation scope, provider tables and legacy limitations. Realtime/embeddings,
 remote inference termination, live efficacy and original 504 attribution remain
 outside the proved capabilities.
 
+**Q — direct JSON and complete status evidence.**
+`RecoveryJSONConformanceTests.completeJSONRetrySuccess` directly calls J for all
+four providers (Anthropic only with its trait), admits a 503 and asserts the exact
+JSON result, request schema shaping, immutable ordered socket/capture bytes,
+response headers and bodies, full UUID/wire correlation through admission,
+lifecycle and report, original typed HTTP cause, and observed/delivered UTF-8
+content/reasoning counters. OpenAI retains observed reasoning without claiming
+reasoning delivery. It does not expose response metadata through the JSON result.
+
+`RecoveryStatusConformanceTests.permanentStatusesKeepOneSend` and
+`.persistent504ExhaustsExactLimit` call B/S/J/T/C through
+`RecoveryStatusBoundary.invoke` for Ollama, oMLX, OpenAI and trait-enabled Anthropic.
+Every permanent 400/401/403 fixture is truncated. Selected permanent statuses,
+transport categories and a permissive admission callback still yield exactly one
+socket send, no admission calls and terminal ineligibility. Persistent 504 runs
+at limits one and three, each with complete and truncated bodies, and exhausts
+without semantic delivery or success. Responses carry distinct per-attempt headers
+and UTF-8 bodies; `assertStatusWires` compares ordered complete socket request Data
+arrays to opt-in captures, immutable payloads, pairwise distinct attempt UUIDs,
+shared logical UUIDs, exact wire numbers, all normalized response headers and
+concatenated response bytes. `assertStatusFailure` applies the same exact evidence
+to public error, every history entry, each admission and the terminal report.
+It retains `RecoveryHTTPStatusFailure.status` for complete bodies and platform-native
+`URLError` codes for partial transfers. Exact lifecycle transition/identity arrays,
+logical IDs and raw/observed/delivered progress are checked together. Streaming
+consumers record no content, reasoning, tools, metadata or successful terminal event.
+
+The early `.jsonPermanentTruncationProof` directly exercised Ollama J before matrix
+expansion: the complete 401 input rejected the partial-transfer cause assertion
+(exit 1); synchronized truncation preserved that cause and passed (exit 0).
+Foundry retains both captures and the validated behavioral proof as execution
+scratch. This is assertion/input proof, not a newly fixed runtime defect.
+
 ## Comparison and acceptance disposition
 
 Rust at the pinned revision corroborates permanent-status precedence over body
@@ -292,7 +339,7 @@ The ledger closes the missing review obligation by documenting those limits, not
 by converting them to passes. No release, coordinated parity assertion, inference,
 benchmark restart or formation-gate success is authorized by this review.
 
-## Current verification
+## Historical review verification
 
 All six required gates and three unfiltered audits exited zero on Linux Swift 6.4:
 323 default tests and 334 full-trait tests passed, OSV reported no issues and the
@@ -307,3 +354,41 @@ repository documentation does not depend on disposable worker scratch paths.
 The six unchanged project gates, standalone SwiftFormat, unfiltered tracked-lockfile
 OSV and native full-trait API audit against `v2.1.0` are required for this review.
 Historical successful gates are not used as current executions.
+
+
+## Preservation-run correction verification
+
+All six unchanged required gates passed on Linux Swift 6.4 after the test changes:
+native format, strict SwiftLint, release build, default parallel tests (333 tests),
+full-trait tests (344 tests) and DocC with warnings as errors. Standalone SwiftFormat,
+unfiltered OSV against tracked `Package.resolved` (three packages, no issues) and
+the native full-trait API audit against `v2.1.0` (no breaking changes) also exited zero.
+Foundry capture retains complete logs; the historical evidence index above describes
+earlier executions and is not a receipt for these worker changes. The early proof's
+JSON field types, nonzero/zero actual exit receipts and both logs were validated.
+
+This is local working-tree verification, not landed acceptance. Controller validation
+of `build-macos` and `build-linux-minimum` on the exact integrated commit remains
+required after Foundry finalization; historical CI cannot satisfy it. Native-history
+retry and streaming tool-follow-up coverage remain open. No refs were changed.
+
+## Cycle-17 reconciliation verification
+
+The reconciled files retain the cycle-16 public JSON/permanent-status/persistent-504
+matrix on controller main `3cc1d1f`. Capture ordering now checks each prior response's
+exact bytes before the next request, and report observers retain every callback
+rather than finishing a stream after the first report. Both success and terminal
+failure require a single report, with the existing history and evidence assertions.
+The permanent-401 socket proof was re-executed before these refinements: complete
+body rejection exited 1 and synchronized truncation passed with exit 0.
+
+Fresh cycle-17 foreground captures passed all six discovered gates on Linux Swift
+6.4: strict native format, SwiftLint, release build, 333 default tests, 344 full-trait
+tests and DocC with warnings as errors. Standalone SwiftFormat, unfiltered OSV
+(three tracked packages, no issues) and the unchanged native full-trait API audit
+against `v2.1.0` (no breaking changes) also passed. These are local file validation
+results, not receipts for an integrated main commit.
+
+Foundry owns integration directly onto main. Green `build-macos` and
+`build-linux-minimum` on the exact integrated commit remain required before landed
+acceptance; no worker refs or runtime behavior are changed by this reconciliation.
