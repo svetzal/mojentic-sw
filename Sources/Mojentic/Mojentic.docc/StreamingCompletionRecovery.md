@@ -229,3 +229,32 @@ Legacy `stream` retains the named-event accumulator and one-send behavior.
 Legacy `completeStreamEvents` remains unsupported for Anthropic; without recovery,
 the new single-turn boundary yields the existing `streamEventsUnsupported` error
 without sending HTTP. Signed/redacted thinking-history round trips remain unsupported.
+
+## Final delivery and cancellation
+
+Attempt success requires acceptance of the public `done` or `completed` event.
+Reading all preceding content, progress and metrics does not establish completion.
+If scoped cancellation rejects final delivery, the attempt records one failure and
+one cancellation, retaining status, headers, response bytes, counters and the typed
+cause. The throwing recovery gateway exposes `RecoveryError`; the single-turn
+recovery gateway and scoped broker completion relay expose `recoveryFailure`.
+No resend follows this cancellation.
+
+Within `withRecoveryStreamCancellation`, broker tool streams and ChatSession streams
+retain this accounting until their outer terminal is accepted. Already completed tool
+turns settle before dispatch, so cancelling a later final delivery does not rerun a
+tool. A cancelled session rolls back its pending user/assistant exchange.
+
+The loopback conformance tests retain the stream and iterator while paused after all
+nonterminal events. Cleanup and reporting must finish before that pause is released.
+Successful controls accept one terminal event and stream end. Ollama progress/metrics,
+OpenAI metrics, and Anthropic start/final metrics retain their provider order; oMLX
+keeps its existing telemetry behavior.
+
+A cancelled Swift task may stop iteration with `nil` before consulting the producer.
+To inspect retained typed cleanup evidence after cancellation, resume the retained
+consumer from a noncancelled task with exclusive ownership. A completion-event stream
+ends after its recovery failure; a throwing unfolding stream keeps its existing error
+on subsequent reads. Consumers that abandon iteration should use the policy's report
+observer for cleanup evidence. These local checks do not prove remote inference stopped;
+Apple and declared minimum-toolchain validation remain pending.

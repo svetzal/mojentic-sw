@@ -2,6 +2,11 @@ import Foundation
 
 /// Reuses buffered admission and classification for one immutable streaming request.
 enum StreamingRecovery {
+    private struct Delivery: Sendable {
+        let events: @Sendable (RecoveryGatewayStreamEvent) async throws -> Void
+        let terminal: @Sendable (CompletionEvidence) async throws -> Void
+    }
+
     static func gatewayEvents(
         policy: CompletionRecoveryPolicy,
         provider: String,
@@ -17,25 +22,31 @@ enum StreamingRecovery {
         let task = Task {
             defer { scope?.remove(producerID) }
             do {
-                let evidence = try await run(
+                try await run(
                     policy: policy,
                     provider: provider,
                     endpoint: (url, headers),
                     body: body,
                     timeout: timeout,
                     singleTurn: false,
-                ) { event in try await delivery.send(event) }
-                try Task.checkCancellation()
-                try await delivery.send(
-                    .done(
-                        finishReason: evidence.finishReason.map { reason in
-                            if provider == "anthropic" {
-                                return reason == "tool_use" ? .toolCalls : .stop
-                            }
-                            return FinishReason(rawValue: reason) ?? .other
+                    delivery: Delivery(
+                        events: { event in
+                            try await delivery.send(event)
                         },
-                        usage: evidence.usage,
-                    )
+                        terminal: { evidence in
+                            try await delivery.send(
+                                .done(
+                                    finishReason: evidence.finishReason.map { reason in
+                                        if provider == "anthropic" {
+                                            return reason == "tool_use" ? .toolCalls : .stop
+                                        }
+                                        return FinishReason(rawValue: reason) ?? .other
+                                    },
+                                    usage: evidence.usage,
+                                )
+                            )
+                        },
+                    ),
                 )
                 delivery.finish()
             } catch { delivery.finish(error) }
@@ -67,25 +78,29 @@ enum StreamingRecovery {
         let task = Task {
             defer { scope?.remove(producerID) }
             do {
-                let evidence = try await run(
+                try await run(
                     policy: policy,
                     provider: provider,
                     endpoint: (url, headers),
                     body: body,
                     timeout: timeout,
                     singleTurn: true,
-                ) { event in
-                    let output: RecoveryCompletionStreamEvent
-                    switch event {
-                    case .textDelta(let text): output = .content(text)
-                    case .progress(let progress): output = .progress(progress)
-                    case .metrics(let evidence): output = .metrics(evidence)
-                    default: return
-                    }
-                    try await delivery.send(output)
-                }
-                try Task.checkCancellation()
-                try await delivery.send(.completed(evidence))
+                    delivery: Delivery(
+                        events: { event in
+                            let output: RecoveryCompletionStreamEvent
+                            switch event {
+                            case .textDelta(let text): output = .content(text)
+                            case .progress(let progress): output = .progress(progress)
+                            case .metrics(let evidence): output = .metrics(evidence)
+                            default: return
+                            }
+                            try await delivery.send(output)
+                        },
+                        terminal: { evidence in
+                            try await delivery.send(.completed(evidence))
+                        },
+                    ),
+                )
             } catch let error as RecoveryError { delivery.terminal(.recoveryFailure(error)) } catch {
                 delivery.terminal(
                     .error(Task.isCancelled ? .cancelled : .requestFailed(message: "Recovery setup failed"))
@@ -111,8 +126,8 @@ enum StreamingRecovery {
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
         singleTurn: Bool,
-        deliver: @escaping @Sendable (RecoveryGatewayStreamEvent) async throws -> Void,
-    ) async throws -> CompletionEvidence {
+        delivery: Delivery,
+    ) async throws {
         var engine = BufferedRecovery(policy: policy, provider: provider, operation: "streaming")
         try engine.validatePolicy()
         let bytes: Data
@@ -131,7 +146,7 @@ enum StreamingRecovery {
                 timeout: timeout,
                 number: number,
                 decoder: decoder,
-                deliver: deliver,
+                deliver: delivery.events,
             )
             engine.wire = result
             let snapshot = decoder.snapshot()
@@ -169,15 +184,8 @@ enum StreamingRecovery {
                 throw engine.terminal(parserFailure, outcome: outcome, category: category)
             }
             if snapshot.terminal {
-                policy.reportObserver?(engine.report())
-                if Task.isCancelled {
-                    throw engine.terminal(CancellationError(), outcome: .cancelled, category: .cancellation)
-                }
-                engine.emit(.attemptSucceeded)
-                if Task.isCancelled {
-                    throw engine.terminal(CancellationError(), outcome: .cancelled, category: .cancellation)
-                }
-                return evidence
+                try await deliverTerminal(engine, evidence: evidence, send: delivery.terminal)
+                return
             }
             let status = result.response?.statusCode
             let category = BufferedRecovery.category(for: result)
@@ -198,6 +206,38 @@ enum StreamingRecovery {
             try await engine.admit(failure, next: number + 1)
         }
         preconditionFailure("Attempt loop always returns or terminates")
+    }
+
+    private static func deliverTerminal(
+        _ attempt: BufferedRecovery,
+        evidence: CompletionEvidence,
+        send: @Sendable (CompletionEvidence) async throws -> Void,
+    ) async throws {
+        var engine = attempt
+        if let accounting = RecoveryTerminalAccounting.current {
+            accounting.retain { cause in
+                var retained = attempt
+                if let cause {
+                    return retained.terminal(cause, outcome: .cancelled, category: .cancellation)
+                }
+                retained.emit(.attemptSucceeded)
+                retained.policy.reportObserver?(retained.report())
+                return nil
+            }
+            do {
+                try await send(evidence)
+            } catch {
+                throw accounting.settle(error) ?? error
+            }
+        } else {
+            do {
+                try await send(evidence)
+            } catch {
+                throw engine.terminal(error, outcome: .cancelled, category: .cancellation)
+            }
+            engine.emit(.attemptSucceeded)
+            engine.policy.reportObserver?(engine.report())
+        }
     }
 
     private static func dispatch(

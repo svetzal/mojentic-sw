@@ -415,3 +415,54 @@ Current results must be read from these cycle-10 receipts, not inferred from
 historical cycle-9 successes. Apple/Darwin and declared Swift 6.1 validation
 remain pending until executed; Linux validation does not establish those targets
 or whole-port parity. Foundry/controller owns Git finalization.
+
+## Cycle 11: final public terminal delivery
+
+Delivered main `095927a0898acc14739b97222fa50d283491e0e9` still emitted
+`attemptSucceeded` before public `.done`/`.completed` acceptance. A retained
+loopback consumer read all content, progress and metrics, then cancelled before
+accepting completion. The rejecting probe exited 1: the report had no failed
+attempt, lifecycle ended in success, and the throwing boundary exposed an
+untyped `CancellationError`. The corrected same probe exited 0. Earlier gate
+successes and failures above remain historical evidence, not coverage of this gap.
+
+Streaming recovery now retains actual attempt evidence through terminal delivery.
+Scoped broker completion, broker tool streaming and ChatSession streaming share
+accounting at the outer relay. A rejected final delivery records one failed actual
+attempt followed by one cancellation, with HTTP status, raw headers, exact response
+bytes, full logical/attempt UUIDs, counters and the original typed delivery cause.
+Tool turns settle before dispatch; arbitrary tool work does not inherit the outer
+terminal receipt. Admission rules, immutable requests and legacy APIs are preserved.
+
+`TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt` exercises Ollama,
+oMLX, OpenAI and full-trait Anthropic at both recovering gateway entrypoints,
+broker completion/tool relays and applicable session relays. Its scheduling signal
+is immediately before final sender registration, after every expected nonterminal
+event has been consumed; the consumer holds both stream and the same iterator.
+Cancellation must produce cleanup/reporting while that consumer remains paused.
+It asserts exact socket/captured request equality and full captured response bytes,
+one actual wire attempt, full UUID equality across lifecycle/capture/report/public
+failure, HTTP 200 and original request-ID header, exact observed/delivered UTF-8 and
+tool counters, provider telemetry order, no premature success or delivered completion,
+and no resend. Successful controls accept exactly one terminal and then stream end;
+scoped session controls also commit the user/assistant exchange.
+
+`TerminalRecoveryToolTests.completedToolRunsOnceBeforeCancelledFinalDelivery`
+requires a completed tool to execute once before a separate final wire attempt is
+cancelled at public terminal delivery. The first logical request succeeds; the
+second records one failure and cancellation without retrying or rerunning the tool.
+Captured follow-up payloads retain the tool name/result and, for OpenAI-compatible
+and Anthropic requests, the original tool ID; Ollama retains its existing ID-less encoding. Session history is
+rolled back before the paused consumer resumes. Existing unfiltered tests continue
+to cover active-HTTP ownership, sender-registration cancellation and admission races.
+
+Typed terminal inspection uses the retained iterator from a noncancelled task after
+its original owner returns. Swift's cancelled-task iteration can return `nil` before
+consulting an unfolding producer. Completion-event streams expose one recovery failure
+then end; throwing unfolding streams preserve their existing retained-error behavior
+on repeated reads. This correction does not guarantee error delivery to a caller
+that stops reading, remote inference termination, signed thinking-history round trips,
+Apple/Darwin execution, Swift 6.1 execution or whole-port parity. Apple and minimum
+Swift validation remain pending until actually executed. Current gate exits, complete
+captures, source/log hashes, controller evidence and independent review are retained
+in the external cycle-11 evidence store; worker changes remain uncommitted for Foundry.

@@ -330,6 +330,10 @@ public actor LLMBroker {
                 usage = reportedUsage
             }
         }
+        if !accumulatedCalls.isEmpty {
+            // This turn completed; tool execution and subsequent requests are separate attempts.
+            RecoveryTerminalAccounting.current?.settle()
+        }
         let duration = start.duration(to: clock.now)
         let responsePayload = LLMResponsePayload(
             correlationId: context.correlationId,
@@ -348,11 +352,13 @@ public actor LLMBroker {
 
         if !accumulatedCalls.isEmpty {
             let toolContext = context.child(parent: responsePayload.id)
-            let dispatched = try await dispatch(
-                toolCalls: accumulatedCalls,
-                tools: tools,
-                context: toolContext,
-            )
+            let dispatched = try await RecoveryTerminalAccounting.$current.withValue(nil) {
+                try await dispatch(
+                    toolCalls: accumulatedCalls,
+                    tools: tools,
+                    context: toolContext,
+                )
+            }
             for (call, outcome) in dispatched {
                 let result: JSONValue =
                     switch outcome.kind {

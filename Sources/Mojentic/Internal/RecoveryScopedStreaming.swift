@@ -15,13 +15,21 @@ enum RecoveryScopedStreaming {
         let scope = RecoveryCancellationScope.current
         let id = UUID()
         scope?.prepare(id)
+        let inherited = RecoveryTerminalAccounting.current
+        let accounting = inherited ?? RecoveryTerminalAccounting()
         let task = Task {
-            defer { scope?.remove(id) }
-            do {
-                try await operation { try await delivery.send($0) }
-                delivery.finish()
-            } catch is CancellationError { delivery.finish(MojenticError.cancelled) } catch {
-                delivery.finish(error)
+            await RecoveryTerminalAccounting.$current.withValue(accounting) {
+                defer { scope?.remove(id) }
+                do {
+                    try await operation { try await delivery.send($0) }
+                    if inherited == nil {
+                        accounting.settle()
+                    }
+                    delivery.finish()
+                } catch {
+                    let failure = inherited == nil ? accounting.settle(error) : nil
+                    delivery.finish(failure ?? (error is CancellationError ? MojenticError.cancelled : error))
+                }
             }
         }
         scope?.register(task, id: id)
@@ -43,13 +51,28 @@ enum RecoveryScopedStreaming {
         let scope = RecoveryCancellationScope.current
         let id = UUID()
         scope?.prepare(id)
+        let inherited = RecoveryTerminalAccounting.current
+        let accounting = inherited ?? RecoveryTerminalAccounting()
         let task = Task {
-            defer { scope?.remove(id) }
-            do {
-                let terminal = try await operation { try await delivery.send($0) }
-                try await delivery.send(terminal)
-            } catch { delivery.terminal(.error(.cancelled)) }
-            delivery.finish()
+            await RecoveryTerminalAccounting.$current.withValue(accounting) {
+                defer { scope?.remove(id) }
+                do {
+                    let terminal = try await operation { try await delivery.send($0) }
+                    try await delivery.send(terminal)
+                    if inherited == nil {
+                        accounting.settle()
+                    }
+                } catch {
+                    if let failure = inherited == nil ? accounting.settle(error) : nil {
+                        delivery.terminal(.recoveryFailure(failure))
+                    } else if let failure = error as? RecoveryError {
+                        delivery.terminal(.recoveryFailure(failure))
+                    } else {
+                        delivery.terminal(.error(.cancelled))
+                    }
+                }
+                delivery.finish()
+            }
         }
         scope?.register(task, id: id)
         let owner = RecoveryProducer(task)
