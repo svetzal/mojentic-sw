@@ -4,7 +4,7 @@ This OpenAI recovery slice starts at verified clean HEAD
 `11e2503130a77924527d81ea0331929bf716d15b`. Controller synchronization is
 recorded in `/home/svetzal/.foundry/operations/mojentic-port-alignment-20261010/status-recovery/receipt.json`
 (observed October 10, 2026 at 23:39:13 UTC), including clean status, fetch,
-pull with rebase, revisions and log hashes. Its Swift revision matches this HEAD.
+pull with rebase, revisions and log hashes. Its Swift revision matches the preserved slice’s parent revision.
 Workers perform no ref mutation; changes remain uncommitted for controller integration.
 The normative documents and binding October 10 supplement in that receipt were
 reviewed against Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3`.
@@ -106,18 +106,19 @@ HTTP; no live inference or benchmark restart is performed.
 
 ## Current OpenAI acceptance evidence
 
-`.foundry/proof.json` records a real public buffered HTTP rejection and correction:
+The restored `.foundry/preserved-c7/proof.json` records the original public buffered
+HTTP rejection and correction:
 a received response contains UTF-8 content, reasoning and a tool call, then the
 capture hook throws. The corrected boundary retains exact body bytes, typed capture
 cause, observed byte/fragment counts, zero delivered progress, one failed attempt
 and one wire request. The rejecting boundary ignored the opt-in policy. Both full
 captures and actual exits are retained; the intermediate reasoning-accounting
 failure is retained separately. A second rejecting/corrected public probe in
-`.foundry/combined-proof.json` verifies single-turn content + reasoning + tool
+`.foundry/preserved-c7/combined-proof.json` verifies single-turn content + reasoning + tool
 fragments survive unsupported-tool rejection, with or without a failing capture
 hook, while delivery stays zero and one wire request is made.
 
-The expanded acceptance run passed 67 tests in 25 suites. These assertions include
+The retained cycle-7 expanded acceptance run passed 67 tests in 25 suites. These assertions include
 OpenAI as well as the existing Ollama/oMLX cases:
 
 | Public boundary | Actual acceptance assertions |
@@ -160,22 +161,80 @@ or dependency change is used.
 
 The project gates are strict Swift format, strict SwiftLint, release builds,
 unfiltered parallel/default and full-trait tests, and DocC with warnings as errors.
-The unfiltered OSV scan uses tracked Package.resolved. All nine final gates passed after the combined-frame correction. Default parallel
+The unfiltered OSV scan uses tracked Package.resolved. The retained nine gates passed after the combined-frame correction. Default parallel
 Swift Testing ran 321 tests in 81 suites; full traits ran 322 tests in 82 suites.
 Standalone SwiftFormat 0.63.1, native format, strict SwiftLint, release build,
 DocC, unfiltered tracked-lockfile OSV and the native `v2.1.0` API audit all exited
 zero. OSV found no issues; the API audit found no breaking changes. Complete
-commands, hashes and exits are recorded in `.foundry/gates.json`; earlier failures
+commands, hashes and exits are restored in `.foundry/preserved-c7/gates.json`; earlier failures
 remain in separate logs. The expanded loopback matrix required raising the process
 open-file soft limit from 1,024 to 8,192, preserving suite concurrency and scope.
 The first descriptor-exhaustion failure is retained, not treated as a passing run.
 
-Independent review found no blocking findings and verified final capture hashes,
+The retained cycle-7 independent review found no blocking findings and verified capture hashes,
 public entrypoints, shared-provider preservation, private evidence, observed-only
 reasoning and completed-tool accounting. The review and final source snapshot are
-retained in `.foundry/independent-review.md` and `.foundry/reviewed-sources.tar.gz`,
+retained in `.foundry/preserved-c7/independent-review.md` and the durable source archive,
 with a durable copy under `/home/svetzal/.foundry/tool-logs/mojentic-sw-openai-recovery-c7-0179ac`.
-`.foundry/durable-evidence.json` identifies that copy.
+The current `.foundry/durable-evidence.json` identifies the reconciliation evidence copy.
+
+## Foreground gate reconciliation (cycle 8)
+
+The preserved branch resolves to `1ab4471e372ccdb25f87eb1249fcec764f044171`,
+not the non-resolving `1ab4471ed` abbreviation in the correction plan. All 184
+runtime/test/package members of the retained reviewed source archive matched this
+starting worktree. The runtime implementation and dependency lockfile remain intact;
+the only Swift edits add exact ordered equality between observer-captured request
+payloads and actual loopback socket-received payloads in buffered, streaming and
+broker/session completed-tool acceptance tests.
+
+Controller cycle-7 verification is distinct from the retained worker passes. The
+controller trace `3973d907dd293c62b6efa601c55260f4` records format/lint/build
+success and three 300-second timeouts (default tests, full traits, DocC), each
+with exit `-1`. `.foundry/controller-cycle7.json` preserves these results and the
+trace hash. Those timeout records contain no child output or process inventory;
+there is no basis for claiming a separate DocC defect or that every timeout had
+the same cause. Historical pre-cycle-7 evidence remains missing.
+
+The retained worker runner used a descriptor limit of 8,192 and worktree-local
+`XDG_CACHE_HOME`; foreground shells started at 1,024 and read-only global caches.
+The real HTTP matrix in `.foundry/proof.json` rejects the original foreground
+settings with socket allocation failures (`descriptor == -1`) and a test-runner
+signal-4 crash, then passes all 65 tests in 24 suites with the corrected setup.
+`.foundry/descriptor-isolation.json` separately raises only the descriptor soft
+limit, keeps the original cache settings and passes the same matrix despite the
+cache warnings. This demonstrates the descriptor-capacity cause for that rejection;
+cache relocation separately removes manifest-cache database warnings.
+
+`scripts/with-gate-environment` makes those previously hidden prerequisites explicit
+in every existing `.hone-gates.json` command: raise only the soft descriptor limit
+to at least 8,192, preserve higher host limits and the hard limit, use
+`.build/audit-cache`, and `exec` the unchanged gate command. Insufficient host
+capacity fails the gate. No assertion, suite concurrency, timeout, provider trait,
+formatting rule, advisory scope or API baseline is reduced. Invoke any standalone
+gate or audit through that wrapper as well. The wrapper executes foreground and
+preserves signals and exits rather than introducing a detached worker.
+
+Foreground default tests passed 321 tests in 81 suites in 8.50 seconds including
+SwiftPM setup; full traits passed 322 tests in 82 suites in 25.69 seconds; the exact
+warnings-as-errors DocC command passed in 12.71 seconds. These initial foreground
+runs are in `.foundry/foreground-*.json`. The final complete gate results after the
+three additional payload assertions are recorded separately in `.foundry/gates.json`.
+Current cache/configuration accessibility warnings are retained in full captures;
+they are environment diagnostics, with no source warning suppression. Process
+inventories are retained with the environment and final cleanup evidence; the
+historical timed-out processes cannot be inspected after worktree cleanup.
+
+Complete failure and success stdout/stderr, actual exits, command durations,
+per-run source hashes, source revision and toolchain/cache/limit details are copied
+to `/home/svetzal/.foundry/tool-logs/mojentic-sw-reconcile-c8` before disposal.
+`.foundry/historical-validation.json` verifies all 90 retained capture hashes.
+The binding controller synchronization receipt and its verified log hashes are
+restored locally; this worker performs no fetch, rebase, commit or other ref mutation.
+Independent correction review checks the gate wrapper and the public payload,
+identity, typed-cause, progress, lifecycle and completed-tool assertions; its findings
+are retained in `.foundry/independent-review.md`. Controller review and integration
+onto main remain Foundry’s responsibility.
 
 Validation here is Linux Swift 6.4. Apple URLSession/Darwin sockets, strict
 concurrency and DocC checks remain pending. The declared Swift 6.1 minimum remains

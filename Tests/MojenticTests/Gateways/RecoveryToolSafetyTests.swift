@@ -70,6 +70,7 @@ struct RecoveryToolSafetyTests {
             #expect(messages[2].objectValue?["tool_call_id"] == "original-tool")
         }
         let identities = recorder.requests.withLock { $0.map(\.0) }
+        #expect(bodies == recorder.requests.withLock { $0.map(\.1) })
         #expect(identities.map(\.wireNumber) == [1, 1, 2])
         #expect(identities[0].logicalID != identities[1].logicalID)
         #expect(identities[1].logicalID == identities[2].logicalID)

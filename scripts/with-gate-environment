@@ -1,0 +1,18 @@
+#!/bin/sh
+# Keep foreground gates consistent with the retained recovery acceptance runs.
+set -eu
+
+# Concurrent loopback HTTP tests exceed the default Linux limit of 1,024.
+# Fail before starting a gate if the host cannot provide the required capacity.
+if [ "$(ulimit -S -n)" != unlimited ] && [ "$(ulimit -S -n)" -lt 8192 ]; then
+    ulimit -S -n 8192
+fi
+
+# Global manifest/module caches can be read-only inside the Foundry sandbox.
+# Resolve this path from the repository, even when invoked with a relative path.
+gate_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export XDG_CACHE_HOME="$gate_root/.build/audit-cache"
+mkdir -p "$XDG_CACHE_HOME"
+
+# Preserve signals and the command's exit status; do not leave a wrapper process.
+exec "$@"

@@ -51,6 +51,7 @@ struct StreamingRecoveryProofTests {
         #expect(events.first(where: { $0.transition == .attemptFailed })?.status == 503)
         #expect(events.last?.progress.delivered.contentBytes == 2)
         #expect(server.requests.withLock { $0.count } == 2)
+        #expect(server.requests.withLock { $0 } == requests.map(\.1))
         let report = try #require(reports.withLock { $0.last })
         let failed = try #require(report.history.first)
         #expect(report.history.count == 1)

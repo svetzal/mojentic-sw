@@ -62,6 +62,7 @@ struct RecoveryConformanceTests {
             #expect(fields?["tools"] != nil)
         }
         let traces = recorder.requests.withLock { $0 }
+        #expect(requests == traces.map(\.1))
         #expect(traces[0].0.logicalID == traces[1].0.logicalID)
         #expect(traces[0].0.attemptID != traces[1].0.attemptID)
         #expect(traces.map(\.0.wireNumber) == [1, 2])
