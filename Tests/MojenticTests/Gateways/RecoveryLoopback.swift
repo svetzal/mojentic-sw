@@ -32,6 +32,9 @@ final class RecoveryLoopback: @unchecked Sendable {
     private let condition = NSCondition()
     private let requestCondition = NSCondition()
     private var released = false
+    // Guarded by deliveryCondition. `nil` until a recovery client reports deliveries.
+    private let deliveryCondition = NSCondition()
+    private var deliveredBytes: Int?
 
     init(
         replies: [RecoveryReply] = [
@@ -99,6 +102,26 @@ final class RecoveryLoopback: @unchecked Sendable {
         condition.unlock()
     }
 
+    /// Enables delivery reports, so a truncated reply closes only after the client received its bytes.
+    ///
+    /// Apple URLSession can discard body bytes that it has read but not yet passed to
+    /// its delegate when the end of stream arrives in the same read. A real server
+    /// that drops a connection mid-body does so after the client saw the partial
+    /// body; this handshake keeps that ordering under parallel test load.
+    func expectDeliveryReports() {
+        deliveryCondition.lock()
+        deliveredBytes = deliveredBytes ?? 0
+        deliveryCondition.unlock()
+    }
+
+    /// Records body bytes that the client's wire observer received.
+    func reportDelivery(_ count: Int) {
+        deliveryCondition.lock()
+        deliveredBytes = (deliveredBytes ?? 0) + count
+        deliveryCondition.broadcast()
+        deliveryCondition.unlock()
+    }
+
     func waitForRequest(_ number: Int) -> Bool {
         let deadline = Date().addingTimeInterval(5)
         requestCondition.lock()
@@ -146,6 +169,12 @@ final class RecoveryLoopback: @unchecked Sendable {
             }
         }
         guard let boundary else { return }
+        // The client finishes each attempt before it sends the next request.
+        deliveryCondition.lock()
+        if deliveredBytes != nil {
+            deliveredBytes = 0
+        }
+        deliveryCondition.unlock()
         let receivedHeaders = String(bytes: request[..<boundary.lowerBound], encoding: .utf8) ?? ""
         requestHeaders.withLock { $0.append(receivedHeaders) }
         let body = Data(request[boundary.upperBound...])
@@ -178,6 +207,29 @@ final class RecoveryLoopback: @unchecked Sendable {
                 write(Data(data.dropFirst(split)), to: client)
             }
         }
+        if reply.truncated {
+            waitForDelivery(of: data.count, from: client)
+        }
+    }
+
+    /// Holds the close until the client reports `count` body bytes, gives up, or times out.
+    private func waitForDelivery(of count: Int, from client: Int32) {
+        let deadline = Date().addingTimeInterval(5)
+        deliveryCondition.lock()
+        defer { deliveryCondition.unlock() }
+        while let delivered = deliveredBytes, delivered < count, Date() < deadline {
+            if peerClosed(client) {
+                return
+            }
+            _ = deliveryCondition.wait(until: min(deadline, Date().addingTimeInterval(0.01)))
+        }
+    }
+
+    private func peerClosed(_ client: Int32) -> Bool {
+        var descriptor = pollfd(fd: client, events: Int16(POLLIN), revents: 0)
+        guard poll(&descriptor, 1, 0) > 0 else { return false }
+        var byte: UInt8 = 0
+        return recv(client, &byte, 1, Int32(MSG_PEEK)) <= 0
     }
 
     private func write(_ data: Data, to client: Int32) {

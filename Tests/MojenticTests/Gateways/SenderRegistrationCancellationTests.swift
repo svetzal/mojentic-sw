@@ -13,6 +13,13 @@ struct SenderRegistrationCancellationTests {
         case completion(AsyncStream<RecoveryCompletionStreamEvent>)
     }
 
+    /// Bounds waits for signals that must arrive; a successful wait ends early.
+    ///
+    /// The whole parallel suite shares the cooperative pool, so a tight
+    /// deadline turns scheduling delay into a false failure. A missing signal
+    /// still fails the test, only later.
+    private let readinessTimeout: Duration = .seconds(10)
+
     @Test(arguments: StreamingBoundary.all, ["gateway", "broker", "session"])
     func publicHTTPBeforeSenderRegistration(_ boundary: StreamingBoundary, _ path: String) async throws {
         if boundary.single, path == "session" {
@@ -130,7 +137,7 @@ struct SenderRegistrationCancellationTests {
     }
 
     private func awaitFinished(_ finished: RecoveryLocked<[String]>, count: Int) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        let deadline = ContinuousClock.now.advanced(by: readinessTimeout)
         while finished.withLock({ $0.count }) < count, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -146,7 +153,7 @@ struct SenderRegistrationCancellationTests {
                 return true
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: readinessTimeout)
                 return false
             }
             let ready = await group.next() ?? false

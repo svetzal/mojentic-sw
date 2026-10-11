@@ -37,6 +37,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
+        let policy = policy.map { reportingDeliveries(to: server, $0) }
         #if anthropic
             if anthropic {
                 let session = URLSessionConfiguration.ephemeral
@@ -184,6 +185,25 @@ func recoveryPolicy(_ recorder: RecoveryRecorder, attempts: Int = 2) -> Completi
     return policy
 }
 
+/// Reports received body bytes to the loopback after the caller's wire observer, even when it throws.
+private func reportingDeliveries(
+    to server: RecoveryLoopback,
+    _ policy: CompletionRecoveryPolicy,
+) -> CompletionRecoveryPolicy {
+    var policy = policy
+    let observe = policy.wireObserver
+    server.expectDeliveryReports()
+    policy.wireObserver = { event in
+        if case .body(_, let data) = event {
+            defer { server.reportDelivery(data.count) }
+            try observe?(event)
+        } else {
+            try observe?(event)
+        }
+    }
+    return policy
+}
+
 func recoveryFailure(_ action: () async throws -> Void) async throws -> RecoveryError {
     do { try await action() } catch let error as RecoveryError { return error }
     Issue.record("Expected structured recovery failure")
@@ -203,4 +223,14 @@ final class RecoveryLocked<Value: Sendable>: @unchecked Sendable {
         defer { lock.unlock() }
         return try action(&value)
     }
+}
+
+/// Terminal evidence preserves provider fields without borrowing metric attribution.
+func assertTerminalProviderEvidence(_ terminal: CompletionEvidence, reported: CompletionEvidence) {
+    #expect(terminal.finishReason == reported.finishReason)
+    #expect(terminal.usage == reported.usage)
+    #expect(terminal.providerModel == reported.providerModel)
+    #expect(terminal.metadata == reported.metadata)
+    #expect(terminal.identity == nil)
+    #expect(terminal.frameIndex == nil)
 }

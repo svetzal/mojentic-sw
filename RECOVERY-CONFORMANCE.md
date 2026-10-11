@@ -5,8 +5,8 @@
 Delivered main `3afa86f7514a597630b05b6b063d12a6fa48c739` contains the recovery
 corrections described in cycles 7–11 below. Those sections are preserved historical
 records: their statements that worker changes await integration do not describe
-this delivered main. The current documentation correction remains uncommitted
-for Foundry finalization; runtime behavior is unchanged.
+this delivered main. The stream metadata identity correction below remains uncommitted
+for Foundry finalization.
 
 [The independent whole-mission acceptance ledger](RECOVERY-ACCEPTANCE.md) reviews
 actual public provider/operation paths and assertion strength against both normative
@@ -14,10 +14,14 @@ documents, the October 10 supplement and exact Rust
 `4ca1ed279c02eab37827a1ed07c30e961155ecf3`. Its verdict is conditional: strong
 Linux terminal, capture and tool-safety evidence exists, but several assertion
 conjunctions, direct JSON convenience cases and populated native-history retry
-fixtures remain unproved. Unsupported-request-option coverage and per-event
-telemetry identity assertions also remain limited. This is not an unconditional
+fixtures remain unproved. Unsupported-request-option coverage remains limited. The stream metadata
+identity correction below adds public per-event correlation assertions. This is not an unconditional
 whole-port alignment claim.
-Apple/Darwin and Swift 6.1 validation remain pending. The formation-gate timeout
+Apple/Darwin validation passed on October 11, 2026 in CI run
+[38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
+at `0cea3ed346e9b47a2afdfefe0066953123b68e87`, after the Darwin corrections in
+[Apple/Darwin validation](#appledarwin-validation-october-11-2026). The same run
+passed the Linux Swift 6.1 container job. The formation-gate timeout
 requires separate controller resolution; foreground worktree checks do not prove
 that controller gate passed.
 
@@ -499,3 +503,72 @@ Apple/Darwin execution, Swift 6.1 execution or whole-port parity. Apple and mini
 Swift validation remain pending until actually executed. Current gate exits, complete
 captures, source/log hashes, controller evidence and independent review are retained
 in the external cycle-11 evidence store; worker changes remain uncommitted for Foundry.
+
+## Apple/Darwin validation (October 11, 2026)
+
+The recovery corrections above were validated on Linux only. The `build-macos`
+job (Xcode 27, Swift 6.4) failed on every main push from `b1822c1` to `b8685d4`;
+the last failing run was 38120879374. Five recovery tests failed there, and two
+more failed when run locally under parallel load. A raw URLSession probe against
+`RecoveryLoopback` found three Darwin differences:
+
+1. URLSession completes a non-2xx response with no error when the body ends
+   before its `Content-Length`. A truncated 2xx gets
+   `URLError.networkConnectionLost`. FoundationNetworking reports an error for
+   both. Recovery recorded `RecoveryHTTPStatusFailure` as the cause and lost the
+   transport evidence. `RecoveryHTTP.lostConnection(response:received:)` now
+   records `URLError.networkConnectionLost` for a short body with no content
+   coding. The status still sets the category and eligibility.
+2. The legacy Darwin `HTTPClient.streamLines` path threw
+   `MojenticError.http(status:body:)` with an empty body. It now reads the
+   finite error body first, as the Linux path does.
+3. CFNetwork can discard body bytes that it read but did not yet give to its
+   delegate when end of stream arrives in the same read. In 1,500 concurrent
+   truncated replies, 3 to 9 attempts got no body bytes, whether the server
+   closed at once, lingered or waited 20 ms. The affected tests saw
+   zero-progress attempts and retried them. In every retry the first attempt
+   had `rawBytes == 0` and no observed progress; the library did not retry
+   after observed semantic evidence. The loopback now holds a truncated close
+   until the client's wire observer reports the bytes, which matches a real
+   mid-body drop.
+
+No assertion was weakened. Run
+[38149113278](https://github.com/svetzal/mojentic-sw/actions/runs/38149113278)
+on `0cea3ed346e9b47a2afdfefe0066953123b68e87` passed `build-macos`,
+`build-linux`, `build-linux-minimum` (Swift 6.1), `lint` and `format-check`.
+
+Real-world limit on Apple platforms: if a server sends partial bytes and closes
+almost immediately, CFNetwork can discard those bytes. The attempt then shows no
+progress, and replay still requires caller admission with acceptance `.unknown`.
+The library cannot observe discarded bytes, so it cannot refuse replay on them.
+
+## Stream metadata identity correction
+
+The public `RecoveryMetadataIdentityTests.publicLoopbackIdentity` loopback assertion
+first rejected missing progress identity, then passed after the decoder attached
+transport-assigned identity. `RecoveryMetadataConformanceTests` checks full logical
+and attempt UUIDs and wire numbers against captured requests, lifecycle transitions
+and reports, including a 503 retry with identical captured/socket request bytes.
+Ollama progress and metrics and OpenAI usage metrics retain provider ordering and
+restart frame indices per wire attempt. Anthropic retains its existing Messages
+metrics; oMLX has no fabricated progress or metrics. UTF-8 counters use bytes,
+not character counts. Local identity and frame indices are separate from provider
+fields and absent in legacy evidence.
+
+The intended behavior was compared read-only with Rust
+`4ca1ed279c02eab37827a1ed07c30e961155ecf3`, specifically recovery `frames.rs`
+and stream event types. Rust retains validated Progress/Metrics before a rejected
+Ollama finish and discards semantic output. Swift preserves that ordering:
+Progress, Metrics, Failed for validated length termination, with no completed tool
+or success. Swift retains each maintained adapter's existing telemetry capability;
+it does not copy unsupported Rust telemetry into adapters. Malformed input creates
+no telemetry. Decoder metadata emission, dispatch delivery adjustment and gateway/
+single-turn forwarding remain coupled; cancellation and terminal accounting are
+unchanged.
+
+Controller source corrections from `0cea3ed` (Darwin transport evidence and error
+bodies) and `b8685d4` (ten-second sender-registration readiness) are reconciled as
+working-tree edits without worker ref mutations. The historical synchronization
+receipt was checked read-only. Historical green CI on `0cea3ed` does not validate
+this slice: controller integration must require green existing `build-macos` and
+`build-linux-minimum` jobs for the exact landed revision before acceptance.

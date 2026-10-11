@@ -15,6 +15,8 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     private let lock = NSLock()
     private let provider: String
     private let singleTurn: Bool
+    private var identity: RecoveryIdentity?
+    private var frameIndex = 0
     private var buffer = Data()
     private var progress = RecoveryProgress()
     private var pending: [RecoveryGatewayStreamEvent] = []
@@ -42,6 +44,13 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         let pair = AsyncStream<RecoveryGatewayStreamEvent>.makeStream()
         events = pair.stream
         continuation = pair.continuation
+    }
+
+    /// Set before transport callbacks can begin; no identity is invented by parsing.
+    func identify(_ identity: RecoveryIdentity) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.identity = identity
     }
 
     func snapshot() -> RecoveryStreamSnapshot {
@@ -118,6 +127,22 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         } else if payload.isEmpty {
             return
         }
+        let start = pending.count
+        defer {
+            for index in start..<pending.count {
+                switch pending[index] {
+                case .progress(var value):
+                    value.identity = identity
+                    value.frameIndex = frameIndex
+                    pending[index] = .progress(value)
+                case .metrics(var value):
+                    value.identity = identity
+                    value.frameIndex = frameIndex
+                    pending[index] = .metrics(value)
+                default: break
+                }
+            }
+        }
         do {
             let data = Data(payload.utf8)
             guard let object = try JSONDecoder().decode(JSONValue.self, from: data).objectValue else {
@@ -126,6 +151,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             if let error = object["error"] {
                 throw MojenticError.providerError(status: nil, detail: error)
             }
+            frameIndex += 1
             if provider == "anthropic" {
                 try parseAnthropic(object)
             } else if provider == "ollama" {

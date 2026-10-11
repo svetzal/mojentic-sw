@@ -73,7 +73,10 @@ import Testing
                         evidence = value
                         order.append("metrics")
                     case .completed(let value):
-                        #expect(value == evidence)
+                        let reported = try #require(evidence)
+                        assertTerminalProviderEvidence(value, reported: reported)
+                        #expect(reported.identity == recorder.requests.withLock { $0.first?.0 })
+                        #expect(reported.frameIndex == 5)
                         order.append("completed")
                     case .progress: break
                     default: Issue.record("Unexpected terminal failure")

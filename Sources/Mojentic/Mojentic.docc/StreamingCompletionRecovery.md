@@ -47,8 +47,11 @@ rules; the caller owns any subsequent session recovery.
 for await event in broker.generateRecoveryStreamEvents(model: "local-model", messages: messages) {
     switch event {
     case .content(let text): displayPartial(text)
-    case .progress(let counts): recordProgress(counts)
-    case .metrics(let metrics): recordProviderMetrics(metrics)
+    case .progress(let counts):
+        // Full local correlation, shared with wireObserver and reportObserver.
+        recordProgress(counts.identity, counts.frameIndex, counts)
+    case .metrics(let metrics):
+        recordProviderMetrics(metrics.identity, metrics.frameIndex, metrics)
     case .completed(let evidence): acceptFinishedAnswer(evidence)
     case .recoveryFailure(let failure): recordSafeSummary(failure.description)
     case .error(let error): recordSafeSummary(error.description)
@@ -77,8 +80,9 @@ frame produces progress and reported metrics before the original finish failure.
 Its semantic fields remain observed-only, and no completed tool is delivered.
 Malformed frames produce no fabricated telemetry. oMLX has no invented Ollama
 progress or metric events. OpenAI recovery emits metrics only for validated,
-provider-reported usage counts, before success or finish failure; it adds no frame
-counters, durations, provider identifiers or echoed metadata to those metrics.
+provider-reported usage counts, before success or finish failure; it adds no provider
+durations, provider identifiers or echoed metadata to those metrics. Local identity
+and frame indices are distinct from those provider values.
 
 Gateway consumption applies backpressure to semantic and telemetry delivery. Pausing on
 terminal metadata cannot establish success or release a completed tool. Cancellation
@@ -194,8 +198,8 @@ try await withRecoveryStreamCancellation {
     ) {
         switch event {
         case .content(let text): consume(text)
-        case .progress(let progress): observe(progress)
-        case .metrics(let evidence): inspectProviderEvidence(evidence)
+        case .progress(let progress): observe(progress.identity, progress.frameIndex, progress)
+        case .metrics(let evidence): inspectProviderEvidence(evidence.identity, evidence.frameIndex, evidence)
         case .completed(let evidence): finish(evidence)
         case .recoveryFailure(let failure): recordSafeFailure(failure.description)
         case .error(let error): recordLegacyFailure(error.description)
@@ -258,3 +262,17 @@ ends after its recovery failure; a throwing unfolding stream keeps its existing 
 on subsequent reads. Consumers that abandon iteration should use the policy's report
 observer for cleanup evidence. These local checks do not prove remote inference stopped;
 Apple and declared minimum-toolchain validation remain pending.
+
+## Correlate metadata with wire attempts
+
+Recovery progress and metrics carry `identity`, containing the full logical request
+UUID, distinct attempt UUID and one-based wire number. `frameIndex` counts JSON
+provider frames from one within each attempt; SSE control lines and `[DONE]` do not
+increment it. These local fields do not replace provider metadata. Legacy evidence
+has no local attribution. Match identities directly with the wire observer,
+lifecycle events and completion report rather than parsing safe descriptions.
+
+Ollama exposes validated progress and numeric usage/duration metrics. OpenAI exposes
+usage metrics, Anthropic exposes its existing Messages evidence, and oMLX exposes
+no additional telemetry. Missing provider values remain absent. Progress delivery
+counts reflect accepted public semantic events, independently of observed bytes.
