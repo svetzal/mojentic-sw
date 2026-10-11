@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct StreamingRecoveryTests {
-    @Test(arguments: StreamingBoundary.all, [400, 401, 403, 504])
+    @Test(arguments: StreamingBoundary.withAnthropic, [400, 401, 403, 504])
     func numericFailuresAndPrivateEvidence(
         _ boundary: StreamingBoundary,
         _ status: Int,
@@ -41,7 +41,7 @@ struct StreamingRecoveryTests {
         #expect(!String(reflecting: recorder.events.withLock { $0 }).contains("sentinel"))
     }
 
-    @Test(arguments: StreamingBoundary.all, ["content", "reasoning", "tool"])
+    @Test(arguments: StreamingBoundary.withAnthropic, ["content", "reasoning", "tool"])
     func semanticInterruptionNeverRetries(_ boundary: StreamingBoundary, _ kind: String) async throws {
         let body = try boundary.frame(
             content: kind == "content" ? "é🐈" : "",
@@ -71,7 +71,7 @@ struct StreamingRecoveryTests {
         #expect(!recorder.events.withLock { $0.map(\.transition) }.contains(.attemptSucceeded))
     }
 
-    @Test(arguments: StreamingBoundary.all)
+    @Test(arguments: StreamingBoundary.withAnthropic)
     func captureAfterObservationPreventsDelivery(
         _ boundary: StreamingBoundary
     ) async throws {
@@ -135,7 +135,7 @@ struct StreamingRecoveryTests {
         #expect(server.requests.withLock { $0.count } == 1)
     }
 
-    @Test(arguments: StreamingBoundary.all)
+    @Test(arguments: StreamingBoundary.withAnthropic)
     func legacyRemainsSingleSend(
         _ boundary: StreamingBoundary
     ) async throws {
@@ -144,6 +144,6 @@ struct StreamingRecoveryTests {
             try await boundary.consume(boundary.gateway(server, nil))
             Issue.record("Expected rejection")
         } catch { #expect(!(error is RecoveryError)) }
-        #expect(server.requests.withLock { $0.count } == 1)
+        #expect(server.requests.withLock { $0.count } == (boundary.anthropic && boundary.single ? 0 : 1))
     }
 }

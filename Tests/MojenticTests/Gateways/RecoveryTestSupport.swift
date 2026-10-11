@@ -10,21 +10,45 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
     let omlx: Bool
     let structured: Bool
     var openAI = false
+    var anthropic = false
     var description: String {
-        "\(openAI ? "openai" : omlx ? "omlx" : "ollama")/\(structured ? "structured" : "ordinary")"
+        let provider = anthropic ? "anthropic" : openAI ? "openai" : omlx ? "omlx" : "ollama"
+        return "\(provider)/\(structured ? "structured" : "ordinary")"
     }
 
-    static let all = [
-        Self(omlx: false, structured: false), Self(omlx: false, structured: true),
-        Self(omlx: true, structured: false), Self(omlx: true, structured: true),
-        Self(omlx: true, structured: false, openAI: true), Self(omlx: true, structured: true, openAI: true),
-    ]
+    static var all: [Self] {
+        var boundaries = [
+            Self(omlx: false, structured: false), Self(omlx: false, structured: true),
+            Self(omlx: true, structured: false), Self(omlx: true, structured: true),
+            Self(omlx: true, structured: false, openAI: true),
+            Self(omlx: true, structured: true, openAI: true),
+        ]
+        #if anthropic
+            boundaries += [
+                Self(omlx: true, structured: false, anthropic: true),
+                Self(omlx: true, structured: true, anthropic: true),
+            ]
+        #endif
+        return boundaries
+    }
 
     func gateway(
         _ server: RecoveryLoopback,
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
+        #if anthropic
+            if anthropic {
+                let session = URLSessionConfiguration.ephemeral
+                session.timeoutIntervalForRequest = idleTimeout
+                return AnthropicGateway(
+                    apiKey: "credential-sentinel",
+                    baseURL: server.url,
+                    client: HTTPClient(session: URLSession(configuration: session)),
+                    recovery: policy,
+                )
+            }
+        #endif
         if openAI {
             let session = URLSessionConfiguration.ephemeral
             session.timeoutIntervalForRequest = idleTimeout
@@ -73,6 +97,31 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
 
     func success(tools: Bool = false) throws -> RecoveryReply {
         let content = structured ? #"{"answer":42}"# : "recovered"
+        if anthropic {
+            var blocks: [JSONValue] = [
+                ["type": "text", "text": .string(content)],
+                ["type": "thinking", "thinking": "reasoning", "signature": "unsupported-history"],
+            ]
+            if tools {
+                blocks.append([
+                    "type": "tool_use",
+                    "id": "original-tool",
+                    "name": "resolve_date",
+                    "input": ["relative": "tomorrow"],
+                ])
+            }
+            let root: JSONValue = [
+                "model": "served",
+                "id": "payload-sentinel",
+                "content": .array(blocks),
+                "stop_reason": tools ? "tool_use" : "end_turn",
+                "usage": ["input_tokens": 3, "output_tokens": 4],
+            ]
+            return try RecoveryReply(
+                headers: ["X-Request-ID": "credential-sentinel"],
+                body: #require(String(data: JSONEncoder().encode(root), encoding: .utf8)),
+            )
+        }
         var message: [String: JSONValue] = ["role": "assistant", "content": .string(content)]
         message[omlx ? "reasoning_content" : "thinking"] = "reasoning"
         if tools {

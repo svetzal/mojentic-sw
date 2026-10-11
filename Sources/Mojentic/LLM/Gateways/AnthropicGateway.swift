@@ -25,7 +25,7 @@ import Logging
     ///   set and the model supports it.
     /// - SSE streaming parses Anthropic's named-event format
     ///   (`event: <name>\ndata: {...}`).
-    public struct AnthropicGateway: LLMGateway {
+    public struct AnthropicGateway: RecoveryStreamingGateway {
         /// Default Anthropic v1 base URL.
         public static let defaultBaseURL: URL = {
             guard let url = URL(string: "https://api.anthropic.com/v1") else {
@@ -37,6 +37,7 @@ import Logging
         /// Default `anthropic-version` header value.
         public static let defaultAPIVersion = "2023-06-01"
 
+        private var recovery: CompletionRecoveryPolicy?
         private let baseURL: URL
         private let apiKey: String
         private let apiVersion: String
@@ -61,6 +62,21 @@ import Logging
             logger = Logger(label: "mojentic.gateway.anthropic")
         }
 
+        /// Opt into bounded Messages recovery using isolated HTTP attempts.
+        public init(
+            apiKey: String,
+            baseURL: URL = AnthropicGateway.defaultBaseURL,
+            apiVersion: String = AnthropicGateway.defaultAPIVersion,
+            client: HTTPClient = HTTPClient(),
+            registry: AnthropicModelRegistry = .shared,
+            recovery: CompletionRecoveryPolicy?,
+        ) {
+            self.init(
+                apiKey: apiKey, baseURL: baseURL, apiVersion: apiVersion, client: client, registry: registry,
+            )
+            self.recovery = recovery
+        }
+
         // MARK: - LLMGateway
 
         /// Run a non-streaming chat completion via `/v1/messages`.
@@ -78,6 +94,16 @@ import Logging
                 stream: false,
                 extraSystemSuffix: nil,
             )
+            if let recovery {
+                var engine = BufferedRecovery(policy: recovery, provider: "anthropic", operation: "complete")
+                return try await engine.run(
+                    url: baseURL.appendingPathComponent("messages"),
+                    headers: authHeaders(),
+                    body: body,
+                    timeout: client.bufferedRequestTimeout,
+                    decode: { data, _ in try Self.decodeRecoveryMessage(data) },
+                )
+            }
             let response = try await client.postJSON(
                 url: baseURL.appendingPathComponent("messages"),
                 body: body,
@@ -122,6 +148,23 @@ import Logging
                 stream: false,
                 extraSystemSuffix: suffix,
             )
+            if let recovery {
+                var engine = BufferedRecovery(
+                    policy: recovery, provider: "anthropic", operation: "completeStructured",
+                )
+                return try await engine.run(
+                    url: baseURL.appendingPathComponent("messages"),
+                    headers: authHeaders(),
+                    body: body,
+                    timeout: client.bufferedRequestTimeout,
+                    decode: { data, _ in try Self.decodeRecoveryMessage(data) },
+                    project: { response in
+                        let payload = Self.extractJSONPayload(from: response.content)
+                        let value = try JSONDecoder().decode(JSONValue.self, from: Data(payload.utf8))
+                        return StructuredGatewayResponse(value: value, response: response)
+                    },
+                )
+            }
             let response = try await client.postJSON(
                 url: baseURL.appendingPathComponent("messages"),
                 body: body,
@@ -207,6 +250,67 @@ import Logging
             }
         }
 
+        /// Stream tool-capable Messages with typed failures and per-attempt evidence.
+        public func streamRecovering(
+            model: String, messages: [LLMMessage], tools: [any LLMTool]?, config: CompletionConfig,
+        ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+            guard let recovery else {
+                return RecoveryStreamBridge.lift(
+                    stream(model: model, messages: messages, tools: tools, config: config)
+                )
+            }
+            let body = buildRequest(
+                model: model,
+                messages: messages,
+                tools: tools,
+                config: config,
+                stream: true,
+                extraSystemSuffix: nil,
+            )
+            return StreamingRecovery.gatewayEvents(
+                policy: recovery,
+                provider: "anthropic",
+                url: baseURL.appendingPathComponent("messages"),
+                headers: authHeaders(),
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+            )
+        }
+
+        /// Stream a single Messages turn, requiring a normal finish and message stop.
+        public func completeStreamEventsRecovering(
+            model: String, messages: [LLMMessage], config: CompletionConfig,
+        ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+            guard let recovery else {
+                do {
+                    return try RecoveryStreamBridge.lift(
+                        completeStreamEvents(model: model, messages: messages, config: config)
+                    )
+                } catch {
+                    return AsyncStream {
+                        $0.yield(.error(error))
+                        $0.finish()
+                    }
+                }
+            }
+            let body = buildRequest(
+                model: model,
+                messages: messages,
+                tools: nil,
+                config: config,
+                stream: true,
+                extraSystemSuffix: nil,
+            )
+            return StreamingRecovery.completionEvents(
+                policy: recovery,
+                provider: "anthropic",
+                url: baseURL.appendingPathComponent("messages"),
+                headers: authHeaders(),
+                body: body,
+                timeout: client.bufferedRequestTimeout,
+            )
+        }
+
         // MARK: - Helpers
 
         private func authHeaders() -> [String: String] {
@@ -276,7 +380,7 @@ import Logging
 
     // MARK: - Wire decoding
 
-    private struct AnthropicMessageResponse: Decodable {
+    struct AnthropicMessageResponse: Decodable {
         let id: String?
         let model: String?
         let content: [AnthropicContentBlock]
@@ -337,7 +441,7 @@ import Logging
         }
     }
 
-    private struct AnthropicContentBlock: Decodable {
+    struct AnthropicContentBlock: Decodable {
         let type: String
         let text: String?
         let thinking: String?
@@ -346,7 +450,7 @@ import Logging
         let input: JSONValue?
     }
 
-    private struct AnthropicUsage: Decodable {
+    struct AnthropicUsage: Decodable {
         let inputTokens: Int?
         let outputTokens: Int?
 

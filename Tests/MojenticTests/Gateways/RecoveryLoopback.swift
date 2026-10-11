@@ -23,6 +23,7 @@ struct RecoveryReply: Sendable {
 final class RecoveryLoopback: @unchecked Sendable {
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
+    let requestHeaders = RecoveryLocked<[String]>([])
     private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
     private let arrival: AsyncStream<Int>.Continuation
@@ -145,6 +146,8 @@ final class RecoveryLoopback: @unchecked Sendable {
             }
         }
         guard let boundary else { return }
+        let receivedHeaders = String(bytes: request[..<boundary.lowerBound], encoding: .utf8) ?? ""
+        requestHeaders.withLock { $0.append(receivedHeaders) }
         let body = Data(request[boundary.upperBound...])
         let index = requests.withLock { requests in
             requests.append(body)

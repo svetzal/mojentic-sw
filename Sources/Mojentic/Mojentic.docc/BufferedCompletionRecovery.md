@@ -1,6 +1,6 @@
 # Recovering Buffered Completions
 
-Opt Ollama, oMLX or OpenAI Chat Completions into request recovery without replaying a broker or session.
+Opt Ollama, oMLX, OpenAI Chat Completions or Anthropic Messages into request recovery without replaying a broker or session.
 
 Existing gateway initializers keep their one-send behavior and existing error
 conversion. Pass a ``CompletionRecoveryPolicy`` through the new `recovery:`
@@ -146,8 +146,8 @@ than shortened. Authentication/invalid-request statuses 400/401/403 remain
 permanent even after truncated bodies and explicit status selection. Protocol,
 capture and cancellation failures cannot be selected into blind retries.
 
-This buffered slice does not claim streaming, OpenAI, Anthropic, whole-mission,
-or six-port parity. Apple controller validation and the declared Swift 6.1
+Buffered and recovery-stream entrypoints now cover Ollama, oMLX, OpenAI and
+Anthropic Messages. This does not claim whole-mission or six-port parity. Apple controller validation and the declared Swift 6.1
 minimum-toolchain validation remain pending when only Linux Swift 6.4 evidence
 is available. See the repository's `RECOVERY-CONFORMANCE.md` for actual assertions
 and gate outcomes.
@@ -167,3 +167,38 @@ is not delivered as thinking or single-turn content. Neither client identities,
 local socket cancellation nor empty output proves provider idempotency or remote
 termination. Request status and remote cancellation are unsupported; ambiguous
 retries require explicit caller admission. No native reasoning history is invented.
+
+## Anthropic Messages
+
+Enable the `anthropic` or `full` package trait, then configure the gateway:
+
+```swift
+let gateway = AnthropicGateway(apiKey: configuredKey, recovery: policy)
+let response = try await gateway.complete(
+    model: "claude-sonnet-4-5", messages: [.user("Hello")], tools: nil,
+    config: CompletionConfig(maxTokens: 8192, reasoning: .high)
+)
+let broker = LLMBroker(gateway: gateway)
+let chat = ChatSession(broker: broker, model: "claude-sonnet-4-5")
+```
+
+The same policy applies to `completeJSON` and `completeStructured`, including
+broker and session buffered calls. Structured output keeps the existing schema
+instruction and JSON extraction; recovery does not introduce native schema
+support. System prompts, supported thinking configuration, images, tool-use and
+tool-result history, generation controls and schema instructions are encoded once
+and reused byte for byte. Successful responses keep provider input/output usage,
+model, message ID, thinking text and tools.
+
+Only `end_turn` and `tool_use` are accepted recovery finishes. Other finishes
+(including `max_tokens`) retain observed evidence and fail without delivering
+tools. The original initializer and legacy finish handling remain unchanged.
+Retries require explicit admission; request IDs do not imply idempotency. Status,
+remote cancellation and termination proof remain unsupported. Recovery uses the
+existing idle request timeout and adds no generation deadline.
+
+The universal message adapter does not round-trip signed thinking or
+redacted-thinking blocks. Retrying one frozen request preserves its supported
+history; it does not add native reasoning history to later broker turns. Raw
+capture and `inspectEvidence()` remain explicitly sensitive; safe error summaries
+and lifecycle serialization exclude provider credential/payload echoes.

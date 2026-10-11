@@ -4,7 +4,7 @@ import Testing
 
 struct StreamingRecoveryConsumerTests {
     @Test(
-        arguments: StreamingBoundary.all.filter { !$0.single },
+        arguments: StreamingBoundary.withAnthropic.filter { !$0.single },
         [(false, false), (false, true), (true, false), (true, true)],
     )
     func completedToolRunsOnceAcrossFollowUp(
@@ -66,7 +66,11 @@ struct StreamingRecoveryConsumerTests {
         }
         let fields = try JSONDecoder().decode(JSONValue.self, from: bodies[1]).objectValue
         if case .array(let messages)? = fields?["messages"] {
-            #expect(messages.contains { $0.objectValue?["role"] == "tool" })
+            #expect(messages.contains { $0.objectValue?["role"] == (boundary.anthropic ? "user" : "tool") })
+            if boundary.anthropic {
+                #expect(String(describing: messages).contains("tool_use_id"))
+                #expect(String(describing: messages).contains("original-tool"))
+            }
             #expect(String(describing: messages).contains("tool-sentinel"))
         } else {
             Issue.record("Missing follow-up tool history")
@@ -76,7 +80,7 @@ struct StreamingRecoveryConsumerTests {
         }
     }
 
-    @Test(arguments: StreamingBoundary.all.filter { !$0.single })
+    @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single })
     func recoveryPreservesStreamingToolDepth(_ boundary: StreamingBoundary) async throws {
         let toolReply = try RecoveryReply(body: boundary.frame(tool: true, done: true))
         let server = try RecoveryLoopback(replies: [
@@ -97,7 +101,7 @@ struct StreamingRecoveryConsumerTests {
         #expect(server.requests.withLock { $0.count } == 3)
     }
 
-    @Test(arguments: StreamingBoundary.all.filter { !$0.single })
+    @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single })
     func brokerSingleTurnRetainsTypedRecovery(_ boundary: StreamingBoundary) async throws {
         let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))

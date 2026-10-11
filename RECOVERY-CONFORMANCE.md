@@ -1,6 +1,6 @@
 # Swift transient recovery conformance
 
-This OpenAI recovery slice starts at verified clean HEAD
+The historical OpenAI recovery slice started at verified clean HEAD
 `11e2503130a77924527d81ea0331929bf716d15b`. Controller synchronization is
 recorded in `/home/svetzal/.foundry/operations/mojentic-port-alignment-20261010/status-recovery/receipt.json`
 (observed October 10, 2026 at 23:39:13 UTC), including clean status, fetch,
@@ -34,8 +34,8 @@ values remain available through explicit properties.
 
 | Caller | Recovery entrypoint | Legacy entrypoint |
 | --- | --- | --- |
-| Ollama / oMLX / OpenAI tool stream | `streamRecovering` | `stream` |
-| Ollama / oMLX / OpenAI single turn | `completeStreamEventsRecovering` | `completeStreamEvents` |
+| Ollama / oMLX / OpenAI / Anthropic tool stream | `streamRecovering` | `stream` |
+| Ollama / oMLX / OpenAI / Anthropic single turn | `completeStreamEventsRecovering` | `completeStreamEvents` |
 | Broker single turn | `generateRecoveryStreamEvents` | `generateStreamEvents` |
 | Broker tool stream / ChatSession | Existing API internally routes to the opt-in gateway boundary | Existing public result vocabulary |
 
@@ -43,8 +43,8 @@ Legacy streaming entrypoints retain their original single-request parsers and
 completion rules, even when an instance has a recovery policy. They do not convert
 recovery errors into legacy errors. Buffered recovery still throws RecoveryError
 directly. Gateways without recovery support are lifted without fabricated telemetry
-or retries. OpenAI Chat Completions now supports opt-in per-request recovery;
-Anthropic remains outstanding.
+or retries. OpenAI Chat Completions and Anthropic Messages support opt-in
+per-request recovery; Anthropic evidence and limits are recorded in cycle 9 below.
 
 Structural callers were inspected before migration: Router feeds dispatcher
 subscriptions; schema generation feeds broker structured completion; stream events
@@ -102,7 +102,7 @@ HTTP; no live inference or benchmark restart is performed.
 | Ollama | Buffered, tools, single turn | Tool stream thinking; single turn observed-only | Validated progress and reported metrics | Unsupported; local HTTP cancellation only |
 | oMLX | Buffered, tools, single turn | Buffered/tool thinking; single turn observed-only | Existing evidence; no invented Ollama events | Unsupported; local HTTP cancellation only |
 | OpenAI Chat Completions | Buffered, tools, single turn | Observed-only; registry-supported effort request unchanged | Validated provider usage metrics and completion evidence | Unsupported; local HTTP cancellation only |
-| Anthropic | Outstanding | Existing legacy behavior | Existing legacy behavior | No new recovery claims |
+| Anthropic Messages | Buffered ordinary/JSON/structured, tools, recovery single turn | Buffered/tool thinking; single turn observed-only; signed history unsupported | Actual message usage/model/ID and finish evidence | Unsupported; local HTTP cancellation only |
 
 ## Current OpenAI acceptance evidence
 
@@ -242,7 +242,103 @@ pending. Standalone SwiftFormat 0.63.1 is installed by the controller and its un
 `swiftformat --lint .` check is required alongside strict `swift format`. Current
 results are retained separately; historical formatting evidence remains missing.
 
-Whole-mission gaps remain Anthropic recovery, oMLX telemetry parity, remote
+At the end of cycle 8, whole-mission gaps included Anthropic recovery, oMLX telemetry parity, remote
 termination/status/idempotency and Apple/minimum-toolchain validation. This task
 makes no whole-port parity claim. Foundry owns final review and finalization; no
 release, tag, PR, push, sibling write or ref mutation is performed.
+
+
+## Anthropic Messages acceptance (cycle 9)
+
+This additive slice starts at clean delivered trunk
+`3835622f2fded38d9c98290ab5a77f7f129e0cb0`. HEAD was verified read-only.
+The controller synchronization receipt named above and every Swift check log hash
+were verified read-only; that historical receipt records `11e2503130a77924527d81ea0331929bf716d15b`,
+not this later delivered HEAD. Its binding October 10 supplement was reviewed
+against exact Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3` (recovery engine,
+adapter, public tests and migration/conformance notes). Rust's missing Anthropic
+coverage is not copied. Prior missing-evidence disclosures remain historical.
+
+Characterization found the trait-gated Anthropic gateway used `HTTPClient.postJSON`
+for buffered calls, delegated `completeJSON` to `completeStructured`, and used a
+legacy SSE accumulator for `stream`. Broker buffered paths already called the
+gateway; broker tool streams already dispatched through `streamRecovering`.
+Those caller paths and legacy parsers remain intact. A new policy initializer,
+`RecoveryStreamingGateway` conformance and Messages decoder connect Anthropic to
+the existing isolated request engines. Package traits, dependencies, tools,
+reasoning configuration, enum vocabulary and ordinary legacy finish handling are
+unchanged. No feature flag, marker or private retry test substitutes for HTTP proof.
+
+The initial `AnthropicRecoveryProofTests.captureFailureRetainsReceivedSemanticsWithoutResend`
+run rejected the disconnected policy path: public `complete` returned success
+instead of invoking capture. After connecting buffered recovery and Anthropic
+semantic observation, the same loopback probe passed. It checks exact body Data,
+2 content UTF-8 bytes, 3 thinking bytes, one fragment/completed tool, zero delivered
+semantics, the typed capture cause, one real request and the exact failed lifecycle.
+Actual nonzero/zero exits and complete logs are retained in the execution evidence.
+
+| Acceptance | Public entrypoints and assertion evidence |
+| --- | --- |
+| 503 then success, immutable payload and identity | `RecoveryConformanceTests.bothOperationsPreserveShapingAndResults` (ordinary/structured), `AnthropicRecoveryTests.completeJSONRetriesFrozenSchemaAndSupportedThinking` (JSON): ordered captured Data equals socket bodies, same payload across attempts, distinct unmasked attempt IDs, one logical ID, exact usage/history/lifecycle, schema/system/thinking/sampling fields and actual authentication/version headers |
+| Retry-After and bounded history | `RecoveryTimingTests`, `StreamingRecoveryTimingTests`, conformance `persistent504IsBounded`: numeric/date/invalid/past values, injected delays, ceiling/budget refusal, pending allow/reject, exact captured/socket requests, bounded attempts and typed status causes |
+| Permanent truncated status | `RecoveryConformanceTests.permanentTruncatedStatusWins`, `StreamingRecoveryTests.numericFailuresAndPrivateEvidence`: selected 400/401/403 stay HTTP/ineligible despite configured status/transport eligibility; original URLError, numeric status, headers and private partial bytes survive |
+| Ambiguous admission and cancellation | `RecoveryTimingTests`, `RecoveryCancellationTests`, `RecoveryAdmissionSafetyTests`, `StreamingRecoveryCancellationTests`: request, pending admission, backoff, terminal cancellation and refusal precedence; one failed actual attempt before one cancellation, no later send or success; healthy generation outlives recovery budget |
+| Observe before failing capture | `AnthropicRecoveryProofTests`, `AnthropicRecoveryCaptureTests.captureAndCancellationRetainExactObservedEvidence`: ordinary/structured/tool/single APIs, exact UTF-8 counters, completed tools, typed capture causes, byte-for-byte private body, zero delivery, exact lifecycle/IDs, no resend; cancellation wins even when capture throws |
+| Semantic interruption and keepalives | `StreamingRecoveryTests.semanticInterruptionNeverRetries`, `AnthropicRecoveryCaptureTests.partialToolArgumentsInterruptWithoutDelivery`, `StreamingRecoveryTimingTests.keepaliveAdmissionRemainsPending`: thinking/text/tool channels block replay; incomplete JSON arguments count as observed fragments, not completed/delivered tools; raw keepalive evidence requires explicit admission |
+| Malformed/provider and terminal finish failures | `AnthropicRecoveryTests.malformedAndProviderErrorsAreTerminal`, `.terminalUsageAndToolsRespectFinish`: typed failures, exact original bytes, no malformed metrics, provider usage/evidence order, no tools from rejected `max_tokens`, no success, exact input/output totals without invented durations |
+| Paused ownership cleanup | `PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming`: gateway tool/single, broker tool/single, session tool; keepalive and terminal response; retained stream/consumer, local socket closure before resume, exact cleanup history, observed counters, zero completed-tool delivery and cancellation event order |
+| Completed tools execute once | `RecoveryToolSafetyTests`, `StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp`: public broker/session buffered/streaming follow-ups succeed or fail without tool replay; native `tool_use`/`tool_result` IDs and tool result survive; retries reuse follow-up bytes exactly; tool depth stays bounded |
+| Defaults and privacy | `.legacyLengthFinishAndUnsupportedSingleTurnStayUnchanged`, shared conformance, Anthropic capture/terminal tests: disabled policy retains legacy length handling and one send; legacy single turn remains unsupported without HTTP; credential/payload echoes stay out of descriptions, reflection and lifecycle JSON; explicit inspection/capture retains original sensitive values |
+
+Anthropic acceptance variants run only under `anthropic`/`full`; the default suite
+continues testing the existing providers without altering trait defaults. Both
+migration guides contain Anthropic examples and the same policy/admission semantics.
+
+### Supported limits and validation
+
+Messages recovery supports buffered ordinary, schema-instructed JSON/structured,
+named SSE tool streams and recovery single-turn streams. It retains text/thinking,
+validated tools, message model/ID, input/output usage and raw finish reasons.
+Only `end_turn` and `tool_use` are accepted recovery finishes; other finishes fail
+with provider evidence. Legacy finish handling is preserved. Streaming requires
+one JSON object per SSE data line, valid block ordering and a message-stop marker.
+There is no replay/continuation mode, total generation deadline, remote status,
+termination proof, remote cancellation or claimed inference idempotency. Native
+signed and redacted thinking history cannot round-trip through the existing
+universal message adapter; cache-token breakdowns have no typed Usage fields.
+These limits are not implemented as unrelated reasoning features.
+
+Current Linux Swift 6.4 gate and audit results, complete logs, per-run source hashes,
+starting revision and proof are retained outside the disposable worktree under
+`/home/svetzal/.foundry/tool-logs/mojentic-sw-anthropic-c9`. Apple/Darwin and Swift
+6.1 validation remain explicitly pending until executed. Independent controller
+review and direct-main integration remain pending; this slice makes no whole-port
+alignment, coordinated parity or remote termination claim. Foundry owns Git
+finalization; no worker ref mutations, release, live inference or harness writes occur.
+
+The fresh unfiltered full-trait run passed **330 tests in 85 suites** after a
+clean rebuild. An earlier broader focused run failed with private fixture bytes
+containing Swift source fragments while formatting overlapped an incremental
+build. That run remains a failure in retained evidence. With edits stopped, a
+focused recheck passed 20 tests in 5 suites, followed by the clean unfiltered pass.
+This confirms the final frozen source passes; stale source-offset artifacts remain
+the diagnosis for the earlier run rather than an inferred provider failure.
+
+Final Linux Swift 6.4 validation passed all six required wrapper gates: strict
+native formatting, strict SwiftLint, release build, default parallel tests
+(321 tests in 81 suites), full-trait tests (330 tests in 85 suites) and DocC with
+warnings as errors. Standalone SwiftFormat, the additional full-trait release
+build and DocC build, the unfiltered OSV scan of `Package.resolved` (no issues),
+and the native full-trait API audit against `v2.1.0` also passed. Final runs record
+unchanged source hashes across each execution; no baseline or audit exclusions
+were introduced. These Linux results do not substitute for pending Apple and
+Swift 6.1 checks.
+
+Independent review found no blocking Anthropic-specific defect and verified the
+actual rejecting/passing HTTP proof, payload/identity assertions, private causes,
+tool boundaries and cancellation cleanup. Its source hashes and report remain in
+the durable evidence directory. It also records an inherited observer edge: a
+caller cancelling from inside the already-delivered `attemptSucceeded` callback
+can subsequently receive cancellation. The tested guarantee here is cancellation
+before terminal capture/reporting, including paused consumers; no shared landed
+engine behavior was changed to erase an event already delivered to an observer.

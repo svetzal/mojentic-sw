@@ -6,8 +6,10 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
     let omlx: Bool
     let single: Bool
     var openAI = false
+    var anthropic = false
     var description: String {
-        "\(openAI ? "openai" : omlx ? "omlx" : "ollama")/\(single ? "single" : "tools")"
+        let provider = anthropic ? "anthropic" : openAI ? "openai" : omlx ? "omlx" : "ollama"
+        return "\(provider)/\(single ? "single" : "tools")"
     }
 
     static let all = [
@@ -16,8 +18,21 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
         Self(omlx: true, single: false, openAI: true), Self(omlx: true, single: true, openAI: true),
     ]
 
+    static var withAnthropic: [Self] {
+        #if anthropic
+            all + [
+                Self(omlx: true, single: false, anthropic: true),
+                Self(omlx: true, single: true, anthropic: true),
+            ]
+        #else
+            all
+        #endif
+    }
+
     func gateway(_ server: RecoveryLoopback, _ policy: CompletionRecoveryPolicy?) -> any LLMGateway {
-        RecoveryBoundary(omlx: omlx, structured: false, openAI: openAI).gateway(server, policy: policy)
+        RecoveryBoundary(omlx: omlx, structured: false, openAI: openAI, anthropic: anthropic).gateway(
+            server, policy: policy,
+        )
     }
 
     func frame(
@@ -28,6 +43,16 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
         reason: String = "stop",
         metrics: Bool = false,
     ) throws -> String {
+        if anthropic {
+            return try anthropicFrame(
+                content: content,
+                reasoning: reasoning,
+                tool: tool,
+                done: done,
+                reason: reason,
+                metrics: metrics,
+            )
+        }
         var message: [String: JSONValue] = ["content": .string(content)]
         if !reasoning.isEmpty {
             message[omlx ? "reasoning_content" : "thinking"] = .string(reasoning)

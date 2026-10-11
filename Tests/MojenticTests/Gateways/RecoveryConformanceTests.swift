@@ -43,7 +43,16 @@ struct RecoveryConformanceTests {
         let fields = try JSONDecoder().decode(JSONValue.self, from: #require(requests.first)).objectValue
         #expect(fields?["model"] == "fixture")
         #expect(fields?["stream"] == false)
-        if boundary.omlx {
+        if boundary.anthropic {
+            #expect(fields?["temperature"] == 0.25)
+            #expect(fields?["max_tokens"] == 123)
+            #expect(fields?["top_p"] == 0.8)
+            // The fixture model has no registered thinking support.
+            #expect(fields?["thinking"] == nil)
+            if boundary.structured {
+                #expect(fields?["system"]?.stringValue?.contains("Schema:") == true)
+            }
+        } else if boundary.omlx {
             #expect(fields?["temperature"] == 0.25)
             #expect(fields?["max_tokens"] == 123)
             #expect(fields?["reasoning_effort"] == (boundary.openAI ? nil : "high"))
@@ -267,7 +276,9 @@ struct RecoverySafeguardTests {
     func structuredJSONFailureRetainsReceivedSemanticEvidence(
         _ ordinary: RecoveryBoundary
     ) async throws {
-        let structured = RecoveryBoundary(omlx: ordinary.omlx, structured: true, openAI: ordinary.openAI)
+        let structured = RecoveryBoundary(
+            omlx: ordinary.omlx, structured: true, openAI: ordinary.openAI, anthropic: ordinary.anthropic,
+        )
         let server = try RecoveryLoopback(replies: [ordinary.success()])
         let failure = try await recoveryFailure {
             _ = try await structured.gateway(server, policy: recoveryPolicy(RecoveryRecorder())).completeJSON(

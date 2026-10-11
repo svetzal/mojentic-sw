@@ -58,16 +58,44 @@ struct RecoveryToolSafetyTests {
         #expect(messages.count == 3)
         #expect(messages[0].objectValue?["content"] == "original-user")
         #expect(messages[1].objectValue?["role"] == "assistant")
-        #expect(messages[1].objectValue?["tool_calls"] != nil)
-        #expect(messages[2].objectValue?["role"] == "tool")
-        let toolText = try #require(messages[2].objectValue?["content"]?.stringValue)
-        #expect(
-            try JSONDecoder().decode(JSONValue.self, from: Data(toolText.utf8)) == [
-                "original-result": "tool-sentinel"
-            ]
-        )
-        if boundary.omlx {
-            #expect(messages[2].objectValue?["tool_call_id"] == "original-tool")
+        if boundary.anthropic {
+            guard
+                case .array(let assistant) = messages[1].objectValue?["content"],
+                case .array(let result) = messages[2].objectValue?["content"]
+            else {
+                Issue.record("Missing native tool history")
+                return
+            }
+            #expect(
+                assistant == [
+                    [
+                        "type": "tool_use",
+                        "id": "original-tool",
+                        "name": "resolve_date",
+                        "input": ["relative": "tomorrow"],
+                    ]
+                ]
+            )
+            #expect(messages[2].objectValue?["role"] == "user")
+            #expect(result.first?.objectValue?["tool_use_id"] == "original-tool")
+            let text = try #require(result.first?.objectValue?["content"]?.stringValue)
+            #expect(
+                try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) == [
+                    "original-result": "tool-sentinel"
+                ]
+            )
+        } else {
+            #expect(messages[1].objectValue?["tool_calls"] != nil)
+            #expect(messages[2].objectValue?["role"] == "tool")
+            let toolText = try #require(messages[2].objectValue?["content"]?.stringValue)
+            #expect(
+                try JSONDecoder().decode(JSONValue.self, from: Data(toolText.utf8)) == [
+                    "original-result": "tool-sentinel"
+                ]
+            )
+            if boundary.omlx {
+                #expect(messages[2].objectValue?["tool_call_id"] == "original-tool")
+            }
         }
         let identities = recorder.requests.withLock { $0.map(\.0) }
         #expect(bodies == recorder.requests.withLock { $0.map(\.1) })

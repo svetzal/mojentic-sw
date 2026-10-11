@@ -91,8 +91,9 @@ termination. Drop the stream/iterator to release its producer when stopping earl
 ## Capabilities and sensitive capture
 
 Both local adapters expose local HTTP cancellation. Remote request cancellation,
-exact-attempt status querying and provider idempotency remain unsupported. OpenAI Chat Completions also supports recovery; Anthropic, realtime voice and
-embeddings remain outside this slice. Supported message/tool history and generation controls are preserved;
+exact-attempt status querying and provider idempotency remain unsupported. OpenAI
+Chat Completions and Anthropic Messages also support recovery; realtime voice and
+embeddings remain outside completion recovery. Supported message/tool history and generation controls are preserved;
 no native reasoning-history field is invented.
 
 Lifecycle events contain numeric status, identities, progress, classification and
@@ -179,3 +180,50 @@ is not delivered as thinking or single-turn content. Neither client identities,
 local socket cancellation nor empty output proves provider idempotency or remote
 termination. Request status and remote cancellation are unsupported; ambiguous
 retries require explicit caller admission. No native reasoning history is invented.
+
+## Anthropic Messages
+
+With the `anthropic` or `full` trait enabled, use
+`AnthropicGateway(apiKey: configuredKey, recovery: policy)`. Migrate tool consumers
+to `streamRecovering` and single-turn consumers to `completeStreamEventsRecovering`:
+
+```swift
+try await withRecoveryStreamCancellation {
+    for await event in gateway.completeStreamEventsRecovering(
+        model: "claude-sonnet-4-5", messages: [.user("Hello")], config: CompletionConfig()
+    ) {
+        switch event {
+        case .content(let text): consume(text)
+        case .progress(let progress): observe(progress)
+        case .metrics(let evidence): inspectProviderEvidence(evidence)
+        case .completed(let evidence): finish(evidence)
+        case .recoveryFailure(let failure): recordSafeFailure(failure.description)
+        case .error(let error): recordLegacyFailure(error.description)
+        }
+    }
+}
+```
+
+The recovery decoder accepts named SSE events with one JSON object per `data:`
+line. It validates block indices, delta types, tool arguments, usage and message
+ordering. A normal finish requires `message_delta` with `end_turn` or `tool_use`,
+then `message_stop`. Tools remain buffered until that accepted terminal response;
+a rejected finish cannot execute completed tools. Single-turn streams reject tool
+blocks. Tool streams preserve thinking deltas; single-turn streams observe thinking
+for replay safety without rendering it as content. Any observed text, thinking or
+tool fragment prevents transparent replay, even if capture failed before delivery.
+Keepalives and `ping` are raw progress and require caller admission before retry.
+
+Provider message-start usage precedes content and message-delta usage precedes
+completion/failure. Metrics carry the actual input/output token counts, model and
+message ID; no frame indices, durations or throughput are invented. Safe summaries
+exclude echoed metadata; inspecting metric properties and raw captures is sensitive.
+Broker tool streams and ChatSession streams retain tool results across recovered
+follow-ups and execute completed tools once. Scoped cancellation closes local
+resources while a consumer remains paused, including terminal-only responses.
+This does not prove remote inference stopped.
+
+Legacy `stream` retains the named-event accumulator and one-send behavior.
+Legacy `completeStreamEvents` remains unsupported for Anthropic; without recovery,
+the new single-turn boundary yields the existing `streamEventsUnsupported` error
+without sending HTTP. Signed/redacted thinking-history round trips remain unsupported.

@@ -36,7 +36,7 @@ final class RecoveryConsumerPause: @unchecked Sendable {
 
 struct PausedRecoveryOwnershipTests {
     @Test(
-        arguments: StreamingBoundary.all,
+        arguments: StreamingBoundary.withAnthropic,
         [
             ("gateway", "keepalive"), ("gateway", "terminal"), ("broker", "keepalive"),
             ("broker", "terminal"), ("session", "keepalive"), ("session", "terminal"),

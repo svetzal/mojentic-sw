@@ -28,7 +28,12 @@ enum StreamingRecovery {
                 try Task.checkCancellation()
                 try await delivery.send(
                     .done(
-                        finishReason: evidence.finishReason.map { FinishReason(rawValue: $0) ?? .other },
+                        finishReason: evidence.finishReason.map { reason in
+                            if provider == "anthropic" {
+                                return reason == "end_turn" ? .stop : .toolCalls
+                            }
+                            return FinishReason(rawValue: reason) ?? .other
+                        },
                         usage: evidence.usage,
                     )
                 )

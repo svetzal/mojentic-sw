@@ -36,6 +36,7 @@ struct RecoveryTimingTests {
         default: #expect(observed.withLock { $0 } == .date(Date(timeIntervalSince1970: 3)))
         }
         #expect(server.requests.withLock { $0.count } == 2)
+        assertRecoveryRequests(recorder, server)
     }
 
     @Test(arguments: RecoveryBoundary.all, [false, true])
@@ -59,6 +60,7 @@ struct RecoveryTimingTests {
         #expect(failure.outcome == .limitRefused)
         #expect(failure.failure.retryAfter == .seconds(31))
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         #expect(!recorder.events.withLock { $0.map(\.transition.rawValue) }.contains("delayScheduled"))
     }
 
@@ -90,17 +92,20 @@ struct RecoveryTimingTests {
         var iterator = pending.stream.makeAsyncIterator()
         _ = await iterator.next()
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         #expect(recorder.events.withLock { $0.last?.transition } == .admissionPending)
         decision.continuation.yield(allow ? .allow : .reject)
         decision.continuation.finish()
         if allow {
             #expect(try await task.value.thinking == (boundary.openAI ? nil : "reasoning"))
             #expect(server.requests.withLock { $0.count } == 2)
+            assertRecoveryRequests(recorder, server)
         } else {
             let failure = try await recoveryFailure { _ = try await task.value }
             #expect(failure.outcome == .admissionRejected)
             #expect(failure.failure.inspectEvidence().cause is URLError)
             #expect(server.requests.withLock { $0.count } == 1)
+            assertRecoveryRequests(recorder, server)
         }
     }
 
@@ -119,6 +124,7 @@ struct RecoveryTimingTests {
         #expect(failure.failure.eligible)
         #expect(failure.failure.acceptance == .unknown)
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
     }
 }
 
@@ -149,6 +155,7 @@ struct RecoveryAdmissionLimitTests {
         var iterator = sleeping.stream.makeAsyncIterator()
         _ = await iterator.next()
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         now.withLock { $0 = 5 }
         elapsed.continuation.yield(())
         elapsed.continuation.finish()
@@ -156,6 +163,7 @@ struct RecoveryAdmissionLimitTests {
         #expect(failure.outcome == .limitRefused)
         #expect(failure.history.count == 1)
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
     }
 }
 
@@ -189,6 +197,7 @@ struct RecoveryTimeoutTests {
         var iterator = pending.stream.makeAsyncIterator()
         _ = await iterator.next()
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         #expect(recorder.events.withLock { $0.last?.transition } == .admissionPending)
         server.release()
         decisions.continuation.yield(allow ? .allow : .reject)
@@ -203,6 +212,7 @@ struct RecoveryTimeoutTests {
             #expect(failure.outcome == .admissionRejected)
             #expect((failure.failure.inspectEvidence().cause as? URLError)?.code == .timedOut)
             #expect(server.requests.withLock { $0.count } == 1)
+            assertRecoveryRequests(recorder, server)
         }
     }
 }
@@ -245,7 +255,8 @@ struct RecoveryBackoffTests {
             boundary.success(),
         ])
         let delays = RecoveryLocked<[TimeInterval]>([])
-        var policy = recoveryPolicy(RecoveryRecorder())
+        let recorder = RecoveryRecorder()
+        var policy = recoveryPolicy(recorder)
         policy.baseDelay = 1
         policy.timing.wall = { Date(timeIntervalSince1970: 10) }
         policy.timing.jitter = { $0 / 2 }
@@ -253,6 +264,7 @@ struct RecoveryBackoffTests {
         _ = try await boundary.complete(boundary.gateway(server, policy: policy))
         #expect(delays.withLock { $0 } == [0.5])
         #expect(server.requests.withLock { $0.count } == 2)
+        assertRecoveryRequests(recorder, server)
     }
 
     @Test(arguments: RecoveryBoundary.all)
@@ -271,5 +283,6 @@ struct RecoveryBackoffTests {
         #expect(failure.history.count == 1)
         #expect(!recorder.events.withLock { $0.map(\.transition.rawValue) }.contains("admissionPending"))
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
     }
 }

@@ -22,8 +22,27 @@ extension BufferedRecovery {
     }
 
     static func semanticEvidence(_ data: Data, provider: String) -> RecoverySemanticProgress {
-        guard let root = try? JSONDecoder().decode(JSONValue.self, from: data).objectValue else {
+        guard
+            let root = try? JSONDecoder().decode(JSONValue.self, from: data).objectValue
+        else {
             return RecoverySemanticProgress()
+        }
+        if provider == "anthropic" {
+            var progress = RecoverySemanticProgress()
+            for block in root["content"]?.recoveryArray ?? [] {
+                let fields = block.objectValue
+                switch fields?["type"]?.stringValue {
+                case "text": progress.contentBytes += fields?["text"]?.stringValue?.utf8.count ?? 0
+                case "thinking": progress.reasoningBytes += fields?["thinking"]?.stringValue?.utf8.count ?? 0
+                case "tool_use":
+                    progress.toolFragments += 1
+                    if completeAnthropicTool(fields) {
+                        progress.completedToolCalls += 1
+                    }
+                default: break
+                }
+            }
+            return progress
         }
         let message: [String: JSONValue]? =
             if provider == "ollama" {
@@ -44,6 +63,17 @@ extension BufferedRecovery {
             progress.completedToolCalls = wire?.toGatewayResponse().toolCalls.count ?? 0
         }
         return progress
+    }
+
+    private static func completeAnthropicTool(_ fields: [String: JSONValue]?) -> Bool {
+        guard
+            let id = fields?["id"]?.stringValue,
+            !id.isEmpty,
+            let name = fields?["name"]?.stringValue,
+            !name.isEmpty,
+            fields?["input"]?.objectValue != nil
+        else { return false }
+        return true
     }
 }
 

@@ -98,7 +98,26 @@ struct RecoveryAdmissionSafetyTests {
             ])
         }
         let envelope: JSONValue =
-            if boundary.omlx {
+            if boundary.anthropic {
+                [
+                    "content": .array(
+                        [
+                            ["type": "text", "text": evidence == "content" ? "é🐈hi" : ""],
+                            ["type": "thinking", "thinking": evidence == "reasoning" ? "thought" : ""],
+                        ]
+                            + (evidence == "tool"
+                                ? [
+                                    [
+                                        "type": "tool_use",
+                                        "id": "original-tool",
+                                        "name": "resolve_date",
+                                        "input": .object([:]),
+                                    ]
+                                ] : [])
+                    ),
+                    "stop_reason": "end_turn",
+                ]
+            } else if boundary.omlx {
                 ["choices": .array([["message": .object(message), "finish_reason": "stop"]])]
             } else {
                 ["message": .object(message), "done": true]

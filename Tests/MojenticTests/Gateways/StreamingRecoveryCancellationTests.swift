@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct StreamingRecoveryCancellationTests {
-    @Test(arguments: StreamingBoundary.all, ["active", "admission", "backoff"])
+    @Test(arguments: StreamingBoundary.withAnthropic, ["active", "admission", "backoff"])
     func cancellationRetainsActualAttempt(_ boundary: StreamingBoundary, _ phase: String) async throws {
         let firstReply =
             if phase == "active" {

@@ -27,6 +27,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         var arguments = ""
     }
 
+    private var anthropic = AnthropicRecoveryStreamParser()
     private var legacy = OpenAILegacyStreamParser(surfacesReasoning: true)
     private var openAI = OpenAICompletionEventParser()
     private var evidence = CompletionEvidence()
@@ -107,10 +108,10 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
 
     private func parse(_ line: String) {
         var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        if provider == "omlx" || provider == "openai" {
+        if provider == "omlx" || provider == "openai" || provider == "anthropic" {
             guard payload.hasPrefix("data:") else { return }
             payload = String(payload.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-            if payload == "[DONE]" {
+            if payload == "[DONE]", provider != "anthropic" {
                 finishOpenAI(line)
                 return
             }
@@ -125,7 +126,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
             if let error = object["error"] {
                 throw MojenticError.providerError(status: nil, detail: error)
             }
-            if provider == "ollama" {
+            if provider == "anthropic" {
+                try parseAnthropic(object)
+            } else if provider == "ollama" {
                 try parseOllama(data)
             } else {
                 try parseOpenAI(data, object: object, line: line)
@@ -133,6 +136,16 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         } catch let error as MojenticError { fail(error) } catch {
             fail(.invalidStreamEvent(message: "Malformed provider frame"))
         }
+    }
+
+    private func parseAnthropic(_ object: [String: JSONValue]) throws {
+        defer {
+            progress.observed = anthropic.observed
+            evidence = anthropic.evidence
+            terminal = anthropic.terminal
+        }
+        let events = try anthropic.consume(object, singleTurn: singleTurn)
+        pending += events
     }
 
     private func parseOllama(_ data: Data) throws {

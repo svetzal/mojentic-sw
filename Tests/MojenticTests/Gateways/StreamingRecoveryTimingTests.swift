@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct StreamingRecoveryTimingTests {
-    @Test(arguments: StreamingBoundary.all, ["2", "Thu, 01 Jan 1970 00:00:03 GMT", "invalid"])
+    @Test(arguments: StreamingBoundary.withAnthropic, ["2", "Thu, 01 Jan 1970 00:00:03 GMT", "invalid"])
     func retryAfterPreservesPolicy(_ boundary: StreamingBoundary, _ header: String) async throws {
         let server = try RecoveryLoopback(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": header], body: "busy"),
@@ -19,9 +19,10 @@ struct StreamingRecoveryTimingTests {
         try await boundary.consume(boundary.gateway(server, policy))
         #expect(sleeps.withLock { $0 } == [header == "2" ? 2 : header == "invalid" ? 1 : 3])
         #expect(server.requests.withLock { $0.count } == 2)
+        assertRecoveryRequests(recorder, server)
     }
 
-    @Test(arguments: StreamingBoundary.all, [false, true])
+    @Test(arguments: StreamingBoundary.withAnthropic, [false, true])
     func retryAfterRefusal(
         _ boundary: StreamingBoundary,
         _ budget: Bool,
@@ -42,10 +43,11 @@ struct StreamingRecoveryTimingTests {
         #expect(failure.outcome == .limitRefused)
         #expect(failure.failure.retryAfter == .seconds(31))
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         #expect(!recorder.events.withLock { $0.map(\.transition) }.contains(.delayScheduled))
     }
 
-    @Test(arguments: StreamingBoundary.all, [false, true])
+    @Test(arguments: StreamingBoundary.withAnthropic, [false, true])
     func keepaliveAdmissionRemainsPending(
         _ boundary: StreamingBoundary,
         _ allow: Bool,
@@ -74,12 +76,14 @@ struct StreamingRecoveryTimingTests {
         var iterator = pending.stream.makeAsyncIterator()
         _ = await iterator.next()
         #expect(server.requests.withLock { $0.count } == 1)
+        assertRecoveryRequests(recorder, server)
         #expect(recorder.events.withLock { $0.last?.transition } == .admissionPending)
         decision.continuation.yield(allow ? .allow : .reject)
         decision.continuation.finish()
         if allow {
             try await task.value
             #expect(server.requests.withLock { $0.count } == 2)
+            assertRecoveryRequests(recorder, server)
         } else {
             let failure = try await recoveryFailure { try await task.value }
             #expect(failure.outcome == .admissionRejected)
