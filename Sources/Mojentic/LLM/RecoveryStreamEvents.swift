@@ -47,7 +47,8 @@ public enum RecoveryCompletionStreamEvent: Sendable {
     case completed(CompletionEvidence)
 
     /// Terminal failure. ``MojenticError/incompleteCompletion(_:)`` carries
-    /// the provider's evidence; other cases describe what went wrong.
+    /// the provider's evidence; invalid recovery limits retain their original
+    /// `invalidArgument` case and message before any request capture or dispatch.
     case error(MojenticError)
 
     /// Terminal recovery failure retaining typed causes and attempt history.

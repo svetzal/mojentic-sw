@@ -357,3 +357,19 @@ including through nested terminal events and reports. Safe identities, progress,
 classifications and validated provider metadata retain their exact values.
 Use `inspectEvidence()` or explicit ``RecoveryWireEvent`` pattern matching to
 inspect the unchanged sensitive evidence. See <doc:BufferedCompletionRecovery>.
+
+## Typed errors at stream boundaries
+
+Recovery gateway, broker and session throwing streams preserve the policy error
+and typed capture or length cause described in <doc:BufferedCompletionRecovery>.
+The single-turn gateway stream and `generateRecoveryStreamEvents` deliver invalid
+limits as `.error(.invalidArgument(message: "Invalid buffered recovery limits"))`,
+without request capture or dispatch. Capture and length failures arrive as
+`.recoveryFailure`, whose `failure.inspectEvidence().cause` retains the original
+error and associated values. Exactly one terminal event arrives and nothing
+follows it, in scoped and unscoped streams.
+
+Observed progress includes rejected terminal content. Delivered progress counts
+only content actually surfaced before the failure; it can differ from observed
+progress. A length failure never delivers successful completion, resends the
+request or executes tools. A failing session stream restores its prior history.

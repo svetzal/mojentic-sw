@@ -44,6 +44,7 @@ are closed by the acceptance evidence below; the remaining gaps stay open.
 | Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
 | Provider/operation vocabulary correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (361 in 98 suites), full-trait tests (374 in 103 suites), and DocC with warnings as errors. The public loopback probe rejected the old operation vocabulary and passed after migration. OSV scanned three packages with no issues; no dependencies changed. |
 | Reflection acceptance, Linux Swift 6.4 | The single-turn loopback probe requires typed nested failure and history children in the delivered event. It rejects summary substitutions, masked identities, and dropped or reordered histories. The full reflection suite covers every existing provider/operation boundary, including trait-enabled Anthropic. All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (364 in 99 suites), full-trait tests (377 in 104 suites), and DocC with warnings as errors. OSV scanned three locked packages with no issues; dependencies are unchanged. |
+| Typed-error correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (368 in 100 suites), full-trait tests (381 in 105 suites), and DocC with warnings as errors. The original buffered-length broker probe failed and the corrected probe passed. SwiftPM reported read-only global configuration/security caches; no compiler, lint or DocC diagnostics were reported. OSV scanned three locked packages with no issues; dependencies are unchanged. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -146,7 +147,7 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Provider progress and metrics preserved, with identity and per-attempt frame index | met | `RecoveryMetadataConformanceTests.publicMetadata`, `validatedLengthPreservesTelemetryOnly` |
 | Native reasoning history (owner decision, October 11) | met | `LLMMessage.thinking`; sent as Ollama `thinking` and oMLX `reasoning_content`, omitted for OpenAI and Anthropic; `populatedHistoryAcrossPublicRetryBoundaries` (5 operations, 4 adapters, full message arrays), `additiveMessageAPIsAndCodableCompatibility` |
 | Streaming tool follow-up with exact assistant and tool structure | met | `completedToolRunsOnceAcrossFollowUp` compares the whole `messages` array |
-| Typed causes preserved through broker and session | partial | tested for admission rejection and cancellation; not for capture or length causes (gap 6) |
+| Typed causes preserved through broker and session | met for policy, capture and length | `TypedRecoveryErrorTests`: every provider and public recovery boundary, scoped and unscoped streams, exact policy case/message, synthetic capture values, original length evidence, wire identities and seeded rollback |
 | Credential-echo tests | partial | safe strings and event JSON are tested; `providerCode` and `providerRequestID` are not (gap 2) |
 
 ## Provider metadata acceptance (October 12, 2026)
@@ -392,13 +393,10 @@ no test would catch if it regressed.
    - The safe fields of `RecoveryEvent` (phase, category, eligible, reason,
      acceptance, delay, operation) are now asserted for admission scenarios.
      Equivalent coverage for other recovery scenarios remains incomplete.
-   - Capture and length causes are not asserted after broker or session calls.
-   - An invalid policy on the single-turn stream becomes
-     `requestFailed("Recovery setup failed")` and loses its typed error.
 7. **Policy selection and validation.** No test shows that changing
    `retryableStatuses` or `retryableCategories` changes eligibility. HTTP 500
-   and 502 are never exercised. Policy validation, the jitter clamp and the
-   exponent cap have no tests.
+   and 502 are never exercised. Invalid-limit error propagation is covered by the typed-error tests; the
+   jitter clamp and exponent cap still have no tests.
 9. **Documentation.** `CHANGELOG.md` records scoped recovery corrections but
    lacks a general introduction of the recovery API, which is new since
    `v2.1.0`. There is no runnable example under `Examples/`.
@@ -433,3 +431,32 @@ These are permitted by the contract and documented. They are not gaps.
   and local-provider replay still needs caller admission with acceptance `unknown`.
   The library cannot see the discarded bytes.
 - The tests cover only some unsupported request options.
+
+## Typed-error amendment acceptance evidence
+
+`TypedRecoveryErrorTests` covers gateway ordinary, structured and JSON calls,
+`LLMBroker.complete`, `ChatSession.send`, gateway/broker/session throwing streams,
+and gateway/broker single-turn recovery event streams. All four providers run
+under full traits. Every boundary runs with and without cancellation scope.
+
+Invalid limits retain the exact `MojenticError.invalidArgument` case and message,
+with zero socket requests, request-capture callbacks and tool executions. Synthetic
+capture causes independently assert stage and sequence values: request capture
+fails before dispatch (one proposed identity, no actual attempt/history), while
+response capture fails after exactly one request. Ordered captured identities
+and bytes match actual socket bytes and response captures. Length fixtures use
+Ollama NDJSON, oMLX/OpenAI SSE with `[DONE]`, and native Anthropic named SSE events
+(or each provider's buffered envelope). Causes are cast back to `MojenticError`
+and assert exact finish reason, usage, model and metadata. History is exactly one
+actual failed attempt; observed and delivered semantic counters are independently
+checked against content received through the public stream. Streams have one
+failure terminal and end afterward; sessions restore seeded history exactly.
+No failure triggers a resend or tool execution.
+
+The initial loopback broker probe rejected buffered Ollama `length` being returned
+as success. It passes after recovery-only length validation before projection.
+Single-turn setup handling now preserves typed `MojenticError` rather than replacing
+policy errors with a generic setup message. Admission, retry selection, cancellation,
+terminal accounting, successful completions and legacy finish handling are unchanged.
+Only the policy/capture/length bullets of gap 6 are closed; its general telemetry
+bullet and the separate interruption, policy selection and example gaps remain open.

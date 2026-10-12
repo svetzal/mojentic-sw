@@ -98,6 +98,7 @@ struct BufferedRecovery {
             if successfulStatus, result.cause == nil, let decoded {
                 let projected: Result
                 do {
+                    try Self.rejectLengthLimit(decoded)
                     projected = try project(decoded)
                     try Task.checkCancellation()
                 } catch {

@@ -101,7 +101,11 @@ enum StreamingRecovery {
                         },
                     ),
                 )
-            } catch let error as RecoveryError { delivery.terminal(.recoveryFailure(error)) } catch {
+            } catch let error as RecoveryError { delivery.terminal(.recoveryFailure(error)) } catch let error
+                as MojenticError
+            {
+                delivery.terminal(.error(error))
+            } catch {
                 delivery.terminal(
                     .error(Task.isCancelled ? .cancelled : .requestFailed(message: "Recovery setup failed"))
                 )

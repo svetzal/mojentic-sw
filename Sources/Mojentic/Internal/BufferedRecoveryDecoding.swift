@@ -2,6 +2,19 @@ import Foundation
 
 /// Pure decoding and failure-category inference for the buffered wire boundary.
 extension BufferedRecovery {
+    static func rejectLengthLimit(_ response: LLMGatewayResponse) throws {
+        if response.providerFinishReason == "length" {
+            throw MojenticError.incompleteCompletion(
+                CompletionEvidence(
+                    finishReason: response.providerFinishReason,
+                    usage: response.usage,
+                    providerModel: response.providerModel,
+                    metadata: response.metadata,
+                )
+            )
+        }
+    }
+
     static func category(for result: RecoveryHTTPResult) -> RecoveryCategory {
         if let status = result.response?.statusCode, !(200..<300).contains(status) {
             // Known permanent statuses stay HTTP failures even with truncated bodies.

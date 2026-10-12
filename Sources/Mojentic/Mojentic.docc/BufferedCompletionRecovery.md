@@ -70,8 +70,8 @@ let usage = structured.response.usage
 
 The existing provider mapping is preserved: reasoning, usage, model, finish
 reason, tools, and oMLX response-format warnings remain available. A malformed
-provider envelope or non-JSON structured content is terminal. No new finish
-validation or schema enforcement is introduced. Recovery preserves role, content,
+provider envelope or non-JSON structured content is terminal. Recovery rejects
+provider length limits before returning a result; schema enforcement is unchanged. Recovery preserves role, content,
 image, tool and native reasoning history (see
 <doc:BufferedCompletionRecovery#Retain-native-assistant-reasoning-in-caller-owned-history>)
 and existing controls exactly.
@@ -332,3 +332,22 @@ Rejected values remain available through explicit sensitive inspection: response
 headers, exact received bytes and original typed causes are retained unchanged.
 The public metadata filters do not redact that raw evidence. Raw inspection and
 wire capture therefore still require the caller's sensitive-data storage policy.
+
+## Typed terminal errors
+
+Invalid recovery limits throw `MojenticError.invalidArgument(message:
+"Invalid buffered recovery limits")` before request capture or socket dispatch.
+This policy error propagates unchanged through gateway, broker and session calls.
+
+Capture failures and provider length limits retain their original error in
+`RecoveryError.failure.inspectEvidence().cause` and in each recorded failed
+attempt. Cast the cause to the capture hook's error type, or to `MojenticError`
+and match `incompleteCompletion` to inspect provider finish reason, usage, model
+and metadata. Length reasons are `length` for Ollama, oMLX and OpenAI, and
+`max_tokens` for Anthropic. These failures cannot resend or execute tools.
+
+Request-capture failure occurs before dispatch: no socket request, no actual
+attempt identity, and no history entry. Response-capture and length failures
+retain the dispatched identity and bounded history. Buffered failures deliver
+no result even when response content was observed. Session failures restore the
+history that preceded the failing user turn.
