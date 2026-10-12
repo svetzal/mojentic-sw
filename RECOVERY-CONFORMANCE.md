@@ -337,9 +337,9 @@ fields; oMLX's typed `recoveryChat` operation and keepalive guard. Admission,
 cancellation, tools and legacy non-recovery paths keep their prior behavior.
 The required gates exercise the existing regression suites for these paths.
 
-Only the vocabulary sub-gap of gap 9 is closed. Other documentation omissions
-and the remaining open gaps below remain explicit. No dependency, version,
-release or live-inference change is included.
+The vocabulary sub-gap was closed by this acceptance; binding decision 12 closes
+the remaining documentation gap below. The lifecycle-event coverage gap remains
+open. No dependency, version, release or live-inference change is included.
 
 ## Default formatting and reflection acceptance
 
@@ -473,7 +473,7 @@ all reject; each restored implementation passes. Ordered commands, actual exits,
 full captures and independent assertion review are retained outside the worktree.
 No production correction was required. Typed-policy validation, admission,
 Retry-After, cancellation, legacy paths, runtime pins and the twelve binding
-decisions are preserved. Gaps 6 and 9 remain open.
+decisions are preserved. Gap 6 remains open; documentation gap 9 is closed below.
 
 Cancellation evidence was reviewed before any proposed cancellation change.
 Historical socket-establishment failures are accompanied by a retained
@@ -493,12 +493,6 @@ no test would catch if it regressed.
      acceptance, delay, operation) are now asserted for admission, policy-selection
      and bounded-backoff scenarios.
      Equivalent coverage for other recovery scenarios remains incomplete.
-9. **Documentation.** `CHANGELOG.md` records scoped recovery corrections but
-   lacks a general introduction of the recovery API, which is new since
-   `v2.1.0`. There is no runnable example under `Examples/`.
-   The provider/operation vocabulary sub-gap is closed by the October 12
-   acceptance above; the broader recovery API changelog entry and runnable
-   example remain missing.
 
 ## Documented limits
 
@@ -588,5 +582,19 @@ Single-turn setup handling now preserves typed `MojenticError` rather than repla
 policy errors with a generic setup message. Admission, retry selection, cancellation,
 terminal accounting, successful completions and legacy finish handling are unchanged.
 Only the policy/capture/length bullets of gap 6 are closed; its general telemetry
-bullet and the separate example gap remain open. Policy selection and bounded
+bullet remains open. Documentation gap 9 is closed below. Policy selection and bounded
 backoff are covered by the acceptance above.
+
+## Documentation acceptance — binding decision 12
+
+Gap 9 is closed. Unreleased now introduces the opt-in recovery APIs, guarantees,
+limits and authorized breaking changes. `RecoveryExample` is a SwiftPM executable
+product/target included in the release build, with complete loopback run instructions
+and a DocC link. `scripts/probe-recovery-example.py` runs that delivered executable,
+not a substitute implementation: a scripted eligible 503 precedes explicitly
+admitted success; it asserts two completion requests with identical encoded bytes,
+exact Unicode content, credential arrival and safe diagnostics excluding credential
+and private response evidence. The missing executable was rejected before
+implementation; the delivered executable passed. The entrypoint error rules,
+cited capabilities, oMLX keepalive behavior and documented limits remain unchanged.
+Gap 6's broader lifecycle-event coverage remains open.

@@ -31,10 +31,39 @@ move independently.
 
 ### Added
 
+- Opt-in completion recovery for Ollama, oMLX, OpenAI Chat Completions and
+  Anthropic Messages via `CompletionRecoveryPolicy` and recovery streaming APIs.
+  Recovery owns one frozen, encoded provider request, with bounded attempts,
+  jitter/backoff and Retry-After, caller admission, safe lifecycle summaries,
+  typed `RecoveryError` evidence and separate observed/delivered progress.
+  Cancellation is authoritative; failed semantic output, capture failure and
+  malformed responses cannot replay. Recovery never restarts agents, replays
+  broker loops or repeats tool actions. Budgets limit recovery waits, not active
+  generation. Local cancellation, keepalive and timeouts do not prove remote
+  termination or idempotency; dispatched acceptance remains unknown. Ollama and
+  oMLX need explicit admission after ambiguous failures; a configured hook controls
+  every provider, and pending or empty admission never permits a resend.
+- Runnable `RecoveryExample` with scripted loopback acceptance and complete
+  instructions in `Examples/RecoveryExample/README.md`.
+
 - Recovery stream progress and metrics events now carry the wire attempt's
   `RecoveryIdentity` and a one-based `frameIndex` that resets for each attempt.
   Both are `nil` outside recovery telemetry. `RecoveryIdentity` is now
   `Hashable`.
+
+### Breaking changes (authorized recovery contract)
+
+- Recovery-enabled buffered, broker and session calls expose `RecoveryError`;
+  throwing recovery streams throw it, while single-turn recovery event streams
+  deliver `.recoveryFailure`. Invalid recovery limits still throw
+  `MojenticError.invalidArgument` through buffered and throwing APIs; single-turn
+  recovery event streams deliver `.error(.invalidArgument(...))`. Both occur
+  before dispatch. Legacy entrypoints retain one-send behavior and existing errors. Recovery length-limit responses are
+  terminal typed failures rather than successful partial completions.
+- Recovery provider/operation metadata uses closed enums, including the
+  `ordinary`/`structured` serialized vocabulary described above; old aliases
+  are rejected. Safe default reflection omits sensitive raw evidence, which
+  remains available only through explicit inspection or opt-in wire capture.
 
 ### Fixed
 
