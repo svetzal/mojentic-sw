@@ -30,6 +30,7 @@ private func probePublicInterruption(
         headers: ["X-Request-ID": "interruption-original"], body: body, truncated: true, hold: true)
     let server = try RecoveryLoopback(replies: path == "session" ? [seed, reply] : [reply])
     defer { server.release() }
+    server.trace.record("call", "interruption/\(boundary)/\(path)/\(kind)")
     let recorder = RecoveryRecorder()
     let admissions = RecoveryLocked<Int>(0)
     let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
@@ -72,22 +73,24 @@ private func probePublicInterruption(
     }
     let capture = PublicInterruptionCapture(recorder: recorder, server: server, reports: reports)
     closeOnObservation.withLock { $0 = true }
-    let failure = try await withRecoveryStreamCancellation {
-        let consumer = try makePublicInterruptionConsumer(boundary, path, broker, session, tools)
-        var seen: [String] = []
-        for _ in prefix { try seen.append(#require(await consumer.next())) }
-        #expect(seen == prefix)
-        // Close only after the named public API has delivered the exact prefix.
-        server.release()
-        let failure = try await recoveryFailure {
-            while let event = try await consumer.next() {
-                seen.append(event)
-                Issue.record("Unexpected event after interrupted prefix: \(event)")
+    let failure = try await server.trace.scope {
+        try await withRecoveryStreamCancellation {
+            let consumer = try makePublicInterruptionConsumer(boundary, path, broker, session, tools)
+            var seen: [String] = []
+            for _ in prefix { try seen.append(#require(await consumer.next())) }
+            #expect(seen == prefix)
+            // Close only after the named public API has delivered the exact prefix.
+            server.release()
+            let failure = try await recoveryFailure {
+                while let event = try await consumer.next() {
+                    seen.append(event)
+                    Issue.record("Unexpected event after interrupted prefix: \(event)")
+                }
             }
+            #expect(seen == prefix)
+            if boundary.single { #expect(try await consumer.next() == nil) }
+            return failure
         }
-        #expect(seen == prefix)
-        if boundary.single { #expect(try await consumer.next() == nil) }
-        return failure
     }
     // The scoped error is delivered after the session producer has rolled back.
     #expect(await session.messages() == original)

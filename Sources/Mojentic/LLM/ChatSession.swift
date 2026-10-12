@@ -121,7 +121,7 @@ public actor ChatSession {
     /// committed — the convo state stays consistent.
     public nonisolated func stream(_ text: String) -> AsyncThrowingStream<StreamEvent, any Error> {
         if RecoveryCancellationScope.current != nil {
-            return RecoveryScopedStreaming.throwing { deliver in
+            return RecoveryScopedStreaming.throwing(traceRole: "session") { deliver in
                 try await self.runStream(text: text, deliver: deliver)
             }
         }

@@ -9,9 +9,10 @@ enum RecoveryScopedStreaming {
         @Sendable (@escaping CompletionDelivery) async throws -> RecoveryCompletionStreamEvent
 
     static func throwing<Element: Sendable>(
+        traceRole: String = "adapter",
         operation: @escaping Operation<Element>
     ) -> AsyncThrowingStream<Element, any Error> {
-        let delivery = RecoveryDelivery<Element>()
+        let delivery = RecoveryDelivery<Element>(traceRole: traceRole)
         let scope = RecoveryCancellationScope.current
         let id = UUID()
         scope?.prepare(id)
@@ -33,7 +34,7 @@ enum RecoveryScopedStreaming {
             }
         }
         scope?.register(task, id: id)
-        let owner = RecoveryProducer(task)
+        let owner = RecoveryProducer(task, traceRole: traceRole)
         return AsyncThrowingStream(unfolding: {
             try await withTaskCancellationHandler {
                 try await delivery.next()
@@ -45,9 +46,10 @@ enum RecoveryScopedStreaming {
     }
 
     static func completion(
+        traceRole: String = "adapter",
         operation: @escaping CompletionRelay
     ) -> AsyncStream<RecoveryCompletionStreamEvent> {
-        let delivery = RecoveryDelivery<RecoveryCompletionStreamEvent>()
+        let delivery = RecoveryDelivery<RecoveryCompletionStreamEvent>(traceRole: traceRole)
         let scope = RecoveryCancellationScope.current
         let id = UUID()
         scope?.prepare(id)
@@ -75,7 +77,7 @@ enum RecoveryScopedStreaming {
             }
         }
         scope?.register(task, id: id)
-        let owner = RecoveryProducer(task)
+        let owner = RecoveryProducer(task, traceRole: traceRole)
         return AsyncStream(
             unfolding: { try? await delivery.next() },
             onCancel: {

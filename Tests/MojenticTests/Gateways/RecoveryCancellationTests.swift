@@ -225,6 +225,7 @@ struct RecoveryCancellationTests {
     ) async throws {
         let reply = try boundary.success()
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: reply.body, hold: true)])
+        server.trace.record("call", "healthy-generation/\(boundary)")
         let recorder = RecoveryRecorder()
         let now = RecoveryLocked<TimeInterval>(0)
         var policy = recoveryPolicy(recorder)
@@ -232,7 +233,7 @@ struct RecoveryCancellationTests {
         policy.deadline = 1
         policy.timing.monotonic = { now.withLock { $0 } }
         let gateway = boundary.gateway(server, policy: policy)
-        let task = Task { try await boundary.complete(gateway) }
+        let task = Task { try await server.trace.scope { try await boundary.complete(gateway) } }
         var iterator = server.arrivals.makeAsyncIterator()
         _ = await iterator.next()
         now.withLock { $0 = 100 }

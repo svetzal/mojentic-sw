@@ -37,6 +37,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
+        server.trace.record("test", "\(Test.current?.name ?? "unknown")/\(description)")
         let policy = policy.map { reportingDeliveries(to: server, $0) }
         #if anthropic
             if anthropic {
@@ -192,8 +193,21 @@ private func reportingDeliveries(
 ) -> CompletionRecoveryPolicy {
     var policy = policy
     let observe = policy.wireObserver
+    let lifecycle = policy.observer
+    let report = policy.reportObserver
+    let trace = server.trace
+    trace.attach(to: &policy)
+    policy.observer = { event in
+        trace.lifecycle(event)
+        lifecycle?(event)
+    }
+    policy.reportObserver = { value in
+        trace.report(value)
+        report?(value)
+    }
     server.expectDeliveryReports()
     policy.wireObserver = { event in
+        trace.wire(event)
         if case .body(_, let data) = event {
             defer { server.reportDelivery(data.count) }
             try observe?(event)

@@ -357,6 +357,7 @@ struct RecoverySafeguardTests {
             RecoveryReply(body: good.body + "malformed-tail", hold: true, splitAt: good.body.utf8.count)
         ])
         defer { server.release() }
+        server.trace.record("call", "receivedSemanticProgressSurvivesMalformedTail/\(boundary)")
         let ready = AsyncStream<Void>.makeStream()
         let received = RecoveryLocked<Int>(0)
         var policy = recoveryPolicy(RecoveryRecorder())
@@ -367,12 +368,13 @@ struct RecoverySafeguardTests {
                     return $0
                 }
                 if count == good.body.utf8.count {
+                    server.trace.record("fixture.ready", "received=\(count)")
                     ready.continuation.yield(())
                 }
             }
         }
         let gateway = boundary.gateway(server, policy: policy)
-        let task = Task { try await boundary.complete(gateway) }
+        let task = Task { try await server.trace.scope { try await boundary.complete(gateway) } }
         var iterator = ready.stream.makeAsyncIterator()
         _ = await iterator.next()
         server.release()

@@ -1,12 +1,10 @@
 # Transient recovery conformance
 
-This current-state record covers the transient recovery contract and original
-request, the October 10 supplement, and the authoritative monorepo root
-contract's October 12 amendment. The twelve binding decisions remain in force.
-The preserved lifecycle-evidence work addresses gap 6, under Evidence at the
-public boundary and binding decision 10. Its full-trait validation at the gate
-wrapper's guaranteed 8,192-descriptor capacity remained unresolved; a higher
-host limit did not close that validation gap.
+This current-state record describes the transient recovery contract. The twelve
+binding decisions remain in force.
+The lifecycle matrix and listener ownership correction remain preserved. Gap 6
+is open for causal characterization: aggregate descriptor counts and successful
+reruns cannot establish the cause of individual public-call failures.
 
 Recovery is implemented for buffered and streaming completion on Ollama, oMLX,
 OpenAI Chat Completions and trait-enabled Anthropic Messages. Lifecycle
@@ -17,53 +15,74 @@ changes accompany this evidence update.
 
 ## Validation and review
 
-The corrected loopback fixture has passed the unfiltered full-trait public
-boundary suite on Linux x86_64 Swift 6.4 with a soft descriptor limit of exactly
-8,192: 400 tests in 114 suites, including both 1,027-send exponent-cap cases.
-Final validation of the corrected worktree passed every discovered
-`.hone-gates.json` gate: strict swift-format, strict SwiftLint, release build,
-parallel default tests, full-trait tests and DocC with warnings as errors,
-through `scripts/with-gate-environment`, plus the configured unfiltered OSV scan
-of `Package.resolved` (three packages, no issues) and the delivered recovery
-example probe against scripted loopback HTTP. All ran in the host login Swift
-6.4 environment at the same 8,192 soft limit. These are worktree results;
-integration and Git finalization belong to Foundry.
-Apple platform and minimum Swift 6.1 CI results are not claimed for this tree.
+The previous listener correction removes redundant listener ownership and
+synchronizes close/clear with fixture shutdown. Its preserved traced full suite
+reported 102 issues without `EMFILE`: 16 malformed-tail assertions, eight
+healthy-generation client timeouts, 15 sender-registration readiness failures
+and 63 interruption cause/category/lifecycle assertions. That trace recorded
+descriptor operations without endpoint or wire bytes, delegate callbacks or
+producer identities. Exact per-call causal correlation cannot be recovered from
+it. The original logs and source hashes remain retained; these limitations are
+not converted into a scheduling explanation or a production cancellation claim.
+
+The replacement comparisons use identical integrated Swift source, the same
+unfiltered full-trait suite, the same memory diagnostics and exactly 8,192 soft
+descriptors. Memory diagnostics passed all 401 tests and checked 3,031 fixture
+traces. Adding syscall tracing rejected with 127 issues, without `EMFILE`.
+All 66 specifically named boundary probes have correlated wire capture; 54
+received HTTP delegate timeout errors while their fixtures were still held.
+Completion occurred 5.65–6.34 seconds after request capture, under the unchanged
+five-second HTTP limit. Partial-body observation preceded fixture release by
+5.80–48.31 seconds. All 17 sender probes, including the two ownership controls,
+expired at the registration readiness precondition. Those rejected readiness
+cases do not establish a cancellation cleanup failure.
+
+The 21 interruption timeout cases match the original 21 failing case labels
+exactly. Eight malformed-tail and eight healthy-generation calls also timed out
+while held: their intended tail/close or remaining body had not been released
+before transport termination. This is measured replacement evidence of tracing
+interference with fixture-to-consumer handshakes, not an inferred delay from
+suite duration. The original descriptor-only trace cannot identify its actual
+sends, so matching case labels do not reconstruct its wire identities. Passing
+reruns alone remain insufficient causal evidence.
+
+Controlled public HTTP evidence rejects a fixture ownership ambiguity: selecting
+the second sender of a shared event type can hold a gateway instead of its broker,
+or a broker instead of its session. An independent barrier forces the inner
+sender ahead, without sleeps or changed deadlines. Selection now uses the role
+captured at the actual producer call site. The rejecting and corrected probes
+retain exact request/response bytes and identities, cancelled transport evidence,
+observed/delivered progress, ordered lifecycle and terminal assertions. Registration,
+consumer and fixture remain independently held; cleanup assertions still run
+before consumer resumption. This is a fixture selection correction, not evidence
+of a production cancellation defect or an explanation of the 15 readiness failures.
+
+Opt-in per-call tracing buffers private scripted evidence in memory and writes
+after the probe. It correlates wire UUIDs and bytes with fixture port and socket
+lifetime, per-delivery UUID and call-site role, HTTP delegate completion,
+cancellation, terminal report and observed/delivered counters. Delivery finishing
+and actual producer task completion are recorded separately. Sender tests require
+HTTP delegate completion with exact identity/body and actual producer completion
+before consumer resumption. The internal diagnostic hooks are absent by default;
+no recovery classification, cancellation or ownership behavior changes.
+`scripts/characterize-recovery-traces.py` checks byte agreement and independently
+expected completion ordering, and preserves call-specific chronology rather than
+classifying failures from aggregate totals. A launch-return diagnostic is not
+claimed to precede delegate callbacks. Memory client-close events record close
+intent; complete syscall logs establish actual descriptor close results. Diagnostic
+export may overlap other concurrent calls, so the comparisons measure the same
+logger with and without syscall tracing rather than asserting zero interference.
+
+Independent skeptical review confirms that the controlled public probe rejects
+the delivered count-based selector, while readiness failures alone do not reject
+production cancellation. It also requires delegate completion to be distinguished
+from FIN and producer task completion from delivery finishing. Integrated
+validation requires every discovered quality gate: strict swift-format, strict
+SwiftLint, release build, parallel default tests, full-trait tests and DocC with
+warnings as errors, plus the configured unfiltered OSV lockfile scan and scripted
+recovery example. All run in the host login Swift 6.4 environment at exactly 8,192
+soft descriptors. Apple platform and minimum Swift 6.1 CI results are not claimed.
 The default-trait DocC gate excludes trait-gated Anthropic documentation.
-
-The preserved source rejected the 8,192-limit full-trait public paths. Syscall
-characterization recorded `EMFILE` from client pipes/sockets and fixture
-`socket`, `dup` and `accept`; failed fixture setup then cascaded into transport,
-identity and progress assertions. At the first exhaustion, the trace accounted
-for 1,801 live duplicated listeners, independently of the earlier high-limit
-descriptor total. The two exponent-cap cases also passed separately with all
-1,027 sends and per-attempt transport closure. A further untraced run of the
-preserved binary also passed at 8,192, confirming scheduling-dependent
-exhaustion rather than an inevitable failure. Neither those results nor the
-retained 39-issue interim cancellation log establishes a cancellation defect on
-the preserved source; that log includes peer-close checks in admission/backoff
-phases that the preserved tests already restrict to active requests.
-
-The fixture now transfers one listener to the accept thread and synchronizes
-its close/clear with fixture shutdown. Failed setup closes its descriptor before
-throwing with socket errno. This removes redundant simultaneous ownership
-without changing test concurrency, coverage, assertions, delays or gates.
-An independent probe forces accept exit, reuses the listener descriptor for a
-connected socket and checks exact bytes after fixture destruction. The unsafe
-intermediate ownership scheme rejects with `EPIPE`; the locked scheme passes.
-The RecoveryHTTP invalidation-order lead did not fix the required failure and
-was reverted; library runtime behavior is unchanged. Full-suite syscall tracing
-after correction found no `EMFILE` but still failed timing/registration checks;
-those diagnostic failures are retained, not claimed as passing validation.
-
-Independent skeptical review inspected public implementation paths and the
-strength of assertions, including classification versus terminal outcome,
-observed versus delivered progress, cancellation scope and producer completion.
-A controlled nil-phase regression first rejected the broker/session interruption
-probe; restoration passed. Further event-field corruption, missing/reordered
-transitions, masked identities and wrong progress are rejected through that real
-boundary. Exact commands, actual exits and complete logs are retained by the
-execution evidence system; they are not dependencies of this document.
 
 ## Public entrypoints
 
@@ -206,8 +225,8 @@ floor; validation sets the soft limit to exactly 8,192. The parallel gate and al
 existing cancellation tests remain unchanged.
 
 The existing sender-registration cancellation, cleanup, socket closure, terminal
-ownership, telemetry, completed-tool execution and tool-depth checks remain
-unchanged. A paused broker single-turn relay can expose its established typed
+ownership, telemetry, completed-tool execution and tool-depth assertions remain
+preserved. Sender ownership selection and completion evidence are strengthened. A paused broker single-turn relay can expose its established typed
 `MojenticError.cancelled`; its underlying recovery lifecycle/report still has
 the exact cancelled attempt. No scheduling cause or remote termination is
 inferred, and no cancellation behavior is changed.
@@ -243,9 +262,11 @@ for this assertion-only correction.
 
 ## Open gaps
 
-No remaining portion of gap 6 is open. The documented limits below remain
-explicit; this statement concerns completion recovery evidence, not coordinated
-cross-port release readiness or live inference.
+Gap 6 remains open for complete causal attribution of the traced readiness and
+transport failures. The public ownership-selector regression closes a fixture
+characterization defect; it does not establish the cause of every original traced
+failure. Integrated passing gates are necessary validation, not causal evidence
+by themselves.
 
 ## Documented limits
 

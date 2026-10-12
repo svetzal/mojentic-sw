@@ -169,7 +169,7 @@ extension LLMBroker {
         context: TracerContext = TracerContext(),
     ) -> AsyncStream<RecoveryCompletionStreamEvent> {
         if RecoveryCancellationScope.current != nil {
-            return RecoveryScopedStreaming.completion { deliver in
+            return RecoveryScopedStreaming.completion(traceRole: "broker") { deliver in
                 try await self.relayRecoveryStreamEvents(
                     model: model,
                     messages: messages,

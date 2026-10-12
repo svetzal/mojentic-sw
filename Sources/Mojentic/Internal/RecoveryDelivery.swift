@@ -2,6 +2,11 @@ import Foundation
 
 /// Internal scheduling seam for the cancellation/registration interleaving.
 enum RecoveryDeliveryScheduling {
+    typealias HTTPTrace = @Sendable (String, RecoveryIdentity, Data, String) -> Void
+    @TaskLocal static var trace: (@Sendable (String, String) -> Void)?
+    @TaskLocal static var httpTrace: HTTPTrace?
+    @TaskLocal static var sender: String?
+    @TaskLocal static var producerCompleted: (@Sendable (String) -> Void)?
     @TaskLocal static var beforeSessionIteration: (@Sendable () async -> Void)?
     @TaskLocal static var didDeliver: (@Sendable () -> Void)?
     @TaskLocal static var finished: (@Sendable (String) -> Void)?
@@ -12,6 +17,9 @@ enum RecoveryDeliveryScheduling {
 ///
 /// The lock protects producer and consumer continuations; no user code runs under it.
 final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
+    private let trace = RecoveryDeliveryScheduling.trace
+    private let traceID = RecoveryDeliveryScheduling.trace.map { _ in UUID() }
+    private let traceRole: String
     private typealias Sender = CheckedContinuation<Void, any Error>
     private typealias Reader = CheckedContinuation<Element?, any Error>
     private let lock = NSLock()
@@ -21,10 +29,20 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     private var finalElement: Element?
     private var end: Result<Void, any Error>?
 
+    init(traceRole: String = "gateway") {
+        self.traceRole = traceRole
+    }
+
     func send(_ element: Element) async throws {
+        record("send.enter", element: element)
         try Task.checkCancellation()
         try await withTaskCancellationHandler {
-            await RecoveryDeliveryScheduling.beforeSenderRegistration?(String(reflecting: Element.self))
+            if let hook = RecoveryDeliveryScheduling.beforeSenderRegistration {
+                await RecoveryDeliveryScheduling.$sender.withValue(traceRole) {
+                    await hook(String(reflecting: Element.self))
+                }
+            }
+            record("send.register", element: element)
             try await withCheckedThrowingContinuation { (continuation: Sender) in
                 let action = lock.withLock { () -> (() -> Void) in
                     if cancellationRequested {
@@ -88,6 +106,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     }
 
     private func cancelSender() {
+        record("send.cancel")
         let sender = lock.withLock {
             // Remember cancellation even if the sender has not registered yet.
             // Registration and removal observe this state under the same lock.
@@ -101,6 +120,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
 
     /// Cancellation can still deliver one typed terminal event after producer cleanup.
     func terminal(_ element: Element) {
+        record("terminal", element: element)
         let waiting = lock.withLock {
             let waiting = reader
             reader = nil
@@ -114,6 +134,7 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
     }
 
     func finish(_ error: (any Error)? = nil) {
+        if trace != nil { record("finish", detail: String(describing: error)) }
         defer { RecoveryDeliveryScheduling.finished?(String(reflecting: Element.self)) }
         let result: Result<Void, any Error> = error.map(Result.failure) ?? .success(())
         let saved = lock.withLock {
@@ -130,13 +151,25 @@ final class RecoveryDelivery<Element: Sendable>: @unchecked Sendable {
         saved.0?.resume(with: result.map { nil })
         saved.1?.resume(with: result)
     }
+
+    private func record(_ event: String, element: Element? = nil, detail: String = "") {
+        guard let trace else { return }
+        let sender = "\(traceID?.uuidString ?? "") role=\(traceRole) \(String(reflecting: Element.self))"
+        trace(event, "\(sender) \(String(describing: element)) \(detail)")
+    }
 }
 
 /// Stream lifetime owns the producer task without a producer-to-owner cycle.
 final class RecoveryProducer: Sendable {
     let task: Task<Void, Never>
-    init(_ task: Task<Void, Never>) {
+    init(_ task: Task<Void, Never>, traceRole: String = "gateway") {
         self.task = task
+        if let completed = RecoveryDeliveryScheduling.producerCompleted {
+            Task {
+                await task.value
+                completed(traceRole)
+            }
+        }
     }
 
     deinit { task.cancel() }

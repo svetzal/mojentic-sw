@@ -287,6 +287,8 @@ public struct RecoveryTiming: Sendable {
 /// Admission is an asynchronous stream: remaining pending never grants permission.
 /// Cancellation terminates iteration. Limits apply to recovery, never active generation.
 public struct CompletionRecoveryPolicy: Sendable {
+    // Internal diagnostic seam; absent in consumer-created policies.
+    var httpTrace: RecoveryDeliveryScheduling.HTTPTrace?
     /// Positive limit including the initial wire request; defaults to one.
     public var maximumAttempts = 1
     /// Exponential full-jitter base in seconds.

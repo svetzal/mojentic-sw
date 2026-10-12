@@ -245,7 +245,7 @@ public actor LLMBroker {
         context: TracerContext = TracerContext(),
     ) -> AsyncThrowingStream<StreamEvent, any Error> {
         if RecoveryCancellationScope.current != nil {
-            return RecoveryScopedStreaming.throwing { deliver in
+            return RecoveryScopedStreaming.throwing(traceRole: "broker") { deliver in
                 try await self.streamRecursive(
                     model: model,
                     messages: messages,

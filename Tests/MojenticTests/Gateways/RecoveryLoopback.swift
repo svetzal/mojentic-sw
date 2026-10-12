@@ -21,6 +21,7 @@ struct RecoveryReply: Sendable {
 ///
 /// Listener ownership and reply state are synchronized with the server thread.
 final class RecoveryLoopback: @unchecked Sendable {
+    let trace = RecoveryCallTrace()
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
     let requestHeaders = RecoveryLocked<[String]>([])
@@ -81,20 +82,27 @@ final class RecoveryLoopback: @unchecked Sendable {
         // leave teardown addressing a descriptor that another socket has reused.
         // A weak owner prevents the blocking accept loop from retaining the fixture.
         listener.withLock { $0 = descriptor }
+        trace.record("listener.open", "\(url) fd=\(descriptor)")
         transferred = true
-        Thread.detachNewThread { [weak self, listener] in
+        Thread.detachNewThread { [weak self, listener, trace] in
             defer {
-                listener.withLock { current in
-                    if let current { close(current) }
+                let closed = listener.withLock { current in
+                    let closed = current.map { ($0, close($0)) }
                     current = nil
+                    return closed
                 }
+                if let closed { trace.record("listener.close", "fd=\(closed.0) result=\(closed.1)") }
+                trace.flushIfIdle()
             }
             while true {
                 let client = accept(descriptor, nil, nil)
                 if client < 0 {
+                    trace.record("listener.accept.end", "fd=\(descriptor) errno=\(errno)")
                     break
                 }
+                trace.record("socket.accept", "listener=\(descriptor) fd=\(client)")
                 self?.serve(client)
+                trace.record("socket.close", "fd=\(client)")
                 close(client)
             }
         }
@@ -109,6 +117,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     }
 
     func release() {
+        trace.record("fixture.release")
         condition.lock()
         released = true
         condition.broadcast()
@@ -195,6 +204,7 @@ final class RecoveryLoopback: @unchecked Sendable {
             requests.append(body)
             return requests.count - 1
         }
+        trace.record("socket.request", "fd=\(client) index=\(index + 1) \(receivedHeaders)", bytes: body)
         requestCondition.lock()
         requestCondition.broadcast()
         requestCondition.unlock()
@@ -211,11 +221,13 @@ final class RecoveryLoopback: @unchecked Sendable {
         write(Data(data.prefix(split)), to: client)
         arrival.yield(index + 1)
         if reply.hold {
+            trace.record("fixture.held", "fd=\(client)")
             condition.lock()
             while !released {
                 condition.wait()
             }
             condition.unlock()
+            trace.record("fixture.unheld", "fd=\(client)")
             if split < data.count {
                 write(Data(data.dropFirst(split)), to: client)
             }
@@ -263,6 +275,11 @@ final class RecoveryLoopback: @unchecked Sendable {
                 #else
                     let count = send(client, bytes.baseAddress?.advanced(by: offset), bytes.count - offset, 0)
                 #endif
+                trace.record(
+                    "socket.write",
+                    "fd=\(client) result=\(count) errno=\(count < 0 ? errno : 0)",
+                    bytes: count > 0 ? Data(data.dropFirst(offset).prefix(count)) : Data(),
+                )
                 if count <= 0 {
                     break
                 }

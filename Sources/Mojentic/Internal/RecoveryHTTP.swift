@@ -11,6 +11,8 @@ protocol BufferedRecoveryTransport: Sendable { func send(_ request: URLRequest) 
 ///
 /// The session delegate queue is serial; the lock also synchronizes cancellation.
 final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTransport, @unchecked Sendable {
+    // Capture the seam here: delegate callbacks have no task-local context.
+    private let trace: RecoveryDeliveryScheduling.HTTPTrace?
     private let lock = NSLock()
     // Response callbacks wait until actual-launch lifecycle notifications finish.
     // Cancellation uses the separate state lock, so observers may cancel safely.
@@ -36,6 +38,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         didStart: @escaping @Sendable () -> Void,
         mayStart: @escaping @Sendable () -> Bool,
         stream: RecoveryStreamDecoder? = nil,
+        trace: RecoveryDeliveryScheduling.HTTPTrace? = nil,
     ) {
         self.identity = identity
         self.observer = observer
@@ -43,6 +46,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         self.didStart = didStart
         self.mayStart = mayStart
         self.stream = stream
+        self.trace = RecoveryDeliveryScheduling.httpTrace ?? trace
     }
 
     func send(_ request: URLRequest) async -> RecoveryHTTPResult {
@@ -82,12 +86,14 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
                 lock.unlock()
                 didStart()
                 launch.unlock()
+                trace?("http.launch.returned", identity, request.httpBody ?? Data(), "")
             }
         } onCancel: {
             self.lock.lock()
             self.cancelled = true
             let task = self.task
             self.lock.unlock()
+            self.trace?("http.cancel", self.identity, Data(), "")
             task?.cancel()
         }
     }
@@ -182,6 +188,12 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         self.continuation = nil
         task = nil
         lock.unlock()
+        if let trace {
+            let cause = result.cause.map { $0 as NSError }
+            let status = "status=\(String(describing: result.response?.statusCode))"
+            let failure = "cause=\(cause?.domain ?? "none")/\(cause?.code ?? 0)"
+            trace("http.completed", identity, result.body, "\(status) \(failure) observed=\(result.observed)")
+        }
         continuation?.resume(returning: result)
         session.finishTasksAndInvalidate()
     }
