@@ -12,9 +12,17 @@ made by ``LLMBroker`` and ``ChatSession``. For streaming migration and terminal 
 ## Admission belongs to the caller
 
 A local timeout, socket closure, HTTP 503/504, keepalive, or model activity cannot
-prove that inference ended. Eligibility does not authorize a resend. Without an
-admission hook, an eligible failure returns `admissionRequired` if another attempt
-is available. The default maximum is one attempt, including the initial request.
+prove that inference ended. Without a hook, eligible OpenAI and Anthropic failures
+may retry within the configured limits. Ollama and oMLX require caller admission
+unless acceptance is `no`; an ambiguous local failure ends with `admissionRequired`.
+Public transports report acceptance as `unknown` after dispatch and cannot establish
+that local exception. The default maximum is one attempt, including the initial request.
+
+A configured hook controls every provider: `allow` permits the eligible retry,
+`reject` ends with `admissionRejected`, and finishing without either decision ends
+with `admissionUndecided`. Pending is never approval. Caller cancellation or recovery
+budget expiry cancels pending stream iteration and prevents any subsequent dispatch.
+The original actual failure remains in history, including its typed cause.
 
 ```swift
 var policy = CompletionRecoveryPolicy()
@@ -170,8 +178,9 @@ reasoning effort and schema support are unchanged. Encoded request bytes are
 identical across attempts. Received reasoning is observed for replay safety but
 is not delivered as thinking or single-turn content. Neither client identities,
 local socket cancellation nor empty output proves provider idempotency or remote
-termination. Request status and remote cancellation are unsupported; ambiguous
-retries require explicit caller admission. No native reasoning history is invented.
+termination. Request status and remote cancellation are unsupported. Eligible failures
+may retry without a hook; a configured hook still controls admission. No native reasoning
+history is invented.
 
 ## Anthropic Messages
 
@@ -200,7 +209,8 @@ Recovery accepts `end_turn`, `stop_sequence` and `tool_use` finishes. Other fini
 tools. Accepted `stop_sequence` responses preserve exact content/JSON, raw finish
 reason, usage, model and message ID; the buffered typed mapping remains `.other`.
 The original initializer and legacy finish handling remain unchanged.
-Retries require explicit admission; request IDs do not imply idempotency. Status,
+Eligible failures may retry without a hook; a configured hook controls admission.
+Request IDs do not imply idempotency. Status,
 remote cancellation and termination proof remain unsupported. Recovery uses the
 existing idle request timeout and adds no generation deadline.
 

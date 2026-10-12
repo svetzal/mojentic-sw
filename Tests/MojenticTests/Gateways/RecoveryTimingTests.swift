@@ -109,7 +109,7 @@ struct RecoveryTimingTests {
         }
     }
 
-    @Test(arguments: RecoveryBoundary.all)
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.openAI && !$0.anthropic })
     func ambiguousFailureWithoutHookRequiresAdmission(
         _ boundary: RecoveryBoundary
     ) async throws {

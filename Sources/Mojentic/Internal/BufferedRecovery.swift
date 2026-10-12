@@ -234,14 +234,19 @@ struct BufferedRecovery {
         guard failure.eligible else { throw finish(.ineligible, failure) }
         guard next <= policy.maximumAttempts else { throw finish(.exhausted, failure) }
         guard withinLimits(delay: 0) else { throw finish(.limitRefused, failure) }
-        guard let admission = policy.admission else { throw finish(.admissionRequired, failure) }
-        emit(.admissionPending, category: failure.category)
         do {
             try Task.checkCancellation()
-            let decision = try await admissionDecision(admission(failure, next))
-            try Task.checkCancellation()
-            guard decision == .allow else { throw finish(.admissionRejected, failure) }
-            emit(.admissionAllowed, category: failure.category)
+            if let admission = policy.admission {
+                emit(.admissionPending, category: failure.category)
+                try Task.checkCancellation()
+                let decision = try await admissionDecision(admission(failure, next))
+                try Task.checkCancellation()
+                guard let decision else { throw finish(.admissionUndecided, failure) }
+                guard decision == .allow else { throw finish(.admissionRejected, failure) }
+                emit(.admissionAllowed, category: failure.category)
+            } else if provider != "openai", provider != "anthropic", failure.acceptance != .no {
+                throw finish(.admissionRequired, failure)
+            }
             try Task.checkCancellation()
             let delay = backoff(failure)
             guard delay <= policy.delayCeiling, withinLimits(delay: delay) else {

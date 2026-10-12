@@ -256,7 +256,7 @@ struct RecoveryMetadataConformanceTests {
         #expect(metrics.map { $0.usage?.totalTokens } == [10, 15, 15])
     }
 
-    @Test(arguments: StreamingBoundary.withAnthropic)
+    @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.openAI && !$0.anthropic })
     func metadataDisconnectRequiresAdmission(_ boundary: StreamingBoundary) async throws {
         let initial = try metadataFrame(boundary, attempt: 1)
         let server = try RecoveryLoopback(replies: [RecoveryReply(body: initial, truncated: true)])

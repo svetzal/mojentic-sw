@@ -303,7 +303,11 @@ public struct CompletionRecoveryPolicy: Sendable {
     public var retryableCategories: Set<RecoveryCategory> = [.transport, .http, .clientTimeout]
     /// Injectable timing dependencies for deterministic recovery.
     public var timing = RecoveryTiming()
-    /// Caller-owned decision stream; pending is never approval and cancellation ends iteration.
+    /// Caller-owned decision stream that controls admission for every provider when configured.
+    ///
+    /// Without a hook, eligible OpenAI and Anthropic failures may retry. Ollama and oMLX
+    /// require admission unless acceptance is `no`. Pending is never approval; an empty
+    /// stream ends with `admissionUndecided`. Cancellation or expiry terminates iteration.
     public var admission: (@Sendable (RecoveryFailure, Int) -> AsyncStream<RecoveryAdmission>)?
     /// Synchronous safe lifecycle observer; callbacks should return promptly.
     public var observer: (@Sendable (RecoveryEvent) -> Void)?
@@ -400,6 +404,8 @@ public enum RecoveryTransition: String, Sendable, Codable, Equatable {
     case admissionAllowed
     /// Lifecycle transition: admission rejected.
     case admissionRejected
+    /// The configured admission stream ended without an explicit decision; no resend occurs.
+    case admissionUndecided
     /// Lifecycle transition: admission required.
     case admissionRequired
     /// Lifecycle transition: delay scheduled.

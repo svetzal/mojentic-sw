@@ -183,8 +183,9 @@ reasoning effort and schema support are unchanged. Encoded request bytes are
 identical across attempts. Received reasoning is observed for replay safety but
 is not delivered as thinking or single-turn content. Neither client identities,
 local socket cancellation nor empty output proves provider idempotency or remote
-termination. Request status and remote cancellation are unsupported; ambiguous
-retries require explicit caller admission. No native reasoning history is invented.
+termination. Request status and remote cancellation are unsupported. Eligible failures
+may retry without a hook; a configured hook still controls admission. No native reasoning
+history is invented.
 
 ## Anthropic Messages
 
@@ -219,7 +220,8 @@ a rejected finish cannot execute completed tools. Single-turn streams reject too
 blocks. Tool streams preserve thinking deltas; single-turn streams observe thinking
 for replay safety without rendering it as content. Any observed text, thinking or
 tool fragment prevents transparent replay, even if capture failed before delivery.
-Keepalives and `ping` are raw progress and require caller admission before retry.
+Keepalives and `ping` are raw progress. Eligible Anthropic failures may retry without
+a hook; a configured hook still requires an explicit `allow`.
 
 Provider message-start usage precedes content and message-delta usage precedes
 completion/failure. Metrics carry the actual input/output token counts, model and
@@ -286,8 +288,13 @@ Messages model and identifier evidence.
 
 Receiving metadata alone does not authorize replay. An eligible disconnect can leave
 remote acceptance unknown even when observed and delivered semantic counters are zero.
-The caller's admission hook must explicitly allow the next attempt; without that hook,
-recovery ends with `admissionRequired`. The replacement starts a fresh provider parser,
+A configured hook must explicitly allow the next attempt; an empty stream ends with
+`admissionUndecided`, while `reject` ends with `admissionRejected`. Without a hook,
+eligible OpenAI and Anthropic failures may retry, but ambiguous Ollama and oMLX failures
+end with `admissionRequired`. Pending iteration is cancelled when the owning call is
+cancelled or its recovery budget expires; neither case permits another dispatch.
+Both streaming entrypoints share these admission rules with buffered recovery.
+The replacement starts a fresh provider parser,
 while the failed attempt's metadata keeps its original local identity.
 
 ## Supply retained reasoning to streaming requests

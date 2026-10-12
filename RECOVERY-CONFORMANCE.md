@@ -24,7 +24,7 @@ them as evidence: many of their claims were stale at that commit.
 complete for buffered and streaming requests on all four maintained completion
 adapters. The safety properties hold and have strong tests: one encoded
 payload, no replay after observed output, completed tools run once,
-authoritative cancellation, and explicit admission. The open gaps are in the
+authoritative cancellation, and provider-specific admission. The open gaps are in the
 section [Open gaps](#open-gaps). The most important are the provider
 capability surface (gap 1); provider metadata gap 2 is closed by the acceptance
 evidence below.
@@ -37,6 +37,8 @@ evidence below.
 | All six `.hone-gates.json` gates on macOS 27.2, Swift 6.4, October 12, 2026 | Passed. `swift test --parallel`: 338 tests in 90 suites. `swift test --traits full`: 350 tests in 95 suites. |
 | Provider metadata correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed. Default: 341 tests in 92 suites; full traits: 353 tests in 97 suites. Strict format, SwiftLint, release build and DocC with warnings as errors passed. |
 | Dependency security for the metadata correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
+| Admission amendment, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`. Default: 350 tests in 94 suites; full traits: 362 tests in 99 suites. Strict format, SwiftLint 0.65.1, release build and DocC with warnings as errors passed. |
+| Dependency security for the admission amendment | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -174,6 +176,37 @@ the date as invalid and sending a second request. It passes with the shared
 three-format parser. Only gap 3 is closed by this amendment; other gaps below
 remain explicit. Legacy non-recovery entrypoints are unchanged.
 
+## Admission amendment acceptance evidence
+
+`RecoveryAdmissionContractTests` closes gap 8 through scripted loopback HTTP on
+ordinary, structured, JSON, recovering tool-stream and single-turn stream calls
+for Ollama, oMLX, OpenAI and Anthropic (the latter under full traits).
+
+- `providerAdmissionRules` asserts no-hook remote success with exactly two
+  requests, byte-identical bodies, unchanged logical identity, distinct actual
+  attempt identities and consecutive wire numbers. Ambiguous local failures
+  stop after one request with `admissionRequired`. Explicit allow and reject
+  control every provider. Reports retain the original typed HTTP cause and
+  one-element failure history; lifecycle order and eligibility, acceptance,
+  phase, category, reason, operation and scheduled delay are asserted.
+- `emptyAdmissionDoesNotReject` proves an empty decision stream never resends,
+  returns `admissionUndecided`, preserves the typed original cause/history,
+  and emits the matching terminal lifecycle transition.
+- `pendingAdmissionTerminates` awaits the hook stream's termination callback
+  and asserts its `cancelled` reason for owning-call cancellation and budget
+  expiry. It then asserts the public result (`cancelled` or `limitRefused`),
+  original typed cause in history, exact lifecycle order, one actual request
+  and no subsequent dispatch through each public entrypoint.
+- `syntheticUnacceptedLocalFailure` exercises the local acceptance `no`
+  exception using an eligible failure with no dispatched identity. It also
+  proves a configured rejecting hook controls that case. This is synthetic
+  pre-dispatch evidence, not proof of remote termination or nonacceptance.
+
+All admission decisions still converge in `BufferedRecovery.admit`, including
+both `StreamingRecovery` entrypoints. Eligibility, cancellation, attempt limits,
+Retry-After/backoff, capture and no-replay-after-output checks remain in place.
+Other open gaps below remain explicit.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -202,7 +235,8 @@ no test would catch if it regressed.
    - No type customises `Mirror`, so `dump` and debugger views reach private
      evidence. No test checks this.
    - The safe fields of `RecoveryEvent` (phase, category, eligible, reason,
-     acceptance, delay, operation) are almost never asserted.
+     acceptance, delay, operation) are now asserted for admission scenarios.
+     Equivalent coverage for other recovery scenarios remains incomplete.
    - Capture and length causes are not asserted after broker or session calls.
    - An invalid policy on the single-turn stream becomes
      `requestFailed("Recovery setup failed")` and loses its typed error.
@@ -210,10 +244,6 @@ no test would catch if it regressed.
    `retryableStatuses` or `retryableCategories` changes eligibility. HTTP 500
    and 502 are never exercised. Policy validation, the jitter clamp and the
    exponent cap have no tests.
-8. **Admission edge cases.** No test asserts that a pending admission stream is
-   terminated when its call is cancelled or its budget expires. A stream that
-   finishes without a decision is reported as `admissionRejected`, and no test
-   covers that case.
 9. **Documentation.** `CHANGELOG.md` has no entry for the recovery API, which
    is new since `v2.1.0`. There is no runnable example under `Examples/`.
    Operation names are free strings and differ between adapters (`ordinary`
@@ -224,9 +254,11 @@ no test would catch if it regressed.
 
 These are permitted by the contract and documented. They are not gaps.
 
-- Retries need an admission hook for every adapter, including OpenAI and
-  Anthropic. Without one, the outcome is `admissionRequired`. Rust retries
-  remote providers without a hook.
+- Without a hook, eligible OpenAI and Anthropic failures may retry. Ollama and
+  oMLX need admission unless acceptance is `no`. A configured hook controls all
+  providers, and a stream ending without a decision returns `admissionUndecided`.
+  Public transport evidence cannot establish acceptance `no` after dispatch;
+  the local exception is covered with synthetic pre-dispatch evidence only.
 - The admission hook runs before the Retry-After ceiling check. A caller's
   checks can therefore run for a retry that the engine then refuses. Rust
   refuses first.
@@ -242,6 +274,6 @@ These are permitted by the contract and documented. They are not gaps.
   inference idempotency for any adapter.
 - On Apple platforms, CFNetwork can discard partial body bytes when the server
   closes immediately after sending them. The attempt then shows no progress,
-  and replay still needs caller admission with acceptance `unknown`. The
-  library cannot see the discarded bytes.
+  and local-provider replay still needs caller admission with acceptance `unknown`.
+  The library cannot see the discarded bytes.
 - The tests cover only some unsupported request options.
