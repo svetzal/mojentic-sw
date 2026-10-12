@@ -26,7 +26,8 @@ adapters. The safety properties hold and have strong tests: one encoded
 payload, no replay after observed output, completed tools run once,
 authoritative cancellation, and explicit admission. The open gaps are in the
 section [Open gaps](#open-gaps). The most important are the provider
-capability surface (gap 1) and credential-shaped provider metadata (gap 2).
+capability surface (gap 1); provider metadata gap 2 is closed by the acceptance
+evidence below.
 
 ## Validation
 
@@ -34,6 +35,8 @@ capability surface (gap 1) and credential-shaped provider metadata (gap 2).
 | --- | --- |
 | GitHub Actions `build.yml` run 38183304850 on `b505f7d` | `build-macos`, `build-linux`, `build-linux-minimum` (Swift 6.1), `lint` and `format-check` passed |
 | All six `.hone-gates.json` gates on macOS 27.2, Swift 6.4, October 12, 2026 | Passed. `swift test --parallel`: 338 tests in 90 suites. `swift test --traits full`: 350 tests in 95 suites. |
+| Provider metadata correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed. Default: 341 tests in 92 suites; full traits: 353 tests in 97 suites. Strict format, SwiftLint, release build and DocC with warnings as errors passed. |
+| Dependency security for the metadata correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -119,6 +122,39 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Typed causes preserved through broker and session | partial | tested for admission rejection and cancellation; not for capture or length causes (gap 6) |
 | Credential-echo tests | partial | safe strings and event JSON are tested; `providerCode` and `providerRequestID` are not (gap 2) |
 
+## Provider metadata acceptance (October 12, 2026)
+
+Gap 2 is closed. `BufferedRecovery.makeFailure` constructs filtered metadata once;
+`RecoveryFailure` delegates to those same `RecoveryEvidence` values. Streaming
+uses this shared constructor. Unknown codes and outbound credential/payload echoes
+are nil on both public surfaces. Codes are explicitly allowlisted; Anthropic reads
+native `error.type` and `request-id`. SSE codes are read from the existing typed
+provider-error cause when the raw response is not a JSON document. Eligibility,
+admission, request encoding and other characterized behavior are unchanged.
+
+`RecoveryProviderMetadataTests.everyPublicExposure` exercises real scripted loopback
+HTTP through ordinary, structured, JSON, tool-stream and single-turn recovery for
+Ollama, oMLX, OpenAI and Anthropic (under `full`). It separately echoes credentials
+into code and request-ID fields, then echoes user text, nested schemas, quoted text
+and a Unicode-escaped value inside JSON carried in a payload string into request IDs.
+An unrelated request ID and allowed code survive; unknown codes do not. Assertions
+read final failure, full history, admission callbacks, completion report history and
+both public metadata accessor surfaces. Exact response bytes, captured header
+dictionaries, typed HTTP causes, logical/attempt identities, request counts and
+byte-for-byte immutable outbound requests are compared.
+
+`wrappedCredentialAndEscapedPayload` explicitly checks a Bearer-wrapped outbound
+credential and decoded user content. `RecoveryProviderFrameMetadataTests` covers
+allowed, credential and unknown codes in provider-error frames on both streaming
+APIs for all four adapters, comparing original typed provider causes and raw frames.
+The original implementation failed these public accessor assertions; the corrected
+implementation passes `swift test --traits full --filter RecoveryProvider`.
+
+Only gap 2 is removed. Raw evidence is still sensitive and retained unchanged for
+explicit inspection. Conservative overlap checks can omit a legitimate token that
+also appears in outbound data. The complete token rules and code allowlists are in
+[BufferedCompletionRecovery.md](Sources/Mojentic/Mojentic.docc/BufferedCompletionRecovery.md).
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -133,15 +169,6 @@ no test would catch if it regressed.
    tests the values. To close: decide `unknown` or `unsupported` with a cited
    source for each facility, add the Anthropic property, and test every field
    for every adapter.
-2. **Credential-shaped provider metadata.** `RecoveryFailure.providerCode` and
-   `.providerRequestID` are public, not behind `inspectEvidence()`. Their
-   syntax check accepts any `[A-Za-z0-9._-]{1,128}` token, so an API key or
-   payload echoed into `error.code` or `X-Request-ID` comes back unchanged.
-   The test fixtures already echo `credential-sentinel` into `X-Request-ID`,
-   but no test reads these accessors. Anthropic's `request-id` header and
-   `error.type` are never read, so both values are always nil for Anthropic.
-   Rust allowlists codes and tests an echoed request ID. To close: tighten the
-   validation or move both accessors behind inspection, and test an echoed key.
 3. **Retry-After date forms.** Only the IMF-fixdate form is parsed. RFC 850
    and asctime dates count as invalid, so the jittered policy delay applies.
    That delay can be shorter than the provider's minimum, which the contract

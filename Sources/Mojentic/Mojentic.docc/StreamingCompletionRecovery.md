@@ -318,3 +318,13 @@ remains unsupported, while its recovery-aware entrypoint is supported.
 An admitted retry preserves the exact request body, including original reasoning,
 content and completed tool history. This does not authorize replay after semantic
 output, change tool execution, or populate broker/session history automatically.
+
+
+## Filter provider failure metadata
+
+Streaming failures use the same provider-code allowlist and outbound echo checks
+as buffered recovery, including native Anthropic `error.type` and `request-id`.
+The guarantee covers final failures, history, admission callbacks, completion
+reports and the metadata accessors returned by `inspectEvidence()`. Raw response
+headers, received bytes and typed causes remain unchanged and sensitive.
+See <doc:BufferedCompletionRecovery> for the exact allowlists and token rules.

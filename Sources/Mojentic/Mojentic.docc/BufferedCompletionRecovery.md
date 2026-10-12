@@ -241,3 +241,32 @@ represent its signed thinking blocks. This API does not change reasoning setting
 provider response parsing, or broker/session history construction. Callers manage
 this history explicitly; no signed-history support or automatic broker retention
 is implied.
+
+
+## Inspect provider failure metadata safely
+
+`RecoveryFailure.providerCode` and `providerRequestID` use the same filtered
+values as `inspectEvidence().providerCode` and `providerRequestID`. These guarantees
+apply to final failures, attempt history, admission callbacks and completion reports,
+including streaming recovery.
+
+Codes must belong to an explicit allowlist. Ollama, oMLX and OpenAI read
+`error.code`: `invalid_api_key`, `insufficient_quota`, `rate_limit_exceeded`,
+`server_error`, `model_not_found`, `context_length_exceeded`, `invalid_request_error`
+and `content_policy_violation`. Anthropic reads native `error.type`:
+`invalid_request_error`, `authentication_error`, `permission_error`, `not_found_error`,
+`request_too_large`, `rate_limit_error`, `api_error` and `overloaded_error`.
+Unknown codes are nil. A code does not change retry classification or grant admission.
+
+Request IDs use `X-Request-ID`, or Anthropic's native `request-id`, with
+case-insensitive header names. Only a single unambiguous token of 1–128 ASCII
+letters, digits, periods, underscores or hyphens is accepted. Both metadata fields
+reject overlap with outbound header values or decoded payload strings, including
+credentials inside authorization wrappers, nested schema values and escaped JSON
+carried inside payload strings. This conservative check can omit otherwise valid
+metadata when it overlaps request content.
+
+Rejected values remain available through explicit sensitive inspection: response
+headers, exact received bytes and original typed causes are retained unchanged.
+The public metadata filters do not redact that raw evidence. Raw inspection and
+wire capture therefore still require the caller's sensitive-data storage policy.

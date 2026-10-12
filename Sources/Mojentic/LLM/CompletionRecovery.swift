@@ -94,12 +94,18 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
     public let eligible: Bool
     /// Stable reason code containing no provider or cause text.
     public let reason: String
-    /// Syntactically validated provider code, excluded from safe summaries and events.
+    /// Allowlisted provider code with outbound credential and payload echoes rejected.
+    ///
+    /// Unknown codes are nil; raw values remain available through `inspectEvidence()`.
+    /// Anthropic reads `error.type`; other completion adapters read `error.code`.
     public var providerCode: String? {
         evidence.providerCode
     }
 
-    /// Syntactically validated request ID, excluded from safe summaries and events.
+    /// Validated request ID with outbound credential and decoded payload echoes rejected.
+    ///
+    /// Rejected values remain in inspected headers; Anthropic reads native `request-id`.
+    /// Final failures, history, admission and reports share this guarantee.
     public var providerRequestID: String? {
         evidence.providerRequestID
     }
@@ -159,27 +165,15 @@ public struct RecoveryEvidence: Sendable, CustomStringConvertible, CustomDebugSt
     public let body: Data
     /// Original typed failure retained without conversion to message text.
     public let cause: (any Error)?
-    /// Validated token from an error object, retained only for explicit inspection.
-    public var providerCode: String? {
-        let value = try? JSONDecoder().decode(JSONValue.self, from: body)
-        return Self.validated(value?.objectValue?["error"]?.objectValue?["code"]?.stringValue)
-    }
+    /// Allowlisted provider code that does not echo outbound headers or payload strings.
+    ///
+    /// Unknown or echoed codes are nil; the original value remains in `body`.
+    public let providerCode: String?
 
-    /// Validated request-ID token; raw headers remain available even when validation fails.
-    public var providerRequestID: String? {
-        Self.validated(headers.first { $0.key.lowercased() == "x-request-id" }?.value)
-    }
-
-    private static func validated(_ value: String?) -> String? {
-        guard
-            let value, !value.isEmpty, value.utf8.count <= 128,
-            value.utf8.allSatisfy({
-                (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
-                    || [45, 46, 95].contains($0)
-            })
-        else { return nil }
-        return value
-    }
+    /// Request-ID token that does not echo outbound headers or decoded payload strings.
+    ///
+    /// Rejected values remain in `headers`; Anthropic uses its native `request-id` header.
+    public let providerRequestID: String?
 
     /// Safe summary excluding sensitive evidence.
     public var description: String {

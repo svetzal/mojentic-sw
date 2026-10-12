@@ -14,6 +14,7 @@ struct BufferedRecovery {
     var progress = RecoveryProgress()
     var history: [RecoveryFailure] = []
     var wire: RecoveryHTTPResult?
+    var metadata = RecoveryProviderMetadata(headers: [:], body: Data())
     var started: TimeInterval?
 
     mutating func run(
@@ -145,6 +146,7 @@ struct BufferedRecovery {
         number: Int,
         stream: RecoveryStreamDecoder? = nil,
     ) async throws -> RecoveryHTTPResult {
+        metadata = RecoveryProviderMetadata(headers: headers, body: bytes)
         // Request capture is pre-dispatch; its failure consumes no wire attempt.
         let candidate = RecoveryIdentity(logicalID: logicalID, attemptID: UUID(), wireNumber: number)
         do {
@@ -353,6 +355,8 @@ extension BufferedRecovery {
                 headers: wire?.headers ?? [:],
                 body: wire?.body ?? Data(),
                 cause: cause,
+                providerCode: metadata.code(from: wire?.body ?? Data(), provider: provider, cause: cause),
+                providerRequestID: metadata.requestID(from: wire?.headers ?? [:], provider: provider),
             ),
         )
     }
