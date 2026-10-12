@@ -15,6 +15,7 @@ final class RecoveryCallTrace: @unchecked Sendable {
         let identity: RecoveryIdentity?
         let logicalID: UUID?
         let progress: RecoveryProgress?
+        let lifecycle: RecoveryEvent?
     }
 
     private let entries = RecoveryLocked<[Entry]>([])
@@ -37,6 +38,7 @@ final class RecoveryCallTrace: @unchecked Sendable {
         identity: RecoveryIdentity? = nil,
         logicalID: UUID? = nil,
         progress: RecoveryProgress? = nil,
+        lifecycle: RecoveryEvent? = nil,
     ) {
         guard destination != nil else { return }
         let entry = Entry(
@@ -48,6 +50,7 @@ final class RecoveryCallTrace: @unchecked Sendable {
             identity: identity,
             logicalID: logicalID ?? identity?.logicalID,
             progress: progress,
+            lifecycle: lifecycle,
         )
         entries.withLock { $0.append(entry) }
     }
@@ -124,6 +127,7 @@ final class RecoveryCallTrace: @unchecked Sendable {
             identity: event.identity,
             logicalID: event.logicalID,
             progress: event.progress,
+            lifecycle: event,
         )
     }
 

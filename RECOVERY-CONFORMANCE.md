@@ -2,9 +2,10 @@
 
 This current-state record describes the transient recovery contract. The twelve
 binding decisions remain in force.
-The lifecycle matrix and listener ownership correction remain preserved. Gap 6
-is open for causal characterization: aggregate descriptor counts and successful
-reruns cannot establish the cause of individual public-call failures.
+The lifecycle matrix and listener ownership correction remain preserved. Gap 6's
+sender-readiness dependency is characterized by controlled replacement HTTP
+experiments below. The historical per-call causes and other gap 6 sub-gaps remain
+open: aggregate descriptor counts and successful reruns cannot establish them.
 
 Recovery is implemented for buffered and streaming completion on Ollama, oMLX,
 OpenAI Chat Completions and trait-enabled Anthropic Messages. Lifecycle
@@ -56,6 +57,52 @@ observed/delivered progress, ordered lifecycle and terminal assertions. Registra
 consumer and fixture remain independently held; cleanup assertions still run
 before consumer resumption. This is a fixture selection correction, not evidence
 of a production cancellation defect or an explanation of the 15 readiness failures.
+
+The replacement sender experiment now controls the earliest missing handshake:
+availability of a complete first provider record. Each pair uses the same scripted
+response bytes and public request inputs, response headers, five-second HTTP
+limit, ten-second readiness bound and independent consumer/registration holds.
+The fixture first sends and obtains a public wire-observer acknowledgement of
+the prefix before the first LF. In the rejecting interleaving it closes the
+truncated response without supplying that LF or suffix. HTTP delegate completion
+and a typed transport report precede any decoded event sender; raw bytes and
+headers are retained, while observed and delivered semantic progress remain zero.
+This rejects the expectation that received prefix bytes alone establish sender
+readiness, without waiting for a readiness timeout. FoundationNetworking reports
+the partial-file transport cause as `URLError.unknown`; Apple's corresponding
+lost-connection expectation remains unexecuted here.
+
+The matched control supplies exactly the withheld suffix through a separate
+fixture signal and keeps transport closure held. The first framed event then
+reaches the named producer's pre-registration seam. Caller cancellation occurs
+after this handshake, with its handler installed and continuation still absent;
+the existing cancellation assertions retain this interleaving. Supplying the
+record dependency is the intervention; cancellation versus truncated closure is
+the subsequent observation protocol. It is not a production behavior correction.
+For Anthropic, the first framed event includes message-start metadata; the prefix
+is the unterminated `event:` line, not a content delta. The broker single-turn
+error path can also attempt to send a terminal `recoveryFailure` after transport
+completion. That terminal sender is distinguished from decoded-event readiness,
+then cancelled to complete its existing rendezvous while the consumer stays held.
+Its original typed transport report is preserved; its established public
+cancelled projection is checked separately.
+
+`publicHTTPBeforeSenderRegistration` covers both interleavings for all 20
+applicable provider/API/path combinations with full traits (15 with default
+traits): gateway and broker single-turn paths, plus gateway, broker and session
+tool-stream paths for Ollama, oMLX, OpenAI and trait-enabled Anthropic. Session
+single-turn combinations remain inapplicable. The two ownership-selector
+regressions remain separate and preserved. Every applicable pair asserts one
+request, exact per-call wire UUIDs and request/response bytes, independently
+specified progress and full lifecycle fields, typed terminal cause, actual
+producer completion and successful local socket close or observed peer FIN before
+consumer resumption. Public JSON request inputs are compared as values because
+JSONEncoder can reorder keys; both exact raw captures remain retained. Pair
+characterization rejects unequal scripted bodies, missing controls and violations
+of the prefix/suffix/sender/cancellation/completion ordering. Complete experiment
+logs, source hashes, gate exit codes and skeptical review accompany the durable
+Foundry evidence bundle. These controlled findings do not identify which
+handshake was absent in any original descriptor-only call.
 
 Opt-in per-call tracing buffers private scripted evidence in memory and writes
 after the probe. It correlates wire UUIDs and bytes with fixture port and socket

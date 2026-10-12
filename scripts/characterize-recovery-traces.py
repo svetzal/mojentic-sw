@@ -11,6 +11,114 @@ def decode(entry):
     return base64.b64decode(entry['bytes'])
 
 
+def framing_order(entries, calls):
+    """Check scripted record framing independently of observed recovery transitions."""
+    label = next((call for call in calls if call.startswith('sender/')
+                  and call.endswith(('/incomplete', '/framed'))), None)
+    if label is None:
+        return None
+    events = {}
+    for entry in entries:
+        events.setdefault(entry['event'], []).append(entry)
+    errors = []
+    required = ['fixture.body.scripted', 'framing.prefix.received', 'http.completed',
+                'consumer.resume', 'report', 'report.attempt']
+    for event in required:
+        if len(events.get(event, [])) != 1:
+            errors.append(f'framing requires one {event}')
+    if errors:
+        return {'label': label, 'errors': errors}
+    scripted = decode(events['fixture.body.scripted'][0])
+    prefix = events['framing.prefix.received'][0]
+    completion = events['http.completed'][0]
+    resume = events['consumer.resume'][0]
+    sends = events.get('send.enter', [])
+    prefix_bytes = scripted.split(b'\n', 1)[0]
+    if decode(prefix) != prefix_bytes:
+        errors.append('prefix differs from scripted first unterminated line')
+    if any(entry['uptime'] < prefix['uptime'] for entry in sends):
+        errors.append('sender preceded complete first line')
+    if label.endswith('/incomplete'):
+        if decode(completion) != prefix_bytes:
+            errors.append('incomplete transport delivered a suffix')
+        if events.get('fixture.suffix.release') or events.get('caller.cancel'):
+            errors.append('incomplete case supplied framing or cancelled before transport termination')
+        if any('recoveryFailure' not in entry['detail'] for entry in sends):
+            errors.append('incomplete line produced a nonterminal sender')
+        if any(entry['uptime'] < completion['uptime'] for entry in sends):
+            errors.append('terminal sender preceded HTTP termination')
+        if not any(f'cause=NSURLErrorDomain/{code} ' in completion['detail'] for code in (-1, -1005)):
+            errors.append('incomplete transport lacks typed partial-file/lost-connection cause')
+        if not events['report.attempt'][0]['detail'].startswith('transport cause=NSURLErrorDomain/'):
+            errors.append('incomplete terminal report is not a typed transport failure')
+        progress = events['report'][0]['progress']
+        if any(progress[phase][field] for phase in ('observed', 'delivered')
+               for field in ('contentBytes', 'reasoningBytes', 'toolFragments', 'completedToolCalls')):
+            errors.append('incomplete line produced semantic progress')
+        closes = [entry for entry in events.get('socket.close', [])
+                  if 'result=0' in entry['detail'] and entry['uptime'] < resume['uptime']]
+        if len(closes) != 1:
+            errors.append('incomplete transport lacks successful socket closure before resumption')
+    else:
+        suffix = events.get('fixture.suffix.release', [])
+        held = events.get('registration.held', [])
+        cancelled = events.get('caller.cancel', [])
+        if len(suffix) != 1 or len(held) != 1 or len(cancelled) != 1 or not sends:
+            errors.append('framed control lacks suffix, sender, registration or cancellation handshake')
+        elif not (prefix['uptime'] < suffix[0]['uptime'] < sends[0]['uptime']
+                  <= held[0]['uptime'] < cancelled[0]['uptime'] < completion['uptime']):
+            errors.append('framed control violates prefix/suffix/sender/cancellation/HTTP ordering')
+        if decode(completion) != scripted:
+            errors.append('framed completion bytes differ from complete scripted body')
+        if 'cause=NSURLErrorDomain/-999' not in completion['detail']:
+            errors.append('framed control lacks typed cancelled HTTP cause')
+        if not any(entry['detail'] == 'true' and entry['uptime'] < resume['uptime']
+                   for entry in events.get('socket.peer.closed', [])):
+            errors.append('framed control lacks peer closure before resumption')
+    lifecycle = events.get('lifecycle', [])
+    if len(lifecycle) != 3 or any('lifecycle' not in entry for entry in lifecycle):
+        errors.append('full lifecycle fields missing')
+    path = label.split('/')[-2]
+    expected_producers = {'gateway': 1, 'broker': 2, 'session': 3}[path]
+    if len(events.get('producer.completed', [])) != expected_producers:
+        errors.append('missing or duplicate producer task completion')
+    return {'label': label, 'scripted_body': base64.b64encode(scripted).decode(),
+            'prefix': prefix, 'errors': errors}
+
+
+def framing_pairs(calls):
+    pairs = {}
+    errors = []
+    for call in calls:
+        framing = call['registration_framing']
+        if framing:
+            label, mode = framing['label'].rsplit('/', 1)
+            if mode in pairs.setdefault(label, {}):
+                errors.append(f'{label}: duplicate {mode} experiment')
+            pairs[label][mode] = call
+    comparisons = []
+    for label, pair in pairs.items():
+        if set(pair) != {'incomplete', 'framed'}:
+            errors.append(f'{label}: missing matched control')
+            continue
+        rejecting, control = pair['incomplete'], pair['framed']
+        if rejecting['registration_framing'].get('scripted_body') != control['registration_framing'].get('scripted_body'):
+            errors.append(f'{label}: matched scripted bodies differ')
+        if len(rejecting['attempts']) != 1 or len(control['attempts']) != 1:
+            errors.append(f'{label}: experiment did not make exactly one request per call')
+            continue
+        request_bytes = [base64.b64decode(call['attempts'][0]['request_bytes'])
+                         for call in (rejecting, control)]
+        # JSONEncoder may order keys differently across public invocations. Retain
+        # both exact wire captures; compare public request inputs as JSON values.
+        if json.loads(request_bytes[0]) != json.loads(request_bytes[1]):
+            errors.append(f'{label}: matched public request inputs differ')
+        comparisons.append({'label': label, 'rejecting_trace': rejecting['trace'],
+                            'control_trace': control['trace'],
+                            'raw_request_bytes_equal': request_bytes[0] == request_bytes[1]})
+    return {'pairs': comparisons, 'errors': errors}
+
+
 def characterize(path):
     entries = json.loads(path.read_text())
     calls = [e['detail'] for e in entries if e['event'] == 'call']
@@ -81,6 +189,7 @@ def characterize(path):
                 if 'cause=NSURLErrorDomain/-1001' in e['detail']]
     return {
         'trace': str(path), 'calls': calls, 'attempts': attempts,
+        'registration_framing': framing_order(entries, calls),
         'zero_wire_reports': [e for e in entries if e['event'] == 'report'] if not requests else [],
         'zero_wire_lifecycle': [e for e in entries if e['event'] == 'lifecycle'] if not requests else [],
         'socket_lifetime': [e for e in entries if e['event'].startswith(('socket.', 'listener.'))],
@@ -108,7 +217,8 @@ def main():
     calls = [call for path in paths if (call := characterize(path)) is not None]
     if not calls:
         parser.error('no named public-call traces found')
-    output = {'calls': calls}
+    comparisons = framing_pairs(calls)
+    output = {'calls': calls, 'registration_framing_comparison': comparisons}
     if args.syscalls:
         lines = args.syscalls.read_text().splitlines()
         output['descriptor_exhaustion'] = [line for line in lines if 'EMFILE' in line]
@@ -122,6 +232,9 @@ def main():
     args.output.write_text(json.dumps(output, indent=2) + '\n')
     errors = [error for call in calls for error in call['cleanup_errors']]
     errors += [error for call in calls for attempt in call['attempts'] for error in attempt['ordering_errors']]
+    errors += [error for call in calls if call['registration_framing']
+               for error in call['registration_framing']['errors']]
+    errors += comparisons['errors']
     print(f'{len(calls)} calls; {len(errors)} independent byte/ordering violations; '
           f'{sum(call["timeout_before_registration"] for call in calls)} HTTP timeouts before registration')
     return bool(errors)

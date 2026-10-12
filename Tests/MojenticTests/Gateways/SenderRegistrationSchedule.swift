@@ -11,6 +11,7 @@ final class SenderRegistrationSchedule: Sendable {
     let registration = RecoveryConsumerPause()
     let innerReady = RecoveryConsumerPause()
     let heldRole = RecoveryLocked<String?>(nil)
+    let entered = RecoveryLocked<[String]>([])
     private let roleCounts = RecoveryLocked<[String: Int]>([:])
     private let typeCounts = RecoveryLocked<[String: Int]>([:])
     private let trace: RecoveryCallTrace
@@ -46,12 +47,19 @@ final class SenderRegistrationSchedule: Sendable {
         }
         try await RecoveryDeliveryScheduling.$httpTrace.withValue(onHTTP) {
             try await trace.scope {
-                try await RecoveryDeliveryScheduling.$didDeliver.withValue(onDelivery) {
-                    try await RecoveryDeliveryScheduling.$finished.withValue(onFinish) {
-                        try await RecoveryDeliveryScheduling.$producerCompleted.withValue(onCompletion) {
-                            try await RecoveryDeliveryScheduling.$beforeSenderRegistration.withValue(
-                                onRegistration
-                            ) { try await operation() }
+                let previousTrace = RecoveryDeliveryScheduling.trace
+                let onTrace: @Sendable (String, String) -> Void = { event, detail in
+                    if event == "send.enter" { self.entered.withLock { $0.append(detail) } }
+                    previousTrace?(event, detail)
+                }
+                try await RecoveryDeliveryScheduling.$trace.withValue(onTrace) {
+                    try await RecoveryDeliveryScheduling.$didDeliver.withValue(onDelivery) {
+                        try await RecoveryDeliveryScheduling.$finished.withValue(onFinish) {
+                            try await RecoveryDeliveryScheduling.$producerCompleted.withValue(onCompletion) {
+                                try await RecoveryDeliveryScheduling.$beforeSenderRegistration.withValue(
+                                    onRegistration
+                                ) { try await operation() }
+                            }
                         }
                     }
                 }

@@ -7,7 +7,7 @@ import Testing
 #endif
 
 struct SenderRegistrationCancellationTests {
-    private enum RetainedStream: Sendable {
+    enum RetainedStream: Sendable {
         case gateway(AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>)
         case relay(AsyncThrowingStream<StreamEvent, any Error>)
         case completion(AsyncStream<RecoveryCompletionStreamEvent>)
@@ -20,9 +20,11 @@ struct SenderRegistrationCancellationTests {
     /// still fails the test, only later.
     private let readinessTimeout: Duration = .seconds(10)
 
-    @Test(arguments: StreamingBoundary.all, ["gateway", "broker", "session"])
+    @Test(arguments: StreamingBoundary.withAnthropic, ["gateway", "broker", "session"])
     func publicHTTPBeforeSenderRegistration(_ boundary: StreamingBoundary, _ path: String) async throws {
-        try await probe(boundary, path: path, innerFirst: false)
+        let frame = try registrationFrame(boundary)
+        try await probe(boundary, path: path, innerFirst: false, releaseSuffix: false, frame: frame)
+        try await probe(boundary, path: path, innerFirst: false, releaseSuffix: true, frame: frame)
     }
 
     @Test(arguments: ["broker", "session"])
@@ -31,24 +33,33 @@ struct SenderRegistrationCancellationTests {
             StreamingBoundary(omlx: false, single: path == "broker"), path: path, innerFirst: true)
     }
 
-    private func probe(_ boundary: StreamingBoundary, path: String, innerFirst: Bool) async throws {
+    private func probe(
+        _ boundary: StreamingBoundary,
+        path: String,
+        innerFirst: Bool,
+        releaseSuffix: Bool? = nil,
+        frame: String? = nil
+    ) async throws {
         if boundary.single, path == "session" {
             return
         }
-        let body = try boundary.frame(
-            content: "é", reasoning: boundary.single ? "" : "ré", tool: !boundary.single,
-        )
-        let server = try RecoveryLoopback(replies: [
-            RecoveryReply(
-                headers: ["X-Request-ID": "original-header"], body: body, truncated: true, hold: true,
-            )
-        ])
+        let body = try frame ?? registrationFrame(boundary)
+        let prefixCount = try #require(Data(body.utf8).firstIndex(of: 10))
+        let server = try framingServer(body: body, prefixCount: prefixCount, releaseSuffix: releaseSuffix)
         defer { server.release() }
-        server.trace.record("call", "sender/\(boundary)/\(path)")
+        let mode = releaseSuffix.map { $0 ? "framed" : "incomplete" } ?? "ownership"
+        server.trace.record("call", "sender/\(boundary)/\(path)/\(mode)")
+        server.trace.record("fixture.body.scripted", bytes: Data(body.utf8))
         let recorder = RecoveryRecorder()
         let report = RecoveryLocked<CompletionRecoveryReport?>(nil)
-        var policy = recoveryPolicy(recorder)
-        policy.reportObserver = { value in report.withLock { $0 = value } }
+        let prefixArrived = AsyncStream<Void>.makeStream()
+        let policy = registrationPolicy(
+            recorder: recorder,
+            report: report,
+            prefixArrived: prefixArrived.continuation,
+            prefixCount: prefixCount,
+            splitFrame: releaseSuffix != nil,
+        )
         let gateway = boundary.gateway(server, policy)
         let broker = LLMBroker(gateway: gateway)
         let chat = ChatSession(broker: broker, model: "fixture")
@@ -58,39 +69,127 @@ struct SenderRegistrationCancellationTests {
             target: senderType(boundary: boundary, path: path),
             innerFirst: innerFirst,
         )
-        let arrived = schedule.arrived
         let registration = schedule.registration
-        let finished = schedule.finished
         let retained = RecoveryLocked<RetainedStream?>(nil)
-        let delivered = schedule.delivered
         let consumer = RecoveryConsumerPause()
         defer {
             registration.resume()
             consumer.resume()
             schedule.innerReady.resume()
         }
-        let task = Task {
+        let task = pausedStream(schedule: schedule, consumer: consumer, retained: retained) {
+            try makeStream(boundary: boundary, path: path, gateway: gateway, broker: broker, chat: chat)
+        }
+        defer { cancel(task, trace: server.trace) }
+        if let releaseSuffix {
+            try #require(await waitForSignals(prefixArrived.stream, count: 1))
+            server.trace.record("framing.prefix.received", bytes: Data(body.utf8).prefix(prefixCount))
+            #expect(schedule.heldRole.withLock { $0 } == nil)
+            guard releaseSuffix else {
+                server.release()
+                try await beforeFraming(
+                    boundary,
+                    path: path,
+                    server: server,
+                    recorder: recorder,
+                    schedule: schedule,
+                    report: report,
+                    body: Data(body.utf8).prefix(prefixCount))
+                try await finishTransport(
+                    task: task,
+                    schedule: schedule,
+                    consumer: consumer,
+                    retained: retained,
+                    server: server,
+                    path: path,
+                    boundary: boundary)
+                if path == "session" { #expect(await chat.messages().isEmpty) }
+                return
+            }
+            server.releaseSuffix()
+        }
+        try await awaitRegistration(
+            schedule: schedule,
+            path: path,
+            innerFirst: innerFirst,
+            trace: server.trace,
+            boundary: boundary)
+        try await finishCancellation(
+            task: task,
+            schedule: schedule,
+            consumer: consumer,
+            retained: retained,
+            server: server,
+            path: path
+        ) {
+            let cleaned = report.withLock { $0 }
+            let completedHTTP = schedule.completed.withLock { $0 }
+            #expect(completedHTTP.first?.0 == recorder.requests.withLock { $0.first?.0 })
+            #expect(completedHTTP.first?.1 == Data(body.utf8))
+            #expect(cleaned != nil, "Producer must finish before the paused consumer resumes")
+            assertAttempt(
+                recorder: recorder,
+                server: server,
+                cleaned: cleaned,
+                body: body,
+                boundary: boundary,
+                path: path)
+        }
+        if path == "session" {
+            #expect(await chat.messages().isEmpty)
+        }
+    }
+
+    private func registrationFrame(_ boundary: StreamingBoundary) throws -> String {
+        try boundary.frame(content: "é", reasoning: boundary.single ? "" : "ré", tool: !boundary.single)
+    }
+
+    private func framingServer(
+        body: String, prefixCount: Int, releaseSuffix: Bool?
+    ) throws -> RecoveryLoopback {
+        try RecoveryLoopback(replies: [
+            RecoveryReply(
+                headers: ["X-Request-ID": "original-header"],
+                body: body,
+                truncated: true,
+                hold: true,
+                splitAt: releaseSuffix == nil ? nil : prefixCount,
+                holdSuffix: releaseSuffix != nil,
+            )
+        ])
+    }
+
+    private func pausedStream(
+        schedule: SenderRegistrationSchedule,
+        consumer: RecoveryConsumerPause,
+        retained: RecoveryLocked<RetainedStream?>,
+        create: @escaping @Sendable () throws -> RetainedStream,
+    ) -> Task<Void, any Error> {
+        Task {
             try await schedule.run {
                 try await withRecoveryStreamCancellation {
-                    let stream = try makeStream(
-                        boundary: boundary,
-                        path: path,
-                        gateway: gateway,
-                        broker: broker,
-                        chat: chat,
-                    )
+                    let stream = try create()
                     retained.withLock { $0 = stream }
                     await consumer.wait()
                 }
             }
         }
-        defer { cancel(task, trace: server.trace) }
-        let ready = await waitForSignals(arrived.stream, count: 1)
-        server.trace.record("registration.readiness", ready ? "ready" : "expired")
+    }
+
+    private func awaitRegistration(
+        schedule: SenderRegistrationSchedule,
+        path: String,
+        innerFirst: Bool,
+        trace: RecoveryCallTrace,
+        boundary: StreamingBoundary,
+    ) async throws {
+        let ready = await waitForSignals(schedule.arrived.stream, count: 1)
+        trace.record("registration.readiness", ready ? "ready" : "expired")
         try #require(ready)
         if path != "gateway" {
             try #require(
-                await waitForSignals(delivered.stream, count: path == "session" && !boundary.openAI ? 2 : 1)
+                await waitForSignals(
+                    schedule.delivered.stream, count: path == "session" && !boundary.openAI ? 2 : 1)
             )
         }
         if innerFirst {
@@ -98,45 +197,66 @@ struct SenderRegistrationCancellationTests {
                 schedule.heldRole.withLock { $0 } == path,
                 "The named public relay must own the held registration")
         }
-        // The sender passed its initial check and installed its handler, but has
-        // no continuation yet. Neither stream iteration nor fixture release can
-        // help cleanup: all three owners are held independently of cancellation.
+    }
+
+    private func registrationPolicy(
+        recorder: RecoveryRecorder,
+        report: RecoveryLocked<CompletionRecoveryReport?>,
+        prefixArrived: AsyncStream<Void>.Continuation,
+        prefixCount: Int,
+        splitFrame: Bool,
+    ) -> CompletionRecoveryPolicy {
+        var policy = recoveryPolicy(recorder)
+        if splitFrame { policy.maximumAttempts = 1 }
+        let bytesReceived = RecoveryLocked<Int>(0)
+        let observe = policy.wireObserver
+        policy.wireObserver = { event in
+            try observe?(event)
+            if case .body(_, let bytes) = event {
+                let count = bytesReceived.withLock {
+                    $0 += bytes.count
+                    return $0
+                }
+                if count == prefixCount { prefixArrived.yield(()) }
+            }
+        }
+        policy.reportObserver = { value in report.withLock { $0 = value } }
+        return policy
+    }
+
+    private func finishCancellation(
+        task: Task<Void, any Error>,
+        schedule: SenderRegistrationSchedule,
+        consumer: RecoveryConsumerPause,
+        retained: RecoveryLocked<RetainedStream?>,
+        server: RecoveryLoopback,
+        path: String,
+        verify: () -> Void
+    ) async throws {
+        // The sender installed its cancellation handler but has no continuation.
+        // Registration, consumer and fixture are independently held.
         server.trace.record("caller.cancel")
         task.cancel()
-        registration.resume()
-        let expectedFinished = path == "gateway" ? 1 : path == "broker" ? 2 : 3
-        try await awaitFinished(finished, count: expectedFinished)
-        try await awaitFinished(schedule.producersCompleted, count: expectedFinished)
-        let cleaned = report.withLock { $0 }
+        schedule.registration.resume()
+        let count = path == "gateway" ? 1 : path == "broker" ? 2 : 3
+        try await awaitFinished(schedule.finished, count: count)
+        try await awaitFinished(schedule.producersCompleted, count: count)
         #expect(
-            finished.withLock { $0.count } == expectedFinished,
-            "All gateway and relay producers must finish while consumer remains paused",
-        )
-        #expect(schedule.producersCompleted.withLock { $0.count } == expectedFinished)
-        let completedHTTP = schedule.completed.withLock { $0 }
-        #expect(completedHTTP.count == 1, "HTTP delegate completion must precede consumer resumption")
-        #expect(completedHTTP.first?.0 == recorder.requests.withLock { $0.first?.0 })
-        #expect(completedHTTP.first?.1 == Data(body.utf8))
-        #expect(cleaned != nil, "Producer must finish before the paused consumer resumes")
-        #expect(server.waitForPeerClose(), "Locally owned HTTP must close with the fixture still held")
-        assertAttempt(
-            recorder: recorder,
-            server: server,
-            cleaned: cleaned,
-            body: body,
-            boundary: boundary,
-            path: path,
-        )
-        // Drain only after recording rejecting evidence, so a broken baseline
-        // does not leave a stranded continuation in the test process.
-        let stream = try #require(retained.withLock { $0 })
-        try await consumeTerminal(stream, path: path)
+            schedule.finished.withLock { $0.count } == count,
+            "All gateway and relay producers must finish while consumer remains paused")
+        #expect(schedule.producersCompleted.withLock { $0.count } == count)
+        #expect(
+            schedule.completed.withLock { $0.count } == 1,
+            "HTTP delegate completion must precede consumer resumption")
+        let peerClosed = server.waitForPeerClose()
+        #expect(peerClosed, "Locally owned HTTP must close with the fixture still held")
+        server.trace.record("socket.peer.closed", "\(peerClosed)")
+        verify()
+        // Drain only after asserting cleanup, so rejection cannot strand a sender.
+        try await consumeTerminal(try #require(retained.withLock { $0 }), path: path)
         server.trace.record("consumer.resume")
         consumer.resume()
         try await task.value
-        if path == "session" {
-            #expect(await chat.messages().isEmpty)
-        }
     }
 
     private func cancel(_ task: Task<Void, any Error>, trace: RecoveryCallTrace) {
@@ -154,7 +274,7 @@ struct SenderRegistrationCancellationTests {
         return "Mojentic.StreamEvent"
     }
 
-    private func awaitFinished(_ finished: RecoveryLocked<[String]>, count: Int) async throws {
+    func awaitFinished(_ finished: RecoveryLocked<[String]>, count: Int) async throws {
         let deadline = ContinuousClock.now.advanced(by: readinessTimeout)
         while finished.withLock({ $0.count }) < count, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -200,72 +320,6 @@ struct SenderRegistrationCancellationTests {
             )
         }
         return .gateway(gateway.streamRecovering(model: "fixture", messages: [], tools: nil, config: .init()))
-    }
-
-    private func assertAttempt(
-        recorder: RecoveryRecorder,
-        server: RecoveryLoopback,
-        cleaned: CompletionRecoveryReport?,
-        body: String,
-        boundary: StreamingBoundary,
-        path: String,
-    ) {
-        let requests = recorder.requests.withLock { $0 }
-        #expect(requests.count == 1)
-        #expect(server.requests.withLock { $0 } == requests.map(\.1))
-        let fields = requests.first.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0.1) }
-        #expect(fields?.objectValue?["model"] == "fixture")
-        #expect(fields?.objectValue?["stream"] == true)
-        let bodies = recorder.wires.withLock { wires in
-            wires.compactMap { event -> Data? in
-                if case .body(let identity, let bytes) = event {
-                    #expect(identity == requests.first?.0)
-                    return bytes
-                }
-                return nil
-            }
-        }
-        #expect(bodies.reduce(into: Data()) { $0.append($1) } == Data(body.utf8))
-        #expect(cleaned?.identity == requests.first?.0)
-        #expect(cleaned?.logicalID == requests.first?.0.logicalID)
-        #expect(cleaned?.identity?.wireNumber == 1)
-        #expect(cleaned?.history.count == 1)
-        #expect(cleaned?.history.first?.identity == requests.first?.0)
-        #expect(cleaned?.history.first?.status == 200)
-        #expect(cleaned?.history.first?.category == .cancellation)
-        let cause = cleaned?.history.first?.inspectEvidence().cause as? URLError
-        #expect(cause?.code == .cancelled)
-        #expect(cleaned?.history.first?.inspectEvidence().body == Data(body.utf8))
-        #expect(
-            cleaned?.history.first?.inspectEvidence().headers.contains {
-                $0.key.lowercased() == "x-request-id" && $0.value == "original-header"
-            } == true
-        )
-        #expect(cleaned?.progress.headersReceived == true)
-        #expect(cleaned?.progress.rawBytes == body.utf8.count)
-        #expect(cleaned?.progress.observed.contentBytes == 2)
-        #expect(cleaned?.progress.observed.reasoningBytes == (boundary.single ? 0 : 3))
-        #expect(cleaned?.progress.observed.toolFragments == (boundary.single ? 0 : 1))
-        #expect(cleaned?.progress.observed.completedToolCalls == (boundary.single || boundary.omlx ? 0 : 1))
-        #expect(cleaned?.progress.delivered.completedToolCalls == 0)
-        var delivered = RecoverySemanticProgress()
-        if path != "gateway" {
-            if path == "session" {
-                delivered.reasoningBytes = boundary.openAI ? 0 : 3
-                delivered.contentBytes = 2
-            } else if boundary.omlx, !boundary.single, !boundary.openAI {
-                delivered.reasoningBytes = boundary.openAI ? 0 : 3
-            } else {
-                delivered.contentBytes = 2
-            }
-        }
-        #expect(cleaned?.progress.delivered == delivered)
-        #expect(
-            recorder.events.withLock { $0.map(\.transition) } == [
-                .attemptStarted, .attemptFailed, .cancelled,
-            ]
-        )
-        #expect(recorder.events.withLock { $0.allSatisfy { $0.identity == requests.first?.0 } })
     }
 
     private func consumeTerminal(_ stream: RetainedStream, path: String) async throws {

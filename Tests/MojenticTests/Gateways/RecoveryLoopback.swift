@@ -15,6 +15,7 @@ struct RecoveryReply: Sendable {
     var truncated = false
     var hold = false
     var splitAt: Int?
+    var holdSuffix = false
 }
 
 /// A real loopback HTTP server with deterministic request/active-send signals.
@@ -25,6 +26,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
     let requestHeaders = RecoveryLocked<[String]>([])
+    let closedClients = RecoveryLocked<Int>(0)
     private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
     private let arrival: AsyncStream<Int>.Continuation
@@ -33,6 +35,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     private let condition = NSCondition()
     private let requestCondition = NSCondition()
     private var released = false
+    private var suffixReleased = false
     // Guarded by deliveryCondition. `nil` until a recovery client reports deliveries.
     private let deliveryCondition = NSCondition()
     private var deliveredBytes: Int?
@@ -102,8 +105,9 @@ final class RecoveryLoopback: @unchecked Sendable {
                 }
                 trace.record("socket.accept", "listener=\(descriptor) fd=\(client)")
                 self?.serve(client)
-                trace.record("socket.close", "fd=\(client)")
-                close(client)
+                let result = close(client)
+                self?.closedClients.withLock { $0 += result == 0 ? 1 : 0 }
+                trace.record("socket.close", "fd=\(client) result=\(result)")
             }
         }
     }
@@ -120,6 +124,15 @@ final class RecoveryLoopback: @unchecked Sendable {
         trace.record("fixture.release")
         condition.lock()
         released = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    /// Supplies a withheld record delimiter independently of transport closure.
+    func releaseSuffix() {
+        trace.record("fixture.suffix.release")
+        condition.lock()
+        suffixReleased = true
         condition.broadcast()
         condition.unlock()
     }
@@ -220,6 +233,18 @@ final class RecoveryLoopback: @unchecked Sendable {
         let split = reply.splitAt ?? (reply.hold && !reply.truncated ? data.count / 2 : data.count)
         write(Data(data.prefix(split)), to: client)
         arrival.yield(index + 1)
+        var sent = split
+        if reply.holdSuffix {
+            trace.record("fixture.suffix.held", "fd=\(client) prefix=\(split)")
+            condition.lock()
+            while !suffixReleased && !released { condition.wait() }
+            let supplySuffix = suffixReleased
+            condition.unlock()
+            if supplySuffix {
+                write(Data(data.dropFirst(split)), to: client)
+                sent = data.count
+            }
+        }
         if reply.hold {
             trace.record("fixture.held", "fd=\(client)")
             condition.lock()
@@ -228,12 +253,13 @@ final class RecoveryLoopback: @unchecked Sendable {
             }
             condition.unlock()
             trace.record("fixture.unheld", "fd=\(client)")
-            if split < data.count {
+            if !reply.holdSuffix, split < data.count {
                 write(Data(data.dropFirst(split)), to: client)
+                sent = data.count
             }
         }
         if reply.truncated {
-            waitForDelivery(of: data.count, from: client)
+            waitForDelivery(of: sent, from: client)
         }
     }
 
