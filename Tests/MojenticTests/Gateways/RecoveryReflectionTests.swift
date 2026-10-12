@@ -6,7 +6,7 @@ struct RecoveryReflectionTests {
     @Test
     func publicBoundaryProof() async throws {
         try await checkBoundary(
-            RecoveryStatusBoundary(provider: .init(omlx: false, structured: false), operation: .ordinary))
+            RecoveryStatusBoundary(provider: .init(omlx: false, structured: false), operation: .single))
     }
 
     @Test(arguments: RecoveryStatusBoundary.all)
@@ -101,15 +101,24 @@ struct RecoveryReflectionTests {
         policy.reportObserver = { report in reports.withLock { $0.append(report) } }
         let delivered = RecoveryLocked<[String]>([])
         let gateway = boundary.provider.gateway(server, policy: policy)
+        let observed = RecoveryLocked<[RecoveryCompletionStreamEvent]>([])
         let error = try await recoveryFailure {
-            try await invokeReflectionBoundary(boundary, gateway: gateway, delivered: delivered)
+            try await invokeReflectionBoundary(
+                boundary, gateway: gateway, delivered: delivered, observed: observed)
         }
         #expect(delivered.withLock { $0 }.isEmpty)
         let identities = try assertStatusWires(recorder, server: server, replies: replies)
+        let expected = reflectionExpectedFailures(boundary, identities: identities, replies: replies)
+        let terminalFailure = try #require(expected.last)
+        #expect(error.logicalID == identities[0].logicalID)
+        #expect(error.outcome == .exhausted)
+        #expect(error.history.count == expected.count)
         #expect(error.history.map(\.identity) == identities.map(Optional.some))
-        for (index, failure) in error.history.enumerated() {
-            try assertStatusFailure(failure, identity: identities[index], reply: replies[index])
-            assertFailureMirror(failure)
+        for (index, pair) in zip(error.history, expected).enumerated() {
+            let (failure, expectedFailure) = pair
+            try assertStatusFailure(
+                failure, identity: identities[index], reply: replies[index])
+            assertFailureMirror(failure, expected: expectedFailure)
             assertEvidenceMirror(failure.inspectEvidence())
             assertPrivateReflection(failure)
             assertPrivateReflection(failure.inspectEvidence())
@@ -117,12 +126,24 @@ struct RecoveryReflectionTests {
         assertExactMirror(
             error,
             [
-                ("logicalID", error.logicalID), ("outcome", error.outcome),
-                ("failure", error.failure), ("history", error.history),
+                ("logicalID", identities[0].logicalID), ("outcome", RecoveryTransition.exhausted),
+                ("failure", terminalFailure), ("history", expected),
             ])
-        assertFailureMirror(error.failure)
+        assertFailureMirror(error.failure, expected: terminalFailure)
         assertPrivateReflection(error)
-        assertPrivateReflection(RecoveryCompletionStreamEvent.recoveryFailure(error))
+        #expect(observed.withLock { $0.count } == (boundary.operation == .single ? 1 : 0))
+        for event in observed.withLock({ $0 }) {
+            let children = Array(Mirror(reflecting: event).children)
+            #expect(children.map(\.label) == ["recoveryFailure"])
+            let mirroredError = try #require(children.first?.value as? RecoveryError)
+            assertExactMirror(
+                mirroredError,
+                [
+                    ("logicalID", identities[0].logicalID), ("outcome", RecoveryTransition.exhausted),
+                    ("failure", terminalFailure), ("history", expected),
+                ])
+            assertPrivateReflection(event)
+        }
         let published = reports.withLock { $0 }
         #expect(published.count == 1)
         for report in published {
@@ -133,12 +154,14 @@ struct RecoveryReflectionTests {
             assertExactMirror(
                 report,
                 [
-                    ("logicalID", report.logicalID), ("identity", report.identity as Any),
-                    ("progress", report.progress), ("history", report.history),
+                    ("logicalID", identities[0].logicalID), ("identity", identities.last as Any),
+                    ("progress", terminalFailure.progress), ("history", expected),
                 ])
-            for (index, failure) in report.history.enumerated() {
+            #expect(report.history.count == expected.count)
+            for (index, pair) in zip(report.history, expected).enumerated() {
+                let (failure, expectedFailure) = pair
                 try assertStatusFailure(failure, identity: identities[index], reply: replies[index])
-                assertFailureMirror(failure)
+                assertFailureMirror(failure, expected: expectedFailure)
             }
             assertPrivateReflection(report)
         }

@@ -31,22 +31,50 @@ func assertExactMirror(_ value: Any, _ expected: [(String, Any)]) {
     let children = Array(Mirror(reflecting: value).children)
     #expect(children.map(\.label) == expected.map { Optional($0.0) })
     for (actual, expected) in zip(children, expected) {
-        #expect(String(reflecting: actual.value) == String(reflecting: expected.1))
+        if let failure = expected.1 as? RecoveryFailure {
+            guard let actualFailure = actual.value as? RecoveryFailure else {
+                Issue.record("Expected a typed RecoveryFailure child: \(expected.0)")
+                continue
+            }
+            assertFailureMirror(actualFailure, expected: failure)
+        } else if let history = expected.1 as? [RecoveryFailure] {
+            guard let actualHistory = actual.value as? [RecoveryFailure] else {
+                Issue.record("Expected a typed [RecoveryFailure] child: \(expected.0)")
+                continue
+            }
+            #expect(actualHistory.count == history.count)
+            for (actualFailure, expectedFailure) in zip(actualHistory, history) {
+                assertFailureMirror(actualFailure, expected: expectedFailure)
+            }
+        } else if let expectedValue = expected.1 as? any Equatable {
+            assertTypedMirrorValue(actual.value, expected: expectedValue)
+        } else {
+            Issue.record("Missing typed mirror assertion for \(expected.0)")
+        }
     }
 }
 
-func assertFailureMirror(_ failure: RecoveryFailure) {
+private func assertTypedMirrorValue<Value: Equatable>(_ actual: Any, expected: Value) {
+    guard let typed = actual as? Value else {
+        Issue.record("Mirror child lost its expected type: \(Value.self)")
+        return
+    }
+    #expect(typed == expected)
+}
+
+func assertFailureMirror(_ failure: RecoveryFailure, expected: RecoveryFailure? = nil) {
+    let expected = expected ?? failure
     assertExactMirror(
         failure,
         [
-            ("logicalID", failure.logicalID), ("identity", failure.identity as Any),
-            ("provider", failure.provider), ("operation", failure.operation),
-            ("category", failure.category), ("status", failure.status as Any),
-            ("retryAfter", failure.retryAfter), ("progress", failure.progress),
-            ("acceptance", failure.acceptance), ("phase", failure.phase as Any),
-            ("eligible", failure.eligible), ("reason", failure.reason),
-            ("providerCode", failure.providerCode as Any),
-            ("providerRequestID", failure.providerRequestID as Any),
+            ("logicalID", expected.logicalID), ("identity", expected.identity as Any),
+            ("provider", expected.provider), ("operation", expected.operation),
+            ("category", expected.category), ("status", expected.status as Any),
+            ("retryAfter", expected.retryAfter), ("progress", expected.progress),
+            ("acceptance", expected.acceptance), ("phase", expected.phase as Any),
+            ("eligible", expected.eligible), ("reason", expected.reason),
+            ("providerCode", expected.providerCode as Any),
+            ("providerRequestID", expected.providerRequestID as Any),
         ])
     let children = Array(Mirror(reflecting: failure).children)
     #expect(children.first?.value as? UUID == failure.logicalID)
@@ -75,7 +103,10 @@ func assertWireMirror(_ wire: RecoveryWireEvent) {
 }
 
 func invokeReflectionBoundary(
-    _ boundary: RecoveryStatusBoundary, gateway: any LLMGateway, delivered: RecoveryLocked<[String]>,
+    _ boundary: RecoveryStatusBoundary,
+    gateway: any LLMGateway,
+    delivered: RecoveryLocked<[String]>,
+    observed: RecoveryLocked<[RecoveryCompletionStreamEvent]>,
 ) async throws {
     guard boundary.operation == .single else {
         try await boundary.invoke(gateway, delivered: delivered)
@@ -87,10 +118,45 @@ func invokeReflectionBoundary(
     ) {
         assertPrivateReflection(event)
         events.append(event)
+        observed.withLock { $0.append(event) }
     }
     #expect(events.count == 1)
     let terminal = try #require(events.first)
     #expect(terminal.isTerminal)
     if case .recoveryFailure(let error) = terminal { throw error }
     Issue.record("Expected a terminal recovery failure")
+}
+
+func reflectionExpectedFailures(
+    _ boundary: RecoveryStatusBoundary, identities: [RecoveryIdentity], replies: [RecoveryReply],
+) -> [RecoveryFailure] {
+    let provider: RecoveryProvider =
+        boundary.provider.anthropic
+        ? .anthropic
+        : boundary.provider.openAI ? .openAI : boundary.provider.omlx ? .omlx : .ollama
+    let streaming = boundary.operation == .tools || boundary.operation == .single
+    let operation: RecoveryOperation =
+        streaming ? .streaming : boundary.operation == .ordinary ? .ordinary : .structured
+    return zip(identities, replies).map { identity, reply in
+        RecoveryFailure(
+            logicalID: identity.logicalID,
+            identity: identity,
+            provider: provider,
+            operation: operation,
+            category: .http,
+            status: reply.status,
+            retryAfter: .absent,
+            progress: .init(headersReceived: true, rawBytes: reply.body.utf8.count),
+            phase: streaming ? .streaming : .decoding,
+            eligible: true,
+            reason: "selectedHTTPStatus",
+            evidence: .init(
+                headers: statusHeaders(reply),
+                body: Data(reply.body.utf8),
+                cause: nil,
+                providerCode: nil,
+                providerRequestID: provider == .anthropic ? nil : reply.headers["X-Request-ID"],
+            ),
+        )
+    }
 }

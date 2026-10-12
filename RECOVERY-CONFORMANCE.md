@@ -43,7 +43,7 @@ are closed by the acceptance evidence below; the remaining gaps stay open.
 | Capability correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (356 in 96 suites), full-trait tests (369 in 101 suites), and DocC with warnings as errors. The full-trait public capability probe rejected the old idempotency value and passed with the correction. |
 | Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
 | Provider/operation vocabulary correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (361 in 98 suites), full-trait tests (374 in 103 suites), and DocC with warnings as errors. The public loopback probe rejected the old operation vocabulary and passed after migration. OSV scanned three packages with no issues; no dependencies changed. |
-| Default formatting correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (364 in 99 suites), full-trait tests (377 in 104 suites), and DocC with warnings as errors. The public loopback reflection assertions fail without the correction and pass with it. OSV scanned three locked packages with no issues; dependencies are unchanged. |
+| Reflection acceptance, Linux Swift 6.4 | The single-turn loopback probe requires typed nested failure and history children in the delivered event. It rejects summary substitutions, masked identities, and dropped or reordered histories. The full reflection suite covers every existing provider/operation boundary, including trait-enabled Anthropic. All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (364 in 99 suites), full-trait tests (377 in 104 suites), and DocC with warnings as errors. OSV scanned three locked packages with no issues; dependencies are unchanged. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -339,7 +339,7 @@ Only the vocabulary sub-gap of gap 9 is closed. Other documentation omissions
 and the remaining open gaps below remain explicit. No dependency, version,
 release or live-inference change is included.
 
-## Default formatting acceptance (October 12 amendment)
+## Default formatting and reflection acceptance
 
 `RecoveryFailure`, `RecoveryEvidence`, `RecoveryWireEvent`, `RecoveryError` and
 `CompletionRecoveryReport` implement `CustomReflectable`. Failure mirrors expose
@@ -348,24 +348,34 @@ provider metadata, classification and retry evidence. Evidence mirrors expose
 only validated provider code and request ID. Wire mirrors expose `kind`, exact
 `identity` and the received `status` for the headers case. URLs, headers, raw
 bytes and causes have no reachable reflection children. Errors and reports keep
-useful safe failures and history; nested `recoveryFailure` events inherit those
-safe mirrors without changing their public delivery or associated values.
+typed `RecoveryFailure` terminal children and ordered `[RecoveryFailure]` histories;
+report histories also retain `[RecoveryFailure]`. Delivered `recoveryFailure`
+events preserve the typed error and these nested safe mirrors.
 
 `RecoveryReflectionTests.allPublicBoundaries` exercises scripted loopback HTTP
 503 exhaustion through ordinary, structured, JSON, tool-stream and single-turn
 completion APIs on Ollama, oMLX, OpenAI and trait-enabled Anthropic (20 cases).
 The probe checks `Mirror`, recursive reflection, `dump`, `String(describing:)`
 and `String(reflecting:)` for failures, evidence, histories, reports, every wire
-case and actual single-turn failure events. Exact child names and values prevent
-indiscriminate masking; recursive checks reject private fields, byte containers,
-header dictionaries, URLs and raw causes. Explicit inspection retains exact
+case and actual single-turn failure events. Nested failure and history children
+are cast to their required types, then every safe field is compared with expected
+failures built from independently checked socket identities and scripted replies.
+These expectations include exact logical and attempt IDs, provider, operation,
+classification, status, retry-after, full progress, acceptance, phase, eligibility,
+reason and validated provider metadata. History length and positional comparisons
+require both attempts in wire order. The delivered single-turn event is reflected
+and its typed error children are checked against the same expectations.
+Exact child names and typed scalar comparisons prevent masking; recursive checks
+reject private fields, byte containers, header dictionaries, URLs and raw causes. Explicit inspection retains exact
 headers, UTF-8 bytes and typed HTTP status causes. Capture bytes match actual
 socket requests, both attempts share a logical ID with distinct attempt IDs,
 and lifecycle order and terminal delivery are asserted. Synthetic cases add
 secret-bearing URLs and typed cause messages while retaining safe provider IDs.
 
-The public-boundary proof fails without the reflection correction and passes
-with it; the expanded full-trait assertions also reject the uncorrected types.
+The single-turn public-boundary proof rejects replacing the terminal failure,
+error history or report history with summary strings, masking failure identities,
+and dropping or reversing history. The unchanged runtime mirrors pass the same
+probe. Summary-string equality is not used as proof of nested evidence retention.
 Only the reflection sub-gap of gap 6 is closed. The remaining telemetry and
 broker/session cause requirements below are unchanged.
 
