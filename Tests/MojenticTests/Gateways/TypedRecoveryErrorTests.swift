@@ -4,6 +4,11 @@ import Testing
 
 @Suite("Typed recovery errors at public boundaries")
 struct TypedRecoveryErrorTests {
+    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
+    func multimodalLengthThroughSession(_ provider: RecoveryBoundary) async throws {
+        try await lengthCause(.init(provider: provider, path: .sessionImages), false)
+    }
+
     @Test
     func bufferedLengthThroughBroker() async throws {
         let reply = RecoveryReply(
@@ -31,6 +36,7 @@ struct TypedRecoveryErrorTests {
         #expect(evidence.providerModel == "served")
         let identities = try assertStatusWires(recorder, server: server, replies: [reply])
         #expect(failure.failure.identity == identities[0])
+        #expect(identities[0].attemptID != identities[0].logicalID)
         #expect(failure.history.map(\.identity) == identities.map(Optional.some))
         #expect(failure.failure.progress.observed.contentBytes == 2)
         #expect(failure.failure.progress.delivered == RecoverySemanticProgress())
@@ -45,9 +51,13 @@ extension TypedRecoveryErrorTests {
         let counter = RecoveryToolCounter()
         let changes: [@Sendable (inout CompletionRecoveryPolicy) -> Void] = [
             { $0.maximumAttempts = 0 }, { $0.maximumAttempts = -1 },
-            { $0.baseDelay = -1 }, { $0.baseDelay = .infinity },
+            { $0.baseDelay = -1 }, { $0.baseDelay = .infinity }, { $0.baseDelay = .nan },
+            { $0.baseDelay = -.infinity },
             { $0.delayCeiling = -1 }, { $0.delayCeiling = .nan },
-            { $0.budget = -1 }, { $0.budget = .infinity }, { $0.deadline = .nan },
+            { $0.delayCeiling = .infinity }, { $0.delayCeiling = -.infinity },
+            { $0.budget = -1 }, { $0.budget = .infinity }, { $0.budget = .nan },
+            { $0.budget = -.infinity }, { $0.deadline = .nan },
+            { $0.deadline = .infinity }, { $0.deadline = -.infinity },
         ]
         for change in changes {
             var policy = recoveryPolicy(recorder)
@@ -59,6 +69,11 @@ extension TypedRecoveryErrorTests {
                 return
             }
             #expect(message == "Invalid buffered recovery limits")
+            #expect(server.requests.withLock { $0 }.isEmpty)
+            #expect(recorder.requests.withLock { $0 }.isEmpty)
+            #expect(recorder.wires.withLock { $0 }.isEmpty)
+            #expect(recorder.events.withLock { $0 }.isEmpty)
+            #expect(counter.value.withLock { $0 } == 0)
         }
         #expect(server.requests.withLock { $0 }.isEmpty)
         #expect(recorder.requests.withLock { $0 }.isEmpty)
@@ -98,6 +113,9 @@ extension TypedRecoveryErrorTests {
         let candidates = recorder.requests.withLock { $0 }
         let candidate = try #require(candidates.first)
         #expect(candidates.count == 1)
+        if boundary.path == .sessionImages {
+            try assertTypedImageRequest(candidate.1, provider: boundary.provider)
+        }
         #expect(candidate.0.logicalID == failure.logicalID)
         #expect(candidate.0.wireNumber == 1)
         #expect(candidate.0.attemptID != candidate.0.logicalID)
@@ -111,7 +129,12 @@ extension TypedRecoveryErrorTests {
             let historical = try #require(failure.history[0].inspectEvidence().cause as? TypedCaptureCause)
             #expect(historical.stage == "response")
             #expect(historical.sequence == 29)
+            #expect(failure.history[0].progress == failure.failure.progress)
+            #expect(failure.history[0].inspectEvidence().body == Data(reply.body.utf8))
+            #expect(normalizedHeaders(failure.history[0].inspectEvidence().headers) == statusHeaders(reply))
+            #expect(normalizedHeaders(failure.failure.inspectEvidence().headers) == statusHeaders(reply))
             #expect(failure.failure.progress.observed.contentBytes == 2)
+            #expect(failure.failure.progress.observed == RecoverySemanticProgress(contentBytes: 2))
             #expect(failure.failure.progress.rawBytes == reply.body.utf8.count)
             #expect(failure.failure.progress.headersReceived)
             #expect(failure.failure.inspectEvidence().body == Data(reply.body.utf8))
@@ -161,6 +184,7 @@ extension TypedRecoveryErrorTests {
         let identities = try assertStatusWires(recorder, server: server, replies: [reply])
         #expect(failure.logicalID == identities[0].logicalID)
         #expect(failure.failure.identity == identities[0])
+        #expect(identities[0].attemptID != identities[0].logicalID)
         #expect(failure.history.map(\.identity) == identities.map(Optional.some))
         let historical = try #require(failure.history[0].inspectEvidence().cause as? MojenticError)
         guard case .incompleteCompletion(let historicalEvidence) = historical else {
@@ -168,6 +192,11 @@ extension TypedRecoveryErrorTests {
             return
         }
         #expect(historicalEvidence == evidence)
+        #expect(failure.failure.inspectEvidence().body == Data(reply.body.utf8))
+        #expect(normalizedHeaders(failure.failure.inspectEvidence().headers) == statusHeaders(reply))
+        #expect(failure.history[0].inspectEvidence().body == Data(reply.body.utf8))
+        #expect(normalizedHeaders(failure.history[0].inspectEvidence().headers) == statusHeaders(reply))
+        #expect(failure.history[0].progress == failure.failure.progress)
         #expect(failure.failure.progress.rawBytes == reply.body.utf8.count)
         #expect(failure.failure.progress.headersReceived)
         #expect(failure.failure.progress.observed == RecoverySemanticProgress(contentBytes: 2))
@@ -203,6 +232,11 @@ extension TypedRecoveryErrorTests {
                 gateway: gateway, session: session, broker: broker, tool: tool, delivered: delivered)
         }
         #expect(await session.messages() == seed)
+        if boundary.path == .sessionImages {
+            for request in server.requests.withLock({ $0 }) {
+                try assertTypedImageRequest(request, provider: boundary.provider)
+            }
+        }
         return failure
     }
 }

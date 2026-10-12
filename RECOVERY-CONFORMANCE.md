@@ -435,23 +435,50 @@ These are permitted by the contract and documented. They are not gaps.
 ## Typed-error amendment acceptance evidence
 
 `TypedRecoveryErrorTests` covers gateway ordinary, structured and JSON calls,
-`LLMBroker.complete`, `ChatSession.send`, gateway/broker/session throwing streams,
-and gateway/broker single-turn recovery event streams. All four providers run
-under full traits. Every boundary runs with and without cancellation scope.
+`LLMBroker.complete`, `LLMBroker.completeJSON`, `LLMBroker.generateResponse`,
+`ChatSession.send(_:)`, `ChatSession.send(text:images:)`, gateway/broker/session
+throwing streams, and gateway/broker single-turn recovery event streams. All four
+providers run under full traits. Every boundary runs with and without cancellation
+scope. The earlier matrix omitted broker JSON, native response and multimodal send;
+the original acceptance statement did not establish their typed-error coverage.
+
+The three added callers use actual recovery-enabled Ollama, oMLX, OpenAI and
+Anthropic adapters against scripted loopback HTTP. Broker JSON supplies a valid
+schema and an incompatible response payload, so exact recovery causes must survive
+before Codable projection. Native response exercises the shared `requestResponse`
+path. Multimodal send carries an inline synthetic one-pixel PNG: assertions inspect
+the proposed request even when capture rejects dispatch, and the actual socket
+request after dispatch. They require Ollama's base64 `images` array, oMLX/OpenAI's
+`image_url` data URL, or Anthropic's base64 image source block, alongside the exact
+user text. Every failed invocation restores the exact initial system-message
+history. This is rollback evidence for a seeded session, not concurrent sends or
+arbitrary accumulated conversations.
 
 Invalid limits retain the exact `MojenticError.invalidArgument` case and message,
-with zero socket requests, request-capture callbacks and tool executions. Synthetic
-capture causes independently assert stage and sequence values: request capture
+with zero socket requests, wire-capture callbacks, lifecycle callbacks and tool
+executions after each invalid policy. Cases cover zero/negative attempts and
+negative, NaN and both infinite delay/budget values, plus nonfinite deadlines.
+Synthetic capture causes independently assert stage and sequence values: request capture
 fails before dispatch (one proposed identity, no actual attempt/history), while
 response capture fails after exactly one request. Ordered captured identities
 and bytes match actual socket bytes and response captures. Length fixtures use
 Ollama NDJSON, oMLX/OpenAI SSE with `[DONE]`, and native Anthropic named SSE events
 (or each provider's buffered envelope). Causes are cast back to `MojenticError`
 and assert exact finish reason, usage, model and metadata. History is exactly one
-actual failed attempt; observed and delivered semantic counters are independently
-checked against content received through the public stream. Streams have one
+actual failed attempt, with distinct logical and attempt IDs. Terminal and
+historical length evidence retain the exact response body and headers; post-response
+capture failures retain the same evidence and progress in history. These tests
+establish single-attempt history order, not a multi-retry typed-cause history.
+Observed and delivered semantic counters are independently checked against content
+received through the public stream. Streams have one
 failure terminal and end afterward; sessions restore seeded history exactly.
 No failure triggers a resend or tool execution.
+
+The added multimodal loopback probe rejected the old text-only test invocation
+for all four providers because it omitted the image from actual request bytes. It
+passes when the test invokes `send(text:images:)`; the expanded matrix requires no
+runtime change. Existing caller paths, legacy behavior and recovery guarantees are
+preserved.
 
 The initial loopback broker probe rejected buffered Ollama `length` being returned
 as success. It passes after recovery-only length validation before projection.
