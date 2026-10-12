@@ -20,7 +20,7 @@ extension OMLXGateway {
         if let recovery = settings.policy {
             return StreamingRecovery.gatewayEvents(
                 policy: recovery,
-                provider: "omlx",
+                provider: .omlx,
                 url: settings.url,
                 headers: settings.headers,
                 body: body,
@@ -54,7 +54,7 @@ extension OMLXGateway {
         if let recovery = settings.policy {
             return StreamingRecovery.completionEvents(
                 policy: recovery,
-                provider: "omlx",
+                provider: .omlx,
                 url: settings.url,
                 headers: settings.headers,
                 body: body,

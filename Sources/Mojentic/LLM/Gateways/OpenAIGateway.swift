@@ -97,7 +97,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         )
         let url = baseURL.appendingPathComponent("chat/completions")
         if let recovery {
-            var engine = BufferedRecovery(policy: recovery, provider: "openai", operation: "complete")
+            var engine = BufferedRecovery(policy: recovery, provider: .openAI, operation: .ordinary)
             return try await engine.run(
                 url: url,
                 headers: authHeaders(),
@@ -156,7 +156,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         let url = baseURL.appendingPathComponent("chat/completions")
         if let recovery {
             var engine = BufferedRecovery(
-                policy: recovery, provider: "openai", operation: "completeStructured",
+                policy: recovery, provider: .openAI, operation: .structured,
             )
             return try await engine.run(
                 url: url,
@@ -279,7 +279,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         )
         return StreamingRecovery.gatewayEvents(
             policy: recovery,
-            provider: "openai",
+            provider: .openAI,
             url: baseURL.appendingPathComponent("chat/completions"),
             headers: authHeaders(),
             body: body,
@@ -312,7 +312,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         }
         return StreamingRecovery.completionEvents(
             policy: recovery,
-            provider: "openai",
+            provider: .openAI,
             url: baseURL.appendingPathComponent("chat/completions"),
             headers: authHeaders(),
             body: body,

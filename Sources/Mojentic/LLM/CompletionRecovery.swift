@@ -74,10 +74,10 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
     public let logicalID: UUID
     /// Actual wire identity, absent when dispatch did not occur.
     public let identity: RecoveryIdentity?
-    /// Local provider identity.
-    public let provider: String
-    /// Ordinary, structured, or streaming completion.
-    public let operation: String
+    /// Closed provider identity shared with admission observations and lifecycle events.
+    public let provider: RecoveryProvider
+    /// Shared ordinary, structured or streaming operation, independent of adapter method names.
+    public let operation: RecoveryOperation
     /// Stable failure classification.
     public let category: RecoveryCategory
     /// Numeric HTTP status when headers arrived.
@@ -130,8 +130,8 @@ public struct RecoveryFailure: Error, Sendable, CustomStringConvertible, CustomD
     init(
         logicalID: UUID,
         identity: RecoveryIdentity?,
-        provider: String,
-        operation: String,
+        provider: RecoveryProvider,
+        operation: RecoveryOperation,
         category: RecoveryCategory,
         status: Int?,
         retryAfter: RecoveryRetryAfter,
@@ -223,10 +223,10 @@ public struct RecoveryEvent: Sendable, Codable, Equatable {
     public let status: Int?
     /// Scheduled recovery delay in seconds.
     public let delay: TimeInterval?
-    /// Local provider identity.
-    public let provider: String
-    /// Ordinary, structured, or streaming completion.
-    public let operation: String
+    /// Closed provider identity shared with admission observations and lifecycle events.
+    public let provider: RecoveryProvider
+    /// Shared ordinary, structured or streaming operation, independent of adapter method names.
+    public let operation: RecoveryOperation
     /// Known failure phase, absent when evidence cannot distinguish it.
     public let phase: RecoveryPhase?
     /// Acceptance evidence for this exact request.

@@ -57,7 +57,7 @@ struct StreamingRecoveryProofTests {
         #expect(report.history.count == 1)
         #expect(failed.identity == first.0)
         #expect(failed.status == 503)
-        #expect(failed.provider == (boundary.openAI ? "openai" : omlx ? "omlx" : "ollama"))
+        #expect(failed.provider == (boundary.openAI ? .openAI : omlx ? .omlx : .ollama))
         #expect(failed.inspectEvidence().cause is RecoveryHTTPStatusFailure)
         #expect(failed.inspectEvidence().body == Data("credential-sentinel".utf8))
         let captured = recorder.wires.withLock { wires in

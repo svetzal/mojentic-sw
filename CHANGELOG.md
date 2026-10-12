@@ -13,6 +13,15 @@ move independently.
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.
 
+### Changed
+
+- Recovery failures, admission observations and lifecycle events now expose
+  closed `RecoveryProvider` and `RecoveryOperation` enums. All four adapters
+  share `ordinary`, `structured` and `streaming` operation values. OpenAI and
+  Anthropic buffered operation JSON changes from `complete`/`completeStructured`
+  to `ordinary`/`structured`; unknown values and old aliases are rejected when
+  decoding. Request bytes, recovery routing and legacy behavior are preserved.
+
 ### Added
 
 - Recovery stream progress and metrics events now carry the wire attempt's

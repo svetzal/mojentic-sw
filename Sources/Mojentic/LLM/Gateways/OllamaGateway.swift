@@ -90,7 +90,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         }
         let url = baseURL.appendingPathComponent("api/chat")
         if let recovery {
-            var engine = BufferedRecovery(policy: recovery, provider: "ollama", operation: "ordinary")
+            var engine = BufferedRecovery(policy: recovery, provider: .ollama, operation: .ordinary)
             return try await engine.run(
                 url: url,
                 headers: headers,
@@ -135,7 +135,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         )
         let url = baseURL.appendingPathComponent("api/chat")
         if let recovery {
-            var engine = BufferedRecovery(policy: recovery, provider: "ollama", operation: "structured")
+            var engine = BufferedRecovery(policy: recovery, provider: .ollama, operation: .structured)
             return try await engine.run(
                 url: url,
                 headers: headers,
@@ -271,7 +271,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         if let recovery {
             return StreamingRecovery.gatewayEvents(
                 policy: recovery,
-                provider: "ollama",
+                provider: .ollama,
                 url: url,
                 headers: headers,
                 body: body,
@@ -292,7 +292,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         if let recovery {
             return StreamingRecovery.completionEvents(
                 policy: recovery,
-                provider: "ollama",
+                provider: .ollama,
                 url: baseURL.appendingPathComponent("api/chat"),
                 headers: headers,
                 body: buildChatRequest(

@@ -39,7 +39,7 @@ struct OMLXRecoveryKeepAliveTests {
         #expect(error.failure.inspectEvidence().body == Data(body.utf8))
         #expect(server.requests.withLock { $0.count } == 1)
         assertRecoveryRequests(recorder, server)
-        let decoder = RecoveryStreamDecoder(provider: "omlx", singleTurn: single)
+        let decoder = RecoveryStreamDecoder(provider: .omlx, singleTurn: single)
         _ = decoder.observe(Data(body.utf8), status: 200)
         #expect(decoder.snapshot().evidence == CompletionEvidence())
         #expect(!decoder.snapshot().terminal)
@@ -80,7 +80,7 @@ struct OMLXRecoveryKeepAliveTests {
             #expect(progress.observed.reasoningBytes == 0 && progress.delivered.reasoningBytes == 0)
             #expect(progress.observed.toolFragments == 0 && progress.delivered.toolFragments == 0)
         }
-        let decoder = RecoveryStreamDecoder(provider: "omlx", singleTurn: single)
+        let decoder = RecoveryStreamDecoder(provider: .omlx, singleTurn: single)
         _ = decoder.observe(Data(first.utf8), status: 200)
         let genuine = decoder.snapshot().evidence
         #expect(genuine.providerModel == "genuine-model")
@@ -91,7 +91,7 @@ struct OMLXRecoveryKeepAliveTests {
         #expect(decoder.snapshot().frameIndex == 1)
         _ = decoder.observe(Data((last + "data: [DONE]\n\n").utf8), status: 200)
         #expect(decoder.snapshot().terminal && decoder.snapshot().failure == nil)
-        let withoutKeepalives = RecoveryStreamDecoder(provider: "omlx", singleTurn: single)
+        let withoutKeepalives = RecoveryStreamDecoder(provider: .omlx, singleTurn: single)
         _ = withoutKeepalives.observe(Data(baseline.utf8), status: 200)
         #expect(decoder.snapshot().frameIndex == withoutKeepalives.snapshot().frameIndex)
         #expect(decoder.snapshot().frameIndex == 2)
@@ -119,7 +119,7 @@ struct OMLXRecoveryKeepAliveTests {
         if single { #expect(evidence?.providerModel == model) }
         #expect(server.requests.withLock { $0.count } == 1)
         #expect(recorder.events.withLock { $0.map(\.transition) } == [.attemptStarted, .attemptSucceeded])
-        let decoder = RecoveryStreamDecoder(provider: openAI ? "openai" : "omlx", singleTurn: single)
+        let decoder = RecoveryStreamDecoder(provider: openAI ? .openAI : .omlx, singleTurn: single)
         _ = decoder.observe(Data(body.utf8), status: 200)
         #expect(decoder.snapshot().frameIndex == 1)
         #expect(decoder.snapshot().evidence.providerModel == model)

@@ -12,7 +12,7 @@ struct RecoveryProviderMetadata {
         outboundStrings = strings.filter { !$0.isEmpty }
     }
 
-    func code(from body: Data, provider: String, cause: (any Error)?) -> String? {
+    func code(from body: Data, provider: RecoveryProvider, cause: (any Error)?) -> String? {
         let value = try? JSONDecoder().decode(JSONValue.self, from: body)
         let detail: JSONValue?
         if let error = value?.objectValue?["error"] {
@@ -22,15 +22,15 @@ struct RecoveryProviderMetadata {
         } else {
             detail = nil
         }
-        let field = provider == "anthropic" ? "type" : "code"
+        let field = provider == .anthropic ? "type" : "code"
         guard let code = detail?.objectValue?[field]?.stringValue,
             Self.allowedCodes(provider: provider).contains(code), !echoes(code)
         else { return nil }
         return code
     }
 
-    func requestID(from headers: [String: String], provider: String) -> String? {
-        let field = provider == "anthropic" ? "request-id" : "x-request-id"
+    func requestID(from headers: [String: String], provider: RecoveryProvider) -> String? {
+        let field = provider == .anthropic ? "request-id" : "x-request-id"
         let matches = headers.filter { $0.key.lowercased() == field }
         guard matches.count == 1, let value = matches.first?.value,
             !value.isEmpty, value.utf8.count <= 128,
@@ -66,20 +66,19 @@ struct RecoveryProviderMetadata {
         }
     }
 
-    private static func allowedCodes(provider: String) -> Set<String> {
+    private static func allowedCodes(provider: RecoveryProvider) -> Set<String> {
         switch provider {
-        case "anthropic":
+        case .anthropic:
             [
                 "invalid_request_error", "authentication_error", "permission_error", "not_found_error",
                 "request_too_large", "rate_limit_error", "api_error", "overloaded_error",
             ]
-        case "openai", "omlx", "ollama":
+        case .openAI, .omlx, .ollama:
             [
                 "invalid_api_key", "insufficient_quota", "rate_limit_exceeded", "server_error",
                 "model_not_found", "context_length_exceeded", "invalid_request_error",
                 "content_policy_violation",
             ]
-        default: []
         }
     }
 }

@@ -172,13 +172,8 @@ private func admissionSuccess(_ boundary: RecoveryStatusBoundary) throws -> Reco
 
 private func assertAdmissionFields(_ recorder: RecoveryRecorder, boundary: RecoveryStatusBoundary) {
     let streaming = boundary.operation == .tools || boundary.operation == .single
-    let remote = boundary.provider.openAI || boundary.provider.anthropic
-    let operation =
-        streaming
-        ? "streaming"
-        : remote
-            ? (boundary.operation == .ordinary ? "complete" : "completeStructured")
-            : (boundary.operation == .ordinary ? "ordinary" : "structured")
+    let operation: RecoveryOperation =
+        streaming ? .streaming : (boundary.operation == .ordinary ? .ordinary : .structured)
     for event in recorder.events.withLock({ $0 }) {
         #expect(event.operation == operation)
         #expect(event.logicalID == recorder.requests.withLock { $0.first?.0.logicalID })
@@ -205,8 +200,8 @@ private func assertAdmissionFields(_ recorder: RecoveryRecorder, boundary: Recov
 }
 
 extension RecoveryAdmissionContractTests {
-    @Test(arguments: ["ollama", "omlx"], [false, true])
-    func syntheticUnacceptedLocalFailure(_ provider: String, _ reject: Bool) async throws {
+    @Test(arguments: [RecoveryProvider.ollama, .omlx], [false, true])
+    func syntheticUnacceptedLocalFailure(_ provider: RecoveryProvider, _ reject: Bool) async throws {
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.admission = nil
@@ -220,7 +215,7 @@ extension RecoveryAdmissionContractTests {
         }
         // Public transports cannot prove nonacceptance after dispatch. Model only a failure
         // before dispatch: no actual attempt identity and no assertion about remote execution.
-        var engine = BufferedRecovery(policy: policy, provider: provider, operation: "ordinary")
+        var engine = BufferedRecovery(policy: policy, provider: provider, operation: .ordinary)
         let failure = engine.makeFailure(
             category: .transport, cause: URLError(.cannotConnectToHost), reason: "requestFailed",
         )

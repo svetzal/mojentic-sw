@@ -7,8 +7,8 @@ import Foundation
 /// Request recovery owns no broker state and never executes tools.
 struct BufferedRecovery {
     let policy: CompletionRecoveryPolicy
-    let provider: String
-    let operation: String
+    let provider: RecoveryProvider
+    let operation: RecoveryOperation
     let logicalID = UUID()
     var identity: RecoveryIdentity?
     var progress = RecoveryProgress()
@@ -244,7 +244,7 @@ struct BufferedRecovery {
                 guard let decision else { throw finish(.admissionUndecided, failure) }
                 guard decision == .allow else { throw finish(.admissionRejected, failure) }
                 emit(.admissionAllowed, category: failure.category)
-            } else if provider != "openai", provider != "anthropic", failure.acceptance != .no {
+            } else if provider != .openAI, provider != .anthropic, failure.acceptance != .no {
                 throw finish(.admissionRequired, failure)
             }
             try Task.checkCancellation()
@@ -323,7 +323,7 @@ struct BufferedRecovery {
 
     private var currentPhase: RecoveryPhase? {
         guard progress.headersReceived else { return nil }
-        if operation == "streaming" {
+        if operation == .streaming {
             return .streaming
         }
         return wire?.cause == nil ? .decoding : .receiving

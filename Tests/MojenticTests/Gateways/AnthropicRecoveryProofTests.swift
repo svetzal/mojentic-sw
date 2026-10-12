@@ -36,7 +36,7 @@ import Testing
                 )
             }
             #expect(error.outcome == .captureFailed)
-            #expect(error.failure.provider == "anthropic")
+            #expect(error.failure.provider == .anthropic)
             #expect(error.failure.progress.observed.contentBytes == 2)
             #expect(error.failure.progress.observed.reasoningBytes == 3)
             #expect(error.failure.progress.observed.toolFragments == 1)

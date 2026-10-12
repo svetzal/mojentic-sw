@@ -14,7 +14,7 @@ struct RecoveryStreamSnapshot {
 /// URLSession callbacks are serial; the lock also protects the async consumer's snapshot.
 final class RecoveryStreamDecoder: @unchecked Sendable {
     private let lock = NSLock()
-    private let provider: String
+    private let provider: RecoveryProvider
     private let singleTurn: Bool
     private var identity: RecoveryIdentity?
     private var frameIndex = 0
@@ -39,7 +39,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     let events: AsyncStream<RecoveryGatewayStreamEvent>
     private let continuation: AsyncStream<RecoveryGatewayStreamEvent>.Continuation
 
-    init(provider: String, singleTurn: Bool) {
+    init(provider: RecoveryProvider, singleTurn: Bool) {
         self.provider = provider
         self.singleTurn = singleTurn
         let pair = AsyncStream<RecoveryGatewayStreamEvent>.makeStream()
@@ -119,12 +119,12 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
 
     private func parse(_ line: String) {
         // Raw bytes are already captured; oMLX keepalives carry no provider evidence.
-        if provider == "omlx", OMLXKeepAliveFilter.isKeepAlive(line) { return }
+        if provider == .omlx, OMLXKeepAliveFilter.isKeepAlive(line) { return }
         var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        if provider == "omlx" || provider == "openai" || provider == "anthropic" {
+        if provider == .omlx || provider == .openAI || provider == .anthropic {
             guard payload.hasPrefix("data:") else { return }
             payload = String(payload.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-            if payload == "[DONE]", provider != "anthropic" {
+            if payload == "[DONE]", provider != .anthropic {
                 finishOpenAI(line)
                 return
             }
@@ -156,9 +156,9 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
                 throw MojenticError.providerError(status: nil, detail: error)
             }
             frameIndex += 1
-            if provider == "anthropic" {
+            if provider == .anthropic {
                 try parseAnthropic(object)
-            } else if provider == "ollama" {
+            } else if provider == .ollama {
                 try parseOllama(data)
             } else {
                 try parseOpenAI(data, object: object, line: line)
@@ -251,7 +251,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         guard case .array(let choices)? = object["choices"] else {
             throw MojenticError.invalidStreamEvent(message: "Missing choices")
         }
-        if provider == "openai" {
+        if provider == .openAI {
             try validateOpenAIChoices(choices, usage: frame.usage)
         }
         for choice in choices {
@@ -313,19 +313,19 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
 
     /// Rejected tools cannot erase other validated semantic evidence in the same frame.
     private func observeRejectedOpenAITools(_ delta: [String: JSONValue]) {
-        guard provider == "openai" else { return }
+        guard provider == .openAI else { return }
         progress.observed.contentBytes += delta["content"]?.stringValue?.utf8.count ?? 0
         progress.observed.reasoningBytes += delta["reasoning_content"]?.stringValue?.utf8.count ?? 0
     }
 
     private func enqueueOpenAIEvents(_ events: [RecoveryGatewayStreamEvent], usage: OpenAIUsage?) {
         pending += events.filter { event in
-            if provider == "openai", case .thinkingDelta = event {
+            if provider == .openAI, case .thinkingDelta = event {
                 return false
             }
             return true
         }
-        if provider == "openai", let usage = usage?.toUsage() {
+        if provider == .openAI, let usage = usage?.toUsage() {
             pending.append(.metrics(CompletionEvidence(usage: usage)))
         }
     }

@@ -21,13 +21,13 @@ extension BufferedRecovery {
         }
     }
 
-    static func semanticEvidence(_ data: Data, provider: String) -> RecoverySemanticProgress {
+    static func semanticEvidence(_ data: Data, provider: RecoveryProvider) -> RecoverySemanticProgress {
         guard
             let root = try? JSONDecoder().decode(JSONValue.self, from: data).objectValue
         else {
             return RecoverySemanticProgress()
         }
-        if provider == "anthropic" {
+        if provider == .anthropic {
             var progress = RecoverySemanticProgress()
             for block in root["content"]?.recoveryArray ?? [] {
                 let fields = block.objectValue
@@ -45,7 +45,7 @@ extension BufferedRecovery {
             return progress
         }
         let message: [String: JSONValue]? =
-            if provider == "ollama" {
+            if provider == .ollama {
                 root["message"]?.objectValue
             } else {
                 root["choices"]?.recoveryArray?.first?.objectValue?["message"]?.objectValue
@@ -53,9 +53,9 @@ extension BufferedRecovery {
         var progress = RecoverySemanticProgress()
         progress.contentBytes = message?["content"]?.stringValue?.utf8.count ?? 0
         progress.reasoningBytes =
-            (message?[provider == "ollama" ? "thinking" : "reasoning_content"]?.stringValue?.utf8.count) ?? 0
+            (message?[provider == .ollama ? "thinking" : "reasoning_content"]?.stringValue?.utf8.count) ?? 0
         progress.toolFragments = message?["tool_calls"]?.recoveryArray?.count ?? 0
-        if provider == "ollama" {
+        if provider == .ollama {
             let wire = try? JSONDecoder().decode(OllamaChatResponse.self, from: data)
             progress.completedToolCalls = wire?.message.toolCalls?.count ?? 0
         } else {

@@ -76,6 +76,43 @@ image, tool and native reasoning history (see
 <doc:BufferedCompletionRecovery#Retain-native-assistant-reasoning-in-caller-owned-history>)
 and existing controls exactly.
 
+## Use the shared provider and operation types
+
+``RecoveryFailure`` (including history and admission callback observations) and
+``RecoveryEvent`` expose ``RecoveryProvider`` and ``RecoveryOperation``.
+Providers are `.ollama`, `.omlx`, `.openAI` and `.anthropic`; their serialized
+values are `ollama`, `omlx`, `openai` and `anthropic`. The Anthropic identity
+is available even when its gateway trait is disabled.
+
+Every adapter uses `.ordinary` for `complete`, `.structured` for
+`completeStructured` and `completeJSON`, and `.streaming` for both recovery
+stream APIs. Operation JSON values are `ordinary`, `structured` and `streaming`.
+Migrate string comparisons to enum cases and use `rawValue` when a string is
+needed for storage or display:
+
+```swift
+policy.admission = { failure, nextAttempt in
+    let provider: RecoveryProvider = failure.provider
+    let operation: RecoveryOperation = failure.operation
+    if provider == .ollama && operation == .structured {
+        // Supply the caller's decision after checking this exact attempt.
+    }
+    return controller.admission(failure, nextAttempt: nextAttempt)
+}
+policy.observer = { event in
+    if event.operation == .ordinary {
+        controller.recordSafeEvent(event)
+    }
+}
+```
+
+Codable round-trips these closed values, including within lifecycle events.
+Unknown values are rejected. OpenAI and Anthropic formerly emitted `complete`
+and `completeStructured`; stored lifecycle JSON must migrate those operation
+values to `ordinary` and `structured` before decoding. There are no public
+adapter-specific aliases. This vocabulary change preserves request encoding,
+response handling and admission decisions.
+
 ## Sensitive traces are explicitly owned
 
 ``RecoveryEvent`` is Codable and contains correlation IDs, wire numbers, typed

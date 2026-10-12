@@ -11,6 +11,13 @@ Policy presence defaults to one attempt. Request bytes are encoded once and rema
 identical across explicitly admitted retries; client IDs provide correlation,
 not provider idempotency.
 
+Both recovery streaming APIs identify their operation as
+``RecoveryOperation/streaming`` on final failures, retry history, admission
+observations and lifecycle events. Provider identity is a ``RecoveryProvider``;
+its value still selects the provider's framing, finish rules and metadata
+protection. See <doc:BufferedCompletionRecovery#Use-the-shared-provider-and-operation-types>
+for the closed vocabulary and migration of stored lifecycle JSON.
+
 ## Migrate a tool-capable stream
 
 Reuse the admission policy from <doc:BufferedCompletionRecovery>, with a controller

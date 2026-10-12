@@ -167,7 +167,7 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
             responseFormat: OpenAIGateway.responseFormatPayload(.jsonSchema(schema)),
         )
         if recovery != nil {
-            return try await recoveryChat(body: body, structured: true, operation: "structured") { response in
+            return try await recoveryChat(body: body, structured: true, operation: .structured) { response in
                 let value = try JSONDecoder().decode(JSONValue.self, from: Data(response.content.utf8))
                 return StructuredGatewayResponse(value: value, response: response)
             }
@@ -356,7 +356,7 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
 
     private func chat(body: JSONValue, structured: Bool) async throws -> LLMGatewayResponse {
         if recovery != nil {
-            return try await recoveryChat(body: body, structured: structured, operation: "ordinary") { $0 }
+            return try await recoveryChat(body: body, structured: structured, operation: .ordinary) { $0 }
         }
         let response = try await send(
             TransportRequest(method: "POST", url: url("chat/completions"), body: body)
@@ -367,13 +367,13 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
     private func recoveryChat<Result: Sendable>(
         body: JSONValue,
         structured: Bool,
-        operation: String,
+        operation: RecoveryOperation,
         project: (LLMGatewayResponse) throws -> Result,
     ) async throws -> Result {
         guard let recovery else {
             throw MojenticError.invalidArgument(message: "Recovery policy is required")
         }
-        var engine = BufferedRecovery(policy: recovery, provider: "omlx", operation: operation)
+        var engine = BufferedRecovery(policy: recovery, provider: .omlx, operation: operation)
         return try await engine.run(
             url: url("chat/completions"),
             headers: authHeaders(),

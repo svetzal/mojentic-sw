@@ -9,7 +9,7 @@ enum StreamingRecovery {
 
     static func gatewayEvents(
         policy: CompletionRecoveryPolicy,
-        provider: String,
+        provider: RecoveryProvider,
         url: URL,
         headers: [String: String],
         body: some Encodable & Sendable,
@@ -37,7 +37,7 @@ enum StreamingRecovery {
                             try await delivery.send(
                                 .done(
                                     finishReason: evidence.finishReason.map { reason in
-                                        if provider == "anthropic" {
+                                        if provider == .anthropic {
                                             return reason == "tool_use" ? .toolCalls : .stop
                                         }
                                         return FinishReason(rawValue: reason) ?? .other
@@ -65,7 +65,7 @@ enum StreamingRecovery {
 
     static func completionEvents(
         policy: CompletionRecoveryPolicy,
-        provider: String,
+        provider: RecoveryProvider,
         url: URL,
         headers: [String: String],
         body: some Encodable & Sendable,
@@ -121,14 +121,14 @@ enum StreamingRecovery {
 
     private static func run(
         policy: CompletionRecoveryPolicy,
-        provider: String,
+        provider: RecoveryProvider,
         endpoint: (URL, [String: String]),
         body: some Encodable & Sendable,
         timeout: TimeInterval?,
         singleTurn: Bool,
         delivery: Delivery,
     ) async throws {
-        var engine = BufferedRecovery(policy: policy, provider: provider, operation: "streaming")
+        var engine = BufferedRecovery(policy: policy, provider: provider, operation: .streaming)
         try engine.validatePolicy()
         let bytes: Data
         do {

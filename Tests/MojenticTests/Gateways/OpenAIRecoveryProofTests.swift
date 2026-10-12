@@ -27,7 +27,7 @@ struct OpenAIRecoveryProofTests {
             )
         }
         #expect(error.outcome == .captureFailed)
-        #expect(error.failure.provider == "openai")
+        #expect(error.failure.provider == .openAI)
         #expect(error.failure.progress.observed.contentBytes == 2)
         #expect(error.failure.progress.observed.reasoningBytes == 3)
         #expect(error.failure.progress.observed.toolFragments == 1)

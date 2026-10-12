@@ -42,6 +42,7 @@ are closed by the acceptance evidence below; the remaining gaps stay open.
 | oMLX keepalive correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (353 in 95 suites), full-trait tests (365 in 100 suites), and DocC with warnings as errors. The fixture-shaped loopback regression suite failed without the oMLX guard and passed with it. No dependency changes. |
 | Capability correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (356 in 96 suites), full-trait tests (369 in 101 suites), and DocC with warnings as errors. The full-trait public capability probe rejected the old idempotency value and passed with the correction. |
 | Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
+| Provider/operation vocabulary correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (361 in 98 suites), full-trait tests (374 in 103 suites), and DocC with warnings as errors. The public loopback probe rejected the old operation vocabulary and passed after migration. OSV scanned three packages with no issues; no dependencies changed. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -302,6 +303,41 @@ cancellation implementation, legacy entrypoint or provider trait boundary
 changes. Capability values do not authorize a retry or prove remote termination.
 No live provider cancellation/status/idempotency experiment was performed.
 
+## Provider and operation acceptance (October 12 amendment)
+
+The authoritative root contract's **Operation and provider** amendment is met
+by `RecoveryProvider` and `RecoveryOperation`, closed Sendable, Codable enums.
+All four provider identities are available independently of provider traits.
+Every adapter uses `ordinary`, `structured` and `streaming`, including both
+recovery stream APIs. Failures, history, admission callbacks and lifecycle
+events expose these types; no adapter-specific string aliases remain.
+
+`RecoveryVocabularyTests.publicVocabulary` characterizes loopback HTTP through
+ordinary and structured buffered calls and both recovery streaming paths for
+Ollama, oMLX, OpenAI and Anthropic (full traits). Before migration, the same
+assertions passed with the old operation expectations. Changing only the
+licensed operation expectations rejected OpenAI and Anthropic failures and
+lifecycle JSON; the migrated implementation passes. It asserts final failures,
+retry and report history, admission observations, lifecycle order, exact
+captured/socket request bytes, response evidence, two actual sends, shared
+logical identity and distinct attempt identities. Event Codable round-trips
+and rejects unknown provider and operation values.
+
+`RecoveryVocabularyCodableTests` consumes the public types without testable
+import, exhaustively switches over all cases, asserts exact serialized values
+and round-trips, and rejects unknown values and former operation aliases.
+
+Routing retains every characterized decision: buffered operation phase and
+interruption handling; streaming provider framing and finish handling; buffered
+provider semantic fields; metadata code allowlists and native error/header
+fields; oMLX's typed `recoveryChat` operation and keepalive guard. Admission,
+cancellation, tools and legacy non-recovery paths keep their prior behavior.
+The required gates exercise the existing regression suites for these paths.
+
+Only the vocabulary sub-gap of gap 9 is closed. Other documentation omissions
+and the remaining open gaps below remain explicit. No dependency, version,
+release or live-inference change is included.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -324,11 +360,12 @@ no test would catch if it regressed.
    `retryableStatuses` or `retryableCategories` changes eligibility. HTTP 500
    and 502 are never exercised. Policy validation, the jitter clamp and the
    exponent cap have no tests.
-9. **Documentation.** `CHANGELOG.md` has no entry for the recovery API, which
-   is new since `v2.1.0`. There is no runnable example under `Examples/`.
-   Operation names are free strings and differ between adapters (`ordinary`
-   and `structured` for Ollama and oMLX, but `complete` and
-   `completeStructured` for OpenAI and Anthropic).
+9. **Documentation.** `CHANGELOG.md` records scoped recovery corrections but
+   lacks a general introduction of the recovery API, which is new since
+   `v2.1.0`. There is no runnable example under `Examples/`.
+   The provider/operation vocabulary sub-gap is closed by the October 12
+   acceptance above; the broader recovery API changelog entry and runnable
+   example remain missing.
 
 ## Documented limits
 

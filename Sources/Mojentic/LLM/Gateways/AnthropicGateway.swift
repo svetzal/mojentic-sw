@@ -95,7 +95,7 @@ import Logging
                 extraSystemSuffix: nil,
             )
             if let recovery {
-                var engine = BufferedRecovery(policy: recovery, provider: "anthropic", operation: "complete")
+                var engine = BufferedRecovery(policy: recovery, provider: .anthropic, operation: .ordinary)
                 return try await engine.run(
                     url: baseURL.appendingPathComponent("messages"),
                     headers: authHeaders(),
@@ -150,7 +150,7 @@ import Logging
             )
             if let recovery {
                 var engine = BufferedRecovery(
-                    policy: recovery, provider: "anthropic", operation: "completeStructured",
+                    policy: recovery, provider: .anthropic, operation: .structured,
                 )
                 return try await engine.run(
                     url: baseURL.appendingPathComponent("messages"),
@@ -269,7 +269,7 @@ import Logging
             )
             return StreamingRecovery.gatewayEvents(
                 policy: recovery,
-                provider: "anthropic",
+                provider: .anthropic,
                 url: baseURL.appendingPathComponent("messages"),
                 headers: authHeaders(),
                 body: body,
@@ -303,7 +303,7 @@ import Logging
             )
             return StreamingRecovery.completionEvents(
                 policy: recovery,
-                provider: "anthropic",
+                provider: .anthropic,
                 url: baseURL.appendingPathComponent("messages"),
                 headers: authHeaders(),
                 body: body,
