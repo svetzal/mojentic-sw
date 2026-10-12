@@ -15,6 +15,13 @@ move independently.
 
 ### Changed
 
+- Recovery failures, evidence, wire captures, errors and reports now expose only
+  safe children through `CustomReflectable`, including nested failure histories
+  and public streaming failure events. Default reflection and `dump` omit raw
+  headers, URLs, body bytes and causes while retaining exact safe metadata and
+  identities. Explicit evidence inspection and wire associated values retain
+  their original headers, bytes and typed causes.
+
 - Recovery failures, admission observations and lifecycle events now expose
   closed `RecoveryProvider` and `RecoveryOperation` enums. All four adapters
   share `ordinary`, `structured` and `streaming` operation values. OpenAI and

@@ -121,6 +121,16 @@ It contains no headers, model names, payload text, tool arguments, provider IDs,
 or cause text. Reports and errors have safe default summaries and deliberately
 have no automatic Codable conformance for their sensitive evidence.
 
+Default `Mirror`, recursive reflection and `dump` also exclude sensitive evidence.
+``RecoveryFailure``, ``RecoveryError`` and ``CompletionRecoveryReport`` retain
+exact safe metadata, correlation identities, progress and recursively safe
+failure histories. ``RecoveryEvidence`` exposes only validated provider code
+and request ID through its mirror. ``RecoveryWireEvent`` exposes its `kind`,
+exact `identity` and received `status` for headers; URLs, headers and bytes are
+available only through explicit pattern matching. `inspectEvidence()` still
+returns the original headers, received bytes and typed cause without redaction.
+These explicit inspection boundaries require your sensitive-data storage policy.
+
 ```swift
 policy.observer = { event in controller.recordSafeEvent(event) }
 policy.wireObserver = { wireEvent in

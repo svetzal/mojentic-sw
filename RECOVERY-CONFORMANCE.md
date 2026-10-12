@@ -43,6 +43,7 @@ are closed by the acceptance evidence below; the remaining gaps stay open.
 | Capability correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (356 in 96 suites), full-trait tests (369 in 101 suites), and DocC with warnings as errors. The full-trait public capability probe rejected the old idempotency value and passed with the correction. |
 | Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
 | Provider/operation vocabulary correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (361 in 98 suites), full-trait tests (374 in 103 suites), and DocC with warnings as errors. The public loopback probe rejected the old operation vocabulary and passed after migration. OSV scanned three packages with no issues; no dependencies changed. |
+| Default formatting correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (364 in 99 suites), full-trait tests (377 in 104 suites), and DocC with warnings as errors. The public loopback reflection assertions fail without the correction and pass with it. OSV scanned three locked packages with no issues; dependencies are unchanged. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -127,7 +128,7 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Keepalive only | met; fixture-shaped oMLX data frames are raw progress only in both recovery APIs, exact bytes and explicit admission | `StreamingRecoveryTimingTests.keepaliveAdmissionRemainsPending`, `OMLXRecoveryKeepAliveTests.keepaliveOnlyRequiresAdmission` |
 | oMLX interleaved keepalives | met; October 12 amendment, exact output, genuine metadata and frame indices preserved, terminal success and lifecycle order; OpenAI and `keepalive-2` preserved | `OMLXRecoveryKeepAliveTests.interleavedKeepalivesPreserveGenuineFrames`, `.exactModelAndProviderGuard` |
 | Compatibility | met, exact | `ReasoningHistoryConformanceTests.defaultPolicyKeepsOneAttemptWithNilHistory`, `RecoveryConformanceTests.disabledRecoveryRetainsLegacyOneSend`, `.successfulLegacyAndRecoveryResultsMatch`, `ReleaseBaselineCompatibilityTests.configuredRecoveryDoesNotChangeLegacyStreams`, `StreamingRecoveryTests.legacyRemainsSingleSend` |
-| Privacy | partial (gaps 2 and 6) | sentinel checks of `String(describing:)`, `String(reflecting:)` and event JSON in `StreamingRecoveryTests`, `AnthropicRecoveryCaptureTests`, `RecoveryStatusConformanceTests` |
+| Privacy: default formatting and reflection | met; exact safe children, recursive private-field exclusion and explicit evidence retention | `RecoveryReflectionTests`, `RecoveryReflectionTestSupport`; event JSON checks remain in `RecoveryStatusConformanceTests` |
 | Broker tools | met, exact | `StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp`, `.recoveryPreservesStreamingToolDepth`, `RecoveryToolSafetyTests.recoveryDoesNotResetToolDepth` |
 | Capabilities | met; all twenty values explicitly asserted through public accessors, including Anthropic under full traits | `RecoveryCapabilityTests` |
 
@@ -338,6 +339,36 @@ Only the vocabulary sub-gap of gap 9 is closed. Other documentation omissions
 and the remaining open gaps below remain explicit. No dependency, version,
 release or live-inference change is included.
 
+## Default formatting acceptance (October 12 amendment)
+
+`RecoveryFailure`, `RecoveryEvidence`, `RecoveryWireEvent`, `RecoveryError` and
+`CompletionRecoveryReport` implement `CustomReflectable`. Failure mirrors expose
+all safe metadata, including exact logical and attempt identities, progress,
+provider metadata, classification and retry evidence. Evidence mirrors expose
+only validated provider code and request ID. Wire mirrors expose `kind`, exact
+`identity` and the received `status` for the headers case. URLs, headers, raw
+bytes and causes have no reachable reflection children. Errors and reports keep
+useful safe failures and history; nested `recoveryFailure` events inherit those
+safe mirrors without changing their public delivery or associated values.
+
+`RecoveryReflectionTests.allPublicBoundaries` exercises scripted loopback HTTP
+503 exhaustion through ordinary, structured, JSON, tool-stream and single-turn
+completion APIs on Ollama, oMLX, OpenAI and trait-enabled Anthropic (20 cases).
+The probe checks `Mirror`, recursive reflection, `dump`, `String(describing:)`
+and `String(reflecting:)` for failures, evidence, histories, reports, every wire
+case and actual single-turn failure events. Exact child names and values prevent
+indiscriminate masking; recursive checks reject private fields, byte containers,
+header dictionaries, URLs and raw causes. Explicit inspection retains exact
+headers, UTF-8 bytes and typed HTTP status causes. Capture bytes match actual
+socket requests, both attempts share a logical ID with distinct attempt IDs,
+and lifecycle order and terminal delivery are asserted. Synthetic cases add
+secret-bearing URLs and typed cause messages while retaining safe provider IDs.
+
+The public-boundary proof fails without the reflection correction and passes
+with it; the expanded full-trait assertions also reject the uncorrected types.
+Only the reflection sub-gap of gap 6 is closed. The remaining telemetry and
+broker/session cause requirements below are unchanged.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -348,8 +379,6 @@ no test would catch if it regressed.
    runs them through `LLMBroker.stream`, `ChatSession.stream` or
    `generateRecoveryStreamEvents`.
 6. **Weaker privacy and cause evidence.**
-   - No type customises `Mirror`, so `dump` and debugger views reach private
-     evidence. No test checks this.
    - The safe fields of `RecoveryEvent` (phase, category, eligible, reason,
      acceptance, delay, operation) are now asserted for admission scenarios.
      Equivalent coverage for other recovery scenarios remains incomplete.

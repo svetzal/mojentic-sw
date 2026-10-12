@@ -347,3 +347,13 @@ The guarantee covers final failures, history, admission callbacks, completion
 reports and the metadata accessors returned by `inspectEvidence()`. Raw response
 headers, received bytes and typed causes remain unchanged and sensitive.
 See <doc:BufferedCompletionRecovery> for the exact allowlists and token rules.
+
+## Safe default reflection
+
+``RecoveryCompletionStreamEvent/recoveryFailure(_:)`` retains its typed
+``RecoveryError`` and history. Default strings, `Mirror`, recursive reflection
+and `dump` cannot traverse private recovery headers, bytes or cause messages,
+including through nested terminal events and reports. Safe identities, progress,
+classifications and validated provider metadata retain their exact values.
+Use `inspectEvidence()` or explicit ``RecoveryWireEvent`` pattern matching to
+inspect the unchanged sensitive evidence. See <doc:BufferedCompletionRecovery>.
