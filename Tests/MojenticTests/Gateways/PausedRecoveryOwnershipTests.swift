@@ -35,18 +35,40 @@ final class RecoveryConsumerPause: @unchecked Sendable {
 }
 
 struct PausedRecoveryOwnershipTests {
+    private enum RetainedStream: Sendable {
+        case gateway(AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>)
+        case relay(AsyncThrowingStream<StreamEvent, any Error>)
+        case completion(AsyncStream<RecoveryCompletionStreamEvent>)
+    }
+
+    struct Scenario: Sendable {
+        let path: String
+        let phase: String
+        let delayIteration: Bool
+
+        init(_ path: String, _ phase: String, delayIteration: Bool = false) {
+            self.path = path
+            self.phase = phase
+            self.delayIteration = delayIteration
+        }
+    }
+
     @Test(
         arguments: StreamingBoundary.withAnthropic,
         [
-            ("gateway", "keepalive"), ("gateway", "terminal"), ("broker", "keepalive"),
-            ("broker", "terminal"), ("session", "keepalive"), ("session", "terminal"),
+            Scenario("gateway", "keepalive"), Scenario("gateway", "terminal"),
+            Scenario("broker", "keepalive"), Scenario("broker", "terminal"),
+            Scenario("session", "keepalive"), Scenario("session", "terminal"),
+            Scenario("session", "keepalive", delayIteration: true),
+            Scenario("session", "terminal", delayIteration: true),
         ],
     )
     func pausedConsumerClosesActiveHTTPBeforeResuming(
         _ boundary: StreamingBoundary,
-        _ scenario: (String, String),
+        _ scenario: Scenario,
     ) async throws {
-        let (path, phase) = scenario
+        let path = scenario.path
+        let phase = scenario.phase
         if boundary.single, path == "session" {
             return
         }
@@ -71,49 +93,45 @@ struct PausedRecoveryOwnershipTests {
                 wireReady.continuation.yield(())
             }
         }
-        policy.reportObserver = { value in report.withLock { $0 = value } }
+        let cleanup = AsyncStream<Void>.makeStream()
+        policy.reportObserver = { value in
+            report.withLock { $0 = value }
+            cleanup.continuation.yield(())
+        }
         let ready = AsyncStream<Void>.makeStream()
         let pause = RecoveryConsumerPause()
+        let producerPause = RecoveryConsumerPause()
+        let producerFinished = AsyncStream<Void>.makeStream()
+        let beforeIteration: @Sendable () async -> Void = {
+            if scenario.delayIteration {
+                await producerPause.wait()
+            }
+        }
+        let retained = RecoveryLocked<RetainedStream?>(nil)
+        let finished: @Sendable (String) -> Void = { type in
+            if type == "Mojentic.StreamEvent" {
+                producerFinished.continuation.yield(())
+            }
+        }
+        let calls = RecoveryToolCounter()
+        let tools: [any LLMTool] = [RecoveryCountingTool(calls: calls)]
         let gateway = boundary.gateway(server, policy)
         let broker = LLMBroker(gateway: gateway)
-        let chat = ChatSession(broker: broker, model: "fixture")
+        let chat = ChatSession(broker: broker, model: "fixture", tools: tools)
         let task = Task {
-            try await withRecoveryStreamCancellation {
-                if boundary.single {
-                    let stream: AsyncStream<RecoveryCompletionStreamEvent> =
-                        if path == "gateway" {
-                            try gateway.completeStreamEventsRecovering(
-                                model: "fixture", messages: [], config: .init(),
-                            )
-                        } else {
-                            broker.generateRecoveryStreamEvents(model: "fixture", messages: [])
-                        }
-                    var wire = wireReady.stream.makeAsyncIterator()
-                    _ = await wire.next()
-                    ready.continuation.yield(())
-                    await pause.wait()
-                    withExtendedLifetime(stream) {}
-                } else if path == "gateway" {
-                    let stream = gateway.streamRecovering(
-                        model: "fixture", messages: [], tools: nil, config: .init(),
-                    )
-                    var wire = wireReady.stream.makeAsyncIterator()
-                    _ = await wire.next()
-                    ready.continuation.yield(())
-                    await pause.wait()
-                    withExtendedLifetime(stream) {}
-                } else {
-                    let stream =
-                        if path == "session" {
-                            chat.stream("fixture")
-                        } else {
-                            broker.stream(model: "fixture", messages: [])
-                        }
-                    var wire = wireReady.stream.makeAsyncIterator()
-                    _ = await wire.next()
-                    ready.continuation.yield(())
-                    await pause.wait()
-                    withExtendedLifetime(stream) {}
+            try await RecoveryDeliveryScheduling.$beforeSessionIteration.withValue(beforeIteration) {
+                try await RecoveryDeliveryScheduling.$finished.withValue(finished) {
+                    try await withRecoveryStreamCancellation {
+                        let stream = try publicStream(
+                            boundary, path: path, gateway: gateway, broker: broker, chat: chat, tools: tools,
+                        )
+                        retained.withLock { $0 = stream }
+                        var wire = wireReady.stream.makeAsyncIterator()
+                        _ = await wire.next()
+                        ready.continuation.yield(())
+                        await pause.wait()
+                        withExtendedLifetime(stream) {}
+                    }
                 }
             }
         }
@@ -121,8 +139,9 @@ struct PausedRecoveryOwnershipTests {
         _ = await signal.next()
         task.cancel()
         // Cleanup and FIN must occur with the public stream and consumer still held.
-        let cleaned = try await awaitCleanup(report)
-        #expect(cleaned != nil)
+        var cleanupSignal = cleanup.stream.makeAsyncIterator()
+        _ = await cleanupSignal.next()
+        let cleaned = try #require(report.withLock { $0 })
         if phase == "keepalive" {
             #expect(server.waitForPeerClose())
         }
@@ -136,10 +155,82 @@ struct PausedRecoveryOwnershipTests {
             phase: phase,
             single: boundary.single,
         )
+        producerPause.resume()
+        if path == "session" {
+            // Both broker and session relays finish before history is inspected.
+            // The public stream and its consumer remain held throughout rollback.
+            var completion = producerFinished.stream.makeAsyncIterator()
+            _ = await completion.next()
+            _ = await completion.next()
+            #expect(await chat.messages() == [])
+        }
+        #expect(calls.value.withLock { $0 } == 0)
+        try await assertCancellation(try #require(retained.withLock { $0 }), path: path)
+        #expect(calls.value.withLock { $0 } == 0)
         pause.resume()
         try await task.value
-        if path == "session" {
-            #expect(await chat.messages().isEmpty)
+    }
+
+    private func publicStream(
+        _ boundary: StreamingBoundary,
+        path: String,
+        gateway: any LLMGateway,
+        broker: LLMBroker,
+        chat: ChatSession,
+        tools: [any LLMTool],
+    ) throws -> RetainedStream {
+        if boundary.single {
+            let stream =
+                if path == "gateway" {
+                    try gateway.completeStreamEventsRecovering(
+                        model: "fixture", messages: [], config: .init())
+                } else {
+                    broker.generateRecoveryStreamEvents(model: "fixture", messages: [])
+                }
+            return .completion(stream)
+        }
+        if path == "gateway" {
+            return .gateway(
+                gateway.streamRecovering(model: "fixture", messages: [], tools: nil, config: .init()))
+        }
+        return .relay(
+            path == "session"
+                ? chat.stream("fixture")
+                : broker.stream(model: "fixture", messages: [], tools: tools)
+        )
+    }
+
+    private func assertCancellation(_ stream: RetainedStream, path: String) async throws {
+        switch stream {
+        case .completion(let stream):
+            var iterator = stream.makeAsyncIterator()
+            let event = try #require(await iterator.next())
+            if case .recoveryFailure(let failure) = event {
+                #expect(failure.outcome == .cancelled)
+            } else if case .error(.cancelled) = event, path == "broker" {
+                // The existing broker relay can expose MojenticError on cancellation.
+            } else {
+                Issue.record("Expected a recovery cancellation, got \(event)")
+            }
+            #expect(await iterator.next() == nil)
+        case .gateway(let stream):
+            do {
+                for try await _ in stream {
+                    Issue.record("Gateway delivery after cancellation")
+                }
+                Issue.record("Cancelled gateway completed successfully")
+            } catch let failure as RecoveryError {
+                #expect(failure.outcome == .cancelled)
+            }
+        case .relay(let stream):
+            do {
+                for try await _ in stream {
+                    Issue.record("Relay delivery after cancellation")
+                }
+                Issue.record("Cancelled relay completed successfully")
+            } catch let failure as RecoveryError {
+                #expect(failure.outcome == .cancelled)
+            } catch MojenticError.cancelled {}
         }
     }
 
@@ -178,16 +269,6 @@ struct PausedRecoveryOwnershipTests {
                 $0.key.lowercased() == "x-request-id" && $0.value == "original-header"
             } == true
         )
-    }
-
-    private func awaitCleanup(
-        _ report: RecoveryLocked<CompletionRecoveryReport?>
-    ) async throws -> CompletionRecoveryReport? {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while report.withLock({ $0 }) == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        return report.withLock { $0 }
     }
 
     private func replyBody(boundary: StreamingBoundary, phase: String) throws -> String {

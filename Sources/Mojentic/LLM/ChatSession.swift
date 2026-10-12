@@ -148,6 +148,9 @@ public actor ChatSession {
         do {
             let trimmed = try await prepared(history)
             let upstream = broker.stream(model: model, messages: trimmed, tools: tools, config: config)
+            if RecoveryCancellationScope.current != nil {
+                await RecoveryDeliveryScheduling.beforeSessionIteration?()
+            }
             for try await event in upstream {
                 switch event {
                 case .textDelta(let delta): accumulated += delta
@@ -155,6 +158,10 @@ public actor ChatSession {
                 default: break
                 }
                 try await deliver(event)
+            }
+            if RecoveryCancellationScope.current != nil {
+                // A cancelled iterator can end normally; that is not session success.
+                try Task.checkCancellation()
             }
         } catch {
             if history.last == userMessage {

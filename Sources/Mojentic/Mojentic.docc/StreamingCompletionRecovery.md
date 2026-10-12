@@ -244,13 +244,18 @@ Reading all preceding content, progress and metrics does not establish completio
 If scoped cancellation rejects final delivery, the attempt records one failure and
 one cancellation, retaining status, headers, response bytes, counters and the typed
 cause. The throwing recovery gateway exposes `RecoveryError`; the single-turn
-recovery gateway and scoped broker completion relay expose `recoveryFailure`.
+recovery gateway exposes `recoveryFailure`. A scoped broker completion relay can
+also expose `.error(.cancelled)` when its cancelled upstream iterator ends normally.
 No resend follows this cancellation.
 
 Within `withRecoveryStreamCancellation`, broker tool streams and ChatSession streams
 retain this accounting until their outer terminal is accepted. Already completed tool
 turns settle before dispatch, so cancelling a later final delivery does not rerun a
-tool. A cancelled session rolls back its pending user/assistant exchange.
+tool. A cancelled session rolls back its pending user/assistant exchange. The scoped
+session producer checks cancellation before committing history even when upstream
+iteration ends normally. HTTP cleanup reporting and independent relay completion
+are distinct boundaries; cleanup reporting alone does not establish that session
+rollback has finished.
 
 The loopback conformance tests retain the stream and iterator while paused after all
 nonterminal events. Cleanup and reporting must finish before that pause is released.

@@ -2,6 +2,7 @@ import Foundation
 
 /// Internal scheduling seam for the cancellation/registration interleaving.
 enum RecoveryDeliveryScheduling {
+    @TaskLocal static var beforeSessionIteration: (@Sendable () async -> Void)?
     @TaskLocal static var didDeliver: (@Sendable () -> Void)?
     @TaskLocal static var finished: (@Sendable (String) -> Void)?
     @TaskLocal static var beforeSenderRegistration: (@Sendable (String) async -> Void)?

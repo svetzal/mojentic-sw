@@ -37,8 +37,9 @@ evidence below.
 | All six `.hone-gates.json` gates on macOS 27.2, Swift 6.4, October 12, 2026 | Passed. `swift test --parallel`: 338 tests in 90 suites. `swift test --traits full`: 350 tests in 95 suites. |
 | Provider metadata correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed. Default: 341 tests in 92 suites; full traits: 353 tests in 97 suites. Strict format, SwiftLint, release build and DocC with warnings as errors passed. |
 | Dependency security for the metadata correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
-| Admission amendment, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`. Default: 350 tests in 94 suites; full traits: 362 tests in 99 suites. Strict format, SwiftLint 0.65.1, release build and DocC with warnings as errors passed. |
-| Dependency security for the admission amendment | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
+| Preserved admission amendment | The earlier all-six-gates claim is withdrawn: cancellation could commit session history, and the rollback assertion lacked a producer-completion boundary. The deterministic probe rejected all eight delayed session cases before correction. |
+| Cancellation correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed on the corrected tree through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (350 in 94 suites), full-trait tests (362 in 99 suites), and DocC with warnings as errors. The focused public-boundary probe failed without the cancellation check and passed with it. |
+| Dependency security for the admission amendment and cancellation correction | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -205,6 +206,33 @@ for Ollama, oMLX, OpenAI and Anthropic (the latter under full traits).
 All admission decisions still converge in `BufferedRecovery.admit`, including
 both `StreamingRecovery` entrypoints. Eligibility, cancellation, attempt limits,
 Retry-After/backoff, capture and no-replay-after-output checks remain in place.
+Other open gaps below remain explicit.
+
+## Paused session cancellation correction
+
+The admission implementation and its tests are preserved. `ChatSession.runStream`
+now checks scoped producer cancellation inside its rollback-protected block after
+upstream iteration, before committing an assistant turn. Swift can end a cancelled
+iterator normally; that end no longer establishes successful session completion.
+The check is scoped to recovery cancellation ownership; legacy unscoped streaming
+keeps its existing behavior.
+
+`PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming` keeps
+both the original scheduling cases and a deterministic interleaving that pauses the
+session producer before upstream iteration. It uses the real public stream and
+scripted loopback HTTP across Ollama, oMLX, OpenAI and Anthropic. The caller and
+public stream remain alive while HTTP cleanup and keepalive peer closure are
+checked. A report callback signals HTTP cleanup; both broker and session relay
+completion callbacks must arrive before history is inspected. No sleep substitutes
+for either completion boundary.
+
+Assertions retain exact lifecycle order, body bytes, headers, request payload,
+logical/attempt identity, one actual wire request, observed and delivered progress,
+zero tool executions, restored empty session history, and cancellation on the
+retained public stream. The deterministic session cases fail without the scoped
+cancellation check and pass with it, for both keepalive and terminal responses.
+A broker single-turn relay can expose `.error(.cancelled)` rather than a typed
+`recoveryFailure`; this existing limitation is retained, not corrected here.
 Other open gaps below remain explicit.
 
 ## Open gaps
