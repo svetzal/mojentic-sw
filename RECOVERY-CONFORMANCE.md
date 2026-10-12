@@ -93,7 +93,7 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Case | Status | Proving tests |
 | --- | --- | --- |
 | 503 then success | met, all adapters and operations, exact | `RecoveryStatusConformanceTests`, `RecoveryJSONConformanceTests`, `RecoveryConformanceTests.bothOperationsPreserveShapingAndResults`, `StreamingRecoveryProofTests.publicHTTPRecovery`, `RecoveryMetadataConformanceTests.publicMetadata` |
-| 429 and Retry-After | met with limit (gap 3), exact | `RecoveryTimingTests.retryAfterUsesInjectedTiming`, `.pastDateDoesNotReplaceJitterDelay`, `.retryAfterLimitRefusesResend`, `StreamingRecoveryTimingTests.retryAfterPreservesPolicy`, `.retryAfterRefusal` |
+| 429 and Retry-After | met, all adapters and operations, all three date forms, exact | `RecoveryTimingTests.retryAfterUsesInjectedTiming`, `.pastDateDoesNotReplaceJitterDelay`, `.retryAfterLimitRefusesResend`, `StreamingRecoveryTimingTests.retryAfterPreservesPolicy`, `.retryAfterRefusal`, `RecoveryHTTPDateTests` |
 | Persistent 504 | met, all adapters and operations, exact | `RecoveryStatusConformanceTests.persistent504ExhaustsExactLimit` |
 | Ambiguous local timeout | met for buffered; streaming uses a truncated body, not a client timeout | `ambiguousFailureWithoutHookRequiresAdmission`, `pendingAdmissionRequiresExplicitDecision`, `timeoutRemainsPendingUntilExplicitAllowOrReject`, `keepaliveAdmissionRemainsPending`, `RecoveryMetadataConformanceTests.metadataDisconnectRequiresAdmission` |
 | Cancellation | met; request, admission, backoff, capture and terminal delivery | `RecoveryAdmissionSafetyTests.cancellationWinsOverRefusal` (exact), `RecoveryCancellationTests.cancellationWinsAtEveryBoundary`, `PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming`, `TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt`, `pausedTerminalTelemetryCannotSucceed`, `SenderRegistrationCancellationTests`, `StreamingRecoveryCancellationTests` |
@@ -155,6 +155,25 @@ explicit inspection. Conservative overlap checks can omit a legitimate token tha
 also appears in outbound data. The complete token rules and code allowlists are in
 [BufferedCompletionRecovery.md](Sources/Mojentic/Mojentic.docc/BufferedCompletionRecovery.md).
 
+## Retry-After HTTP-date acceptance (October 12 robustness amendment)
+
+`RecoveryHTTPDateTests` uses scripted loopback HTTP on Ollama, oMLX, OpenAI
+and Anthropic through ordinary, structured, JSON, tool-stream and single-turn
+recovery entrypoints. Each IMF-fixdate, RFC 850 and asctime case asserts the
+exact parsed UTC date, injected sleep, immutable outbound bytes, logical identity,
+distinct attempt identities, wire numbers and lifecycle after 429 then success.
+Future minima exceed jitter; past dates retain jitter. Date-based ceiling and
+remaining-budget refusals retain typed failure/history and make exactly one wire
+request. RFC 850 year tests use the injected clock on both sides of the 50-year
+boundary, including exactly 50 years. Absence, invalidity and integer seconds
+remain distinct. Existing timing assertions are preserved, including the shared
+admission budget timer; StreamingRecovery still delegates timing to BufferedRecovery.
+
+The obsolete-date ceiling probe failed against the original parser by treating
+the date as invalid and sending a second request. It passes with the shared
+three-format parser. Only gap 3 is closed by this amendment; other gaps below
+remain explicit. Legacy non-recovery entrypoints are unchanged.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -169,10 +188,6 @@ no test would catch if it regressed.
    tests the values. To close: decide `unknown` or `unsupported` with a cited
    source for each facility, add the Anthropic property, and test every field
    for every adapter.
-3. **Retry-After date forms.** Only the IMF-fixdate form is parsed. RFC 850
-   and asctime dates count as invalid, so the jittered policy delay applies.
-   That delay can be shorter than the provider's minimum, which the contract
-   forbids. Rust parses all three forms.
 4. **Interruption through broker and session.** The content, reasoning and
    tool interruption cases are tested only at the gateway stream APIs. No test
    runs them through `LLMBroker.stream`, `ChatSession.stream` or

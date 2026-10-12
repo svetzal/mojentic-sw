@@ -396,10 +396,25 @@ extension BufferedRecovery {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.isLenient = false
-        if let date = formatter.date(from: trimmed) {
-            return .date(date)
+        for format in [
+            "EEE, dd MMM yyyy HH:mm:ss 'GMT'",
+            "EEEE, dd-MMM-yy HH:mm:ss 'GMT'",
+            "EEE MMM d HH:mm:ss yyyy",
+        ] {
+            formatter.dateFormat = format
+            if format.contains("-yy ") {
+                // RFC 9110 allows exactly 50 years ahead. DateFormatter's upper bound is
+                // exclusive, so advance the start to the next whole HTTP-date second.
+                let start = formatter.calendar.date(byAdding: .year, value: -50, to: policy.timing.wall())
+                formatter.twoDigitStartDate = start.map {
+                    Date(timeIntervalSince1970: floor($0.timeIntervalSince1970) + 1)
+                }
+            }
+            if let date = formatter.date(from: trimmed) {
+                return .date(date)
+            }
         }
         return .invalid
     }

@@ -142,10 +142,14 @@ refused. Caller idle timeout configuration is retained. Custom session protocol,
 proxy, trust, or TLS configuration is not inherited by this isolated path; callers
 that need those facilities must use the legacy entrypoints, which do not recover.
 
-Retry-After supports integer seconds and IMF-fixdate HTTP dates. The obsolete
-RFC 850 and asctime date forms are treated as invalid, so the policy delay applies. It is a minimum
-backoff; a delay above the ceiling or recovery budget/deadline is refused rather
-than shortened. Authentication/invalid-request statuses 400/401/403 remain
+Retry-After supports integer seconds and all three HTTP-date forms from
+[RFC 9110 section 5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7):
+IMF-fixdate, obsolete RFC 850, and asctime. Dates use UTC and the injected wall
+clock; RFC 850 two-digit years more than 50 years ahead resolve into the past.
+Absent and invalid headers remain distinct and use the jittered policy delay.
+A valid value is a minimum backoff: future dates cannot shorten that delay,
+and past dates retain jitter. A delay above the ceiling or remaining recovery
+budget/deadline is refused rather than shortened. Authentication/invalid-request statuses 400/401/403 remain
 permanent even after truncated bodies and explicit status selection. Protocol,
 capture and cancellation failures cannot be selected into blind retries.
 
