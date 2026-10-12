@@ -3,8 +3,10 @@
 This current-state record covers the transient recovery contract and original
 request, the October 10 supplement, and the authoritative monorepo root
 contract's October 12 amendment. The twelve binding decisions remain in force.
-This change closes only the remaining RecoveryEvent lifecycle-evidence portion
-of gap 6, under Evidence at the public boundary and binding decision 10.
+The preserved lifecycle-evidence work addresses gap 6, under Evidence at the
+public boundary and binding decision 10. Its full-trait validation at the gate
+wrapper's guaranteed 8,192-descriptor capacity remained unresolved; a higher
+host limit did not close that validation gap.
 
 Recovery is implemented for buffered and streaming completion on Ollama, oMLX,
 OpenAI Chat Completions and trait-enabled Anthropic Messages. Lifecycle
@@ -15,16 +17,44 @@ changes accompany this evidence update.
 
 ## Validation and review
 
-All required gates passed on the integrated Linux x86_64 Swift 6.4 source,
-with the process file-descriptor limit set to 65,536.
-Validation covers every discovered
+The corrected loopback fixture has passed the unfiltered full-trait public
+boundary suite on Linux x86_64 Swift 6.4 with a soft descriptor limit of exactly
+8,192: 400 tests in 114 suites, including both 1,027-send exponent-cap cases.
+Final validation of the corrected worktree passed every discovered
 `.hone-gates.json` gate: strict swift-format, strict SwiftLint, release build,
 parallel default tests, full-trait tests and DocC with warnings as errors,
-through `scripts/with-gate-environment`. The configured unfiltered OSV scan
-checked `Package.resolved`: three packages scanned, no issues found.
-The delivered recovery example probe also passed against scripted loopback HTTP.
+through `scripts/with-gate-environment`, plus the configured unfiltered OSV scan
+of `Package.resolved` (three packages, no issues) and the delivered recovery
+example probe against scripted loopback HTTP. All ran in the host login Swift
+6.4 environment at the same 8,192 soft limit. These are worktree results;
+integration and Git finalization belong to Foundry.
 Apple platform and minimum Swift 6.1 CI results are not claimed for this tree.
 The default-trait DocC gate excludes trait-gated Anthropic documentation.
+
+The preserved source rejected the 8,192-limit full-trait public paths. Syscall
+characterization recorded `EMFILE` from client pipes/sockets and fixture
+`socket`, `dup` and `accept`; failed fixture setup then cascaded into transport,
+identity and progress assertions. At the first exhaustion, the trace accounted
+for 1,801 live duplicated listeners, independently of the earlier high-limit
+descriptor total. The two exponent-cap cases also passed separately with all
+1,027 sends and per-attempt transport closure. A further untraced run of the
+preserved binary also passed at 8,192, confirming scheduling-dependent
+exhaustion rather than an inevitable failure. Neither those results nor the
+retained 39-issue interim cancellation log establishes a cancellation defect on
+the preserved source; that log includes peer-close checks in admission/backoff
+phases that the preserved tests already restrict to active requests.
+
+The fixture now transfers one listener to the accept thread and synchronizes
+its close/clear with fixture shutdown. Failed setup closes its descriptor before
+throwing with socket errno. This removes redundant simultaneous ownership
+without changing test concurrency, coverage, assertions, delays or gates.
+An independent probe forces accept exit, reuses the listener descriptor for a
+connected socket and checks exact bytes after fixture destruction. The unsafe
+intermediate ownership scheme rejects with `EPIPE`; the locked scheme passes.
+The RecoveryHTTP invalidation-order lead did not fix the required failure and
+was reverted; library runtime behavior is unchanged. Full-suite syscall tracing
+after correction found no `EMFILE` but still failed timing/registration checks;
+those diagnostic failures are retained, not claimed as passing validation.
 
 Independent skeptical review inspected public implementation paths and the
 strength of assertions, including classification versus terminal outcome,
@@ -172,7 +202,7 @@ phase, category, eligibility, reason or delay, and zero progress.
 
 The new lifecycle fixture suites serialize their parameterized cases to bound
 additional socket usage. The gate environment retains its existing descriptor
-floor; validation uses a higher host limit. The parallel gate and all
+floor; validation sets the soft limit to exactly 8,192. The parallel gate and all
 existing cancellation tests remain unchanged.
 
 The existing sender-registration cancellation, cleanup, socket closure, terminal

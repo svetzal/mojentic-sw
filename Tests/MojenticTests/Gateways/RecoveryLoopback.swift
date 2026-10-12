@@ -19,7 +19,7 @@ struct RecoveryReply: Sendable {
 
 /// A real loopback HTTP server with deterministic request/active-send signals.
 ///
-/// Only the condition protecting held replies is shared with the server thread.
+/// Listener ownership and reply state are synchronized with the server thread.
 final class RecoveryLoopback: @unchecked Sendable {
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
@@ -27,7 +27,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
     private let arrival: AsyncStream<Int>.Continuation
-    private let socketFD: Int32
+    private let listener = RecoveryLocked<Int32?>(nil)
     private let replies: [RecoveryReply]
     private let condition = NSCondition()
     private let requestCondition = NSCondition()
@@ -51,12 +51,13 @@ final class RecoveryLoopback: @unchecked Sendable {
         arrivals = stream.stream
         arrival = stream.continuation
         #if os(Linux)
-            socketFD = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+            let descriptor = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
         #else
-            socketFD = socket(AF_INET, SOCK_STREAM, 0)
+            let descriptor = socket(AF_INET, SOCK_STREAM, 0)
         #endif
-        let descriptor = socketFD
-        #expect(descriptor >= 0)
+        try #require(descriptor >= 0, "socket failed with errno \(errno)")
+        var transferred = false
+        defer { if !transferred { close(descriptor) } }
         var address = sockaddr_in()
         address.sin_family = sa_family_t(AF_INET)
         address.sin_addr.s_addr = inet_addr("127.0.0.1")
@@ -65,20 +66,31 @@ final class RecoveryLoopback: @unchecked Sendable {
                 bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        #expect(bindResult == 0)
-        #expect(listen(descriptor, 8) == 0)
+        try #require(bindResult == 0, "bind failed with errno \(errno)")
+        try #require(listen(descriptor, 8) == 0, "listen failed with errno \(errno)")
         var length = socklen_t(MemoryLayout<sockaddr_in>.size)
         let nameResult = withUnsafeMutablePointer(to: &address) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(descriptor, $0, &length) }
         }
-        #expect(nameResult == 0)
+        try #require(nameResult == 0, "getsockname failed with errno \(errno)")
         url = try #require(URL(string: "http://127.0.0.1:\(UInt16(bigEndian: address.sin_port))"))
+        // The accept thread owns the listener until shutdown unblocks it. Keeping
+        // it open until accept returns prevents descriptor reuse during teardown;
+        // a second descriptor for the same socket is unnecessary.
+        // Closure and shutdown share ownership state, so an accept error cannot
+        // leave teardown addressing a descriptor that another socket has reused.
         // A weak owner prevents the blocking accept loop from retaining the fixture.
-        let threadDescriptor = dup(descriptor)
-        Thread.detachNewThread { [weak self] in
-            defer { close(threadDescriptor) }
+        listener.withLock { $0 = descriptor }
+        transferred = true
+        Thread.detachNewThread { [weak self, listener] in
+            defer {
+                listener.withLock { current in
+                    if let current { close(current) }
+                    current = nil
+                }
+            }
             while true {
-                let client = accept(threadDescriptor, nil, nil)
+                let client = accept(descriptor, nil, nil)
                 if client < 0 {
                     break
                 }
@@ -90,8 +102,9 @@ final class RecoveryLoopback: @unchecked Sendable {
 
     deinit {
         release()
-        shutdown(socketFD, Int32(SHUT_RDWR))
-        close(socketFD)
+        listener.withLock { current in
+            if let current { shutdown(current, Int32(SHUT_RDWR)) }
+        }
         arrival.finish()
     }
 
