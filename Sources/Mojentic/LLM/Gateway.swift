@@ -25,7 +25,8 @@ public enum GatewayStreamEvent: Sendable {
 ///
 /// Gateways are thin transport wrappers — they own request shaping, the
 /// HTTP/WebSocket transport, and response normalisation. Business decisions
-/// (recursion, retries, tool dispatch) live in the broker.
+/// (recursion, tool dispatch) live in the broker. Opt-in request recovery lives
+/// in the gateway, below the broker.
 public protocol LLMGateway: Sendable {
     /// Issue a non-streaming completion request and return the single
     /// response payload.

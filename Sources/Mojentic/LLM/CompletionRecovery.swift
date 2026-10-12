@@ -1,6 +1,6 @@
 import Foundation
 
-/// Recovery applies to buffered and streaming Ollama and oMLX completions.
+/// The category of a failed completion attempt under recovery.
 public enum RecoveryCategory: String, Sendable, Codable, Hashable {
     /// HTTP transport failed without confirmed remote termination.
     case transport

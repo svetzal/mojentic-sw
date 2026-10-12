@@ -1,6 +1,7 @@
 /// Errors raised by the Mojentic library across gateways, tools, and the broker.
 ///
-/// Every public API in `Mojentic` that can fail throws this single error type.
+/// Public APIs in `Mojentic` that can fail throw this error type. Recovery-enabled
+/// calls are the exception: they throw ``RecoveryError``.
 /// Phase 1 covers gateway transport errors, schema/decoding failures, tool
 /// dispatch problems, and the broker's recursion-depth guard. Additional cases
 /// will be added in later phases (tracer, agents, realtime).

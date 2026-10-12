@@ -63,9 +63,10 @@ let usage = structured.response.usage
 The existing provider mapping is preserved: reasoning, usage, model, finish
 reason, tools, and oMLX response-format warnings remain available. A malformed
 provider envelope or non-JSON structured content is terminal. No new finish
-validation or schema enforcement is introduced. Typed message history has no
-native reasoning-history field in this revision; recovery preserves supported
-role/content/image/tool history and existing controls exactly, without adding one.
+validation or schema enforcement is introduced. Recovery preserves role, content,
+image, tool and native reasoning history (see
+<doc:BufferedCompletionRecovery#Retain-native-assistant-reasoning-in-caller-owned-history>)
+and existing controls exactly.
 
 ## Sensitive traces are explicitly owned
 
@@ -106,8 +107,8 @@ attempt's identity, progress and history; it adds no actual attempt.
 
 Observed reasoning, content or tool evidence makes a failed attempt ineligible
 for replay, even when buffered delivery is zero and the caller would allow it.
-Callers migrating from the preserved recovery slice must handle that terminal
-`ineligible` result rather than relying on admission to replay semantic output.
+Callers must handle that terminal `ineligible` result rather than relying on
+admission to replay semantic output.
 Whitespace keepalives alone still do not count as semantic output.
 Request capture precedes dispatch; capture failure there sends zero requests.
 Response capture runs at header/body receipt. Decodable semantic evidence is
@@ -128,29 +129,29 @@ promptly; admission producers and injected sleepers must cooperate with cancella
 
 ## Verified capability limits
 
-``OllamaGateway/recoveryCapabilities`` and ``OMLXGateway/recoveryCapabilities``
-report local HTTP task cancellation as supported and remote request cancellation,
-exact-attempt status queries, and inference idempotency as unsupported by these
-adapters. Local cancellation does not prove remote termination. No invented
+``OllamaGateway/recoveryCapabilities``, ``OMLXGateway/recoveryCapabilities`` and
+``OpenAIGateway/recoveryCapabilities`` report local HTTP task cancellation as
+supported and remote request cancellation, exact-attempt status queries, and
+inference idempotency as unsupported by these adapters. `AnthropicGateway` has no
+capability property yet; its facilities are the same. Local cancellation does not prove remote termination. No invented
 idempotency header, model unload, process termination, or tool replay is used.
 
 Recovery-enabled sends use a fresh ephemeral URLSession per wire attempt, with
 redirects refused, cookie/credential storage disabled, and body-stream replay
 refused. Caller idle timeout configuration is retained. Custom session protocol,
 proxy, trust, or TLS configuration is not inherited by this isolated path; callers
-requiring those facilities should keep the existing path pending adapter review.
+that need those facilities must use the legacy entrypoints, which do not recover.
 
-Retry-After supports integer seconds and IMF-fixdate HTTP dates. It is a minimum
+Retry-After supports integer seconds and IMF-fixdate HTTP dates. The obsolete
+RFC 850 and asctime date forms are treated as invalid, so the policy delay applies. It is a minimum
 backoff; a delay above the ceiling or recovery budget/deadline is refused rather
 than shortened. Authentication/invalid-request statuses 400/401/403 remain
 permanent even after truncated bodies and explicit status selection. Protocol,
 capture and cancellation failures cannot be selected into blind retries.
 
-Buffered and recovery-stream entrypoints now cover Ollama, oMLX, OpenAI and
-Anthropic Messages. This does not claim whole-mission or six-port parity. Apple controller validation and the declared Swift 6.1
-minimum-toolchain validation remain pending when only Linux Swift 6.4 evidence
-is available. See the repository's `RECOVERY-CONFORMANCE.md` for actual assertions
-and gate outcomes.
+Buffered and recovery-stream entrypoints cover Ollama, oMLX, OpenAI Chat
+Completions and Anthropic Messages. Continuous integration runs the tests on macOS
+and on Linux, including the declared Swift 6.1 minimum toolchain.
 
 ## OpenAI Chat Completions
 

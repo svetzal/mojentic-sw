@@ -1,8 +1,9 @@
-# Recovering Local Completion Streams
+# Recovering Completion Streams
 
 Enable request recovery without replaying tools or appending a replacement to partial output.
 
-The same ``CompletionRecoveryPolicy`` now covers Ollama, oMLX and OpenAI Chat Completions `streamRecovering` and
+The same ``CompletionRecoveryPolicy`` covers Ollama, oMLX, OpenAI Chat Completions and Anthropic Messages
+`streamRecovering` and
 `completeStreamEventsRecovering`, including the internal opt-in routing used by
 ``LLMBroker`` tool streams and ``ChatSession`` callers.
 Initializers without `recovery:` retain their legacy parsing and one-send behavior.
@@ -97,8 +98,8 @@ termination. Drop the stream/iterator to release its producer when stopping earl
 Both local adapters expose local HTTP cancellation. Remote request cancellation,
 exact-attempt status querying and provider idempotency remain unsupported. OpenAI
 Chat Completions and Anthropic Messages also support recovery; realtime voice and
-embeddings remain outside completion recovery. Supported message/tool history and generation controls are preserved;
-no native reasoning-history field is invented.
+embeddings remain outside completion recovery. Message, tool and native reasoning
+history and generation controls are preserved.
 
 Lifecycle events contain numeric status, identities, progress, classification and
 bounded attempt counts without payloads or raw cause text. Exact encoded request
@@ -260,8 +261,7 @@ To inspect retained typed cleanup evidence after cancellation, resume the retain
 consumer from a noncancelled task with exclusive ownership. A completion-event stream
 ends after its recovery failure; a throwing unfolding stream keeps its existing error
 on subsequent reads. Consumers that abandon iteration should use the policy's report
-observer for cleanup evidence. These local checks do not prove remote inference stopped;
-Apple and declared minimum-toolchain validation remain pending.
+observer for cleanup evidence. These local checks do not prove remote inference stopped.
 
 ## Correlate metadata with wire attempts
 
