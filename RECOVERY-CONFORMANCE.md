@@ -40,6 +40,7 @@ evidence below.
 | Preserved admission amendment | The earlier all-six-gates claim is withdrawn: cancellation could commit session history, and the rollback assertion lacked a producer-completion boundary. The deterministic probe rejected all eight delayed session cases before correction. |
 | Cancellation correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed on the corrected tree through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (350 in 94 suites), full-trait tests (362 in 99 suites), and DocC with warnings as errors. The focused public-boundary probe failed without the cancellation check and passed with it. |
 | Dependency security for the admission amendment and cancellation correction | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
+| oMLX keepalive correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (353 in 95 suites), full-trait tests (365 in 100 suites), and DocC with warnings as errors. The fixture-shaped loopback regression suite failed without the oMLX guard and passed with it. No dependency changes. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -102,7 +103,8 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Cancellation | met; request, admission, backoff, capture and terminal delivery | `RecoveryAdmissionSafetyTests.cancellationWinsOverRefusal` (exact), `RecoveryCancellationTests.cancellationWinsAtEveryBoundary`, `PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming`, `TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt`, `pausedTerminalTelemetryCannotSucceed`, `SenderRegistrationCancellationTests`, `StreamingRecoveryCancellationTests` |
 | Partial stream | met at the gateway; not tested through broker or session (gap 4) | `StreamingRecoveryTests.semanticInterruptionNeverRetries`, `RecoveryAdmissionSafetyTests.observedSemanticEvidenceRefusesReplay` |
 | Permanent errors | met; 400, 401 and 403 stay ineligible with truncated bodies and explicit selection | `RecoveryStatusConformanceTests.permanentStatusesKeepOneSend`, `malformedResponseNeverResends`, `redirectsAreNotFollowed` |
-| Keepalive only | met; oMLX frame shape not tested (gap 5) | `StreamingRecoveryTimingTests.keepaliveAdmissionRemainsPending` |
+| Keepalive only | met; fixture-shaped oMLX data frames are raw progress only in both recovery APIs, exact bytes and explicit admission | `StreamingRecoveryTimingTests.keepaliveAdmissionRemainsPending`, `OMLXRecoveryKeepAliveTests.keepaliveOnlyRequiresAdmission` |
+| oMLX interleaved keepalives | met; October 12 amendment, exact output, genuine metadata and frame indices preserved, terminal success and lifecycle order; OpenAI and `keepalive-2` preserved | `OMLXRecoveryKeepAliveTests.interleavedKeepalivesPreserveGenuineFrames`, `.exactModelAndProviderGuard` |
 | Compatibility | met, exact | `ReasoningHistoryConformanceTests.defaultPolicyKeepsOneAttemptWithNilHistory`, `RecoveryConformanceTests.disabledRecoveryRetainsLegacyOneSend`, `.successfulLegacyAndRecoveryResultsMatch`, `ReleaseBaselineCompatibilityTests.configuredRecoveryDoesNotChangeLegacyStreams`, `StreamingRecoveryTests.legacyRemainsSingleSend` |
 | Privacy | partial (gaps 2 and 6) | sentinel checks of `String(describing:)`, `String(reflecting:)` and event JSON in `StreamingRecoveryTests`, `AnthropicRecoveryCaptureTests`, `RecoveryStatusConformanceTests` |
 | Broker tools | met, exact | `StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp`, `.recoveryPreservesStreamingToolDepth`, `RecoveryToolSafetyTests.recoveryDoesNotResetToolDepth` |
@@ -235,6 +237,28 @@ A broker single-turn relay can expose `.error(.cancelled)` rather than a typed
 `recoveryFailure`; this existing limitation is retained, not corrected here.
 Other open gaps below remain explicit.
 
+## oMLX keepalive acceptance (October 12 amendment)
+
+`RecoveryStreamDecoder` reuses `OMLXKeepAliveFilter.isKeepAlive` only for the
+`omlx` provider, after raw byte capture and before indexing or parsing a frame.
+Both recovery stream entrypoints use this decoder. Legacy filtering and the
+other three providers retain their existing parsing paths.
+
+`OMLXRecoveryKeepAliveTests` sends the first data frame from the tracked
+`stream_thinking.sse` fixture through scripted loopback HTTP and both public
+recovery APIs. Keepalive-only truncation retains exact inspected body bytes
+and zero observed/delivered semantic progress; admission remains pending with
+one wire request until explicitly rejected. Interleaved streams deliver exactly
+`é猫`, preserve genuine model/id/timestamp evidence, and end in success with
+exact lifecycle order and raw byte totals. A genuine frame precedes a keepalive
+so metadata overwriting is detectable. Single-turn terminal evidence is inspected
+through the public API; synchronized decoder snapshots additionally verify
+metadata and frame indices for both paths, since oMLX does not emit recovery
+metrics events. Indices match the stream without keepalives. OpenAI frames with
+model `keepalive` and oMLX model `keepalive-2` remain ordinary semantic frames.
+The focused suite fails when the provider guard is removed and passes when it
+is restored. Only gap 5 is closed by this correction.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -253,12 +277,6 @@ no test would catch if it regressed.
    tool interruption cases are tested only at the gateway stream APIs. No test
    runs them through `LLMBroker.stream`, `ChatSession.stream` or
    `generateRecoveryStreamEvents`.
-5. **oMLX keepalive frames on the recovery path.** The legacy transport drops
-   oMLX `data:` frames whose `model` is `keepalive`. The recovery decoder does
-   not. Such a frame increments the frame index and records `keepalive` as the
-   provider model in private evidence. Retry eligibility is not affected.
-   `LocalModelsWithOMLX.md` says both streaming APIs drop these frames. Rust
-   skips them.
 6. **Weaker privacy and cause evidence.**
    - No type customises `Mirror`, so `dump` and debugger views reach private
      evidence. No test checks this.

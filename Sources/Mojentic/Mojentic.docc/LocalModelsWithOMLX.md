@@ -122,8 +122,16 @@ single-turn events API with the OpenAI completion rules: success needs
 
 oMLX opens every chat stream with a keep-alive frame, a `data:` line whose
 `model` is `keepalive`, and sends more during long prefill. The gateway drops
-these frames in both streaming APIs, so `keepalive` never appears as the
-provider model.
+these frames in both legacy streaming APIs. The recovery APIs,
+``OMLXGateway/streamRecovering(model:messages:tools:config:)`` and
+``OMLXGateway/completeStreamEventsRecovering(model:messages:config:)``, retain
+the received bytes as raw progress and inspectable wire evidence, but skip the
+frame before semantic parsing. Keepalives do not advance the provider frame
+index, replace provider metadata, emit semantic output, or prove completion.
+Keepalive-only interrupted requests still require explicit admission before
+another request; they never grant permission to resend. Only the exact oMLX
+model `keepalive` is filtered; names such as `keepalive-2` remain ordinary
+provider frames.
 
 ## Models
 

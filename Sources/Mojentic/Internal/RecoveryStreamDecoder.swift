@@ -2,6 +2,7 @@ import Foundation
 
 /// A synchronized copy of the streaming attempt evidence.
 struct RecoveryStreamSnapshot {
+    let frameIndex: Int
     let progress: RecoveryProgress
     let terminal: Bool
     let failure: MojenticError?
@@ -57,6 +58,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return RecoveryStreamSnapshot(
+            frameIndex: frameIndex,
             progress: progress,
             terminal: terminal,
             failure: failure,
@@ -116,6 +118,8 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     }
 
     private func parse(_ line: String) {
+        // Raw bytes are already captured; oMLX keepalives carry no provider evidence.
+        if provider == "omlx", OMLXKeepAliveFilter.isKeepAlive(line) { return }
         var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if provider == "omlx" || provider == "openai" || provider == "anthropic" {
             guard payload.hasPrefix("data:") else { return }
