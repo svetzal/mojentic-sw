@@ -20,8 +20,10 @@ struct StreamingRecoveryCancellationTests {
         let decisions = AsyncStream<RecoveryAdmission>.makeStream()
         let blocked = AsyncStream<Void>.makeStream()
         var policy = recoveryPolicy(recorder)
+        let capture = policy.wireObserver
         if phase == "active" {
             policy.wireObserver = { event in
+                try capture?(event)
                 if case .body = event {
                     ready.continuation.yield(())
                 }
@@ -50,6 +52,12 @@ struct StreamingRecoveryCancellationTests {
         #expect(failure.history.first?.identity?.wireNumber == 1)
         #expect(failure.failure.inspectEvidence().cause is CancellationError)
         #expect(server.requests.withLock { $0.count } == 1)
+        try assertCancellationLifecycle(
+            recorder,
+            lifecycle: RecoveryLifecycleEvidence(boundary),
+            reply: firstReply,
+            phase: phase
+        )
         let transitions = recorder.events.withLock { $0.map(\.transition) }
         #expect(transitions.filter { $0 == .cancelled }.count == 1)
         let failedIndex = try #require(transitions.firstIndex(of: .attemptFailed))
@@ -75,7 +83,9 @@ struct StreamingRecoveryCancellationTests {
             try await withRecoveryStreamCancellation {
                 if single {
                     let stream = try gateway.completeStreamEventsRecovering(
-                        model: "fixture", messages: [], config: .init(),
+                        model: "fixture",
+                        messages: [],
+                        config: .init(),
                     )
                     var iterator = stream.makeAsyncIterator()
                     guard case .progress? = await iterator.next() else {
@@ -89,7 +99,10 @@ struct StreamingRecoveryCancellationTests {
                     #expect(next == nil)
                 } else {
                     let stream = gateway.streamRecovering(
-                        model: "fixture", messages: [], tools: nil, config: .init(),
+                        model: "fixture",
+                        messages: [],
+                        tools: nil,
+                        config: .init(),
                     )
                     var iterator = stream.makeAsyncIterator()
                     guard case .progress? = try await iterator.next() else {

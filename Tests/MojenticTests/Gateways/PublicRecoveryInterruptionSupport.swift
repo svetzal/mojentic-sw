@@ -94,15 +94,35 @@ struct PublicInterruptionCapture {
         #expect(progress.observed.reasoningBytes == (kind == "reasoning" ? 3 : 0))
         #expect(
             progress.delivered.reasoningBytes
-                == (kind == "reasoning" && !boundary.single && !boundary.openAI ? 3 : 0))
+                == (kind == "reasoning" && !boundary.single && !boundary.openAI ? 3 : 0)
+        )
         #expect(
             progress.observed.toolFragments
-                == (kind.contains("tool") ? (boundary.anthropic && kind == "tool" ? 2 : 1) : 0))
+                == (kind.contains("tool") ? (boundary.anthropic && kind == "tool" ? 2 : 1) : 0)
+        )
         // Ollama supplies a complete argument object before the stream terminal marker.
         // It is observed as a call, but is never delivered or executed without that marker.
         #expect(progress.observed.completedToolCalls == (kind.contains("tool") && !boundary.omlx ? 1 : 0))
         #expect(progress.delivered.toolFragments == 0)
         #expect(progress.delivered.completedToolCalls == 0)
+        var expectedProgress = RecoveryProgress()
+        expectedProgress.headersReceived = true
+        expectedProgress.rawBytes = body.utf8.count
+        expectedProgress.observed.contentBytes = kind.contains("content") ? 6 : 0
+        expectedProgress.delivered.contentBytes = kind.contains("content") ? 6 : 0
+        expectedProgress.observed.reasoningBytes = kind == "reasoning" ? 3 : 0
+        expectedProgress.delivered.reasoningBytes =
+            kind == "reasoning" && !boundary.single && !boundary.openAI ? 3 : 0
+        expectedProgress.observed.toolFragments =
+            kind.contains("tool") ? (boundary.anthropic && kind == "tool" ? 2 : 1) : 0
+        expectedProgress.observed.completedToolCalls = kind.contains("tool") && !boundary.omlx ? 1 : 0
+        #expect(
+            events
+                == RecoveryLifecycleEvidence(boundary).interruption(
+                    identity: request.0,
+                    progress: expectedProgress
+                )
+        )
         var captured = Data()
         for wire in recorder.wires.withLock({ Array($0.dropFirst(wireBaseline)) }) {
             switch wire {

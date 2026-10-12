@@ -6,7 +6,8 @@ import Testing
 struct TypedRecoveryErrorTests {
     @Test(
         "Multimodal session length preserves exact provider image bytes",
-        arguments: RecoveryBoundary.all.filter { !$0.structured })
+        arguments: RecoveryBoundary.all.filter { !$0.structured }
+    )
     func multimodalLengthThroughSession(_ provider: RecoveryBoundary) async throws {
         try await lengthCause(.init(provider: provider, path: .sessionImages), false)
     }
@@ -86,7 +87,8 @@ extension TypedRecoveryErrorTests {
 
     @Test(arguments: TypedRecoveryBoundary.all, [(false, false), (false, true), (true, false), (true, true)])
     func captureCause(
-        _ boundary: TypedRecoveryBoundary, _ options: (Bool, Bool),
+        _ boundary: TypedRecoveryBoundary,
+        _ options: (Bool, Bool),
     ) async throws {
         let (scoped, postResponse) = options
         let reply = try boundary.reply(length: false)
@@ -106,7 +108,8 @@ extension TypedRecoveryErrorTests {
             }
         }
         let failure = try #require(
-            await invoke(boundary, server, policy, counter, scoped: scoped) as? RecoveryError)
+            await invoke(boundary, server, policy, counter, scoped: scoped) as? RecoveryError
+        )
         #expect(failure.outcome == .captureFailed)
         #expect(failure.failure.category == .capture)
         let cause = try #require(failure.failure.inspectEvidence().cause as? TypedCaptureCause)
@@ -146,6 +149,24 @@ extension TypedRecoveryErrorTests {
             #expect(failure.failure.inspectEvidence().headers.isEmpty)
             #expect(recorder.wires.withLock { $0.count } == 1)
         }
+        let lifecycle = RecoveryLifecycleEvidence(boundary)
+        let expected =
+            postResponse
+            ? lifecycle.terminal(
+                identity: candidate.0,
+                progress: lifecycleProgress(reply, observed: RecoverySemanticProgress(contentBytes: 2)),
+                category: .capture,
+                outcome: .captureFailed,
+                reason: "observedSemanticOutput",
+                phase: boundary.path.streaming ? .streaming : .receiving
+            )
+            : lifecycle.undispatched(
+                logicalID: candidate.0.logicalID,
+                outcome: .captureFailed,
+                category: .capture,
+                reason: "captureFailed"
+            )
+        #expect(recorder.events.withLock { $0 } == expected)
         #expect(counter.value.withLock { $0 } == 0)
     }
 
@@ -158,8 +179,15 @@ extension TypedRecoveryErrorTests {
         let delivered = RecoveryLocked<Int>(0)
         let failure = try #require(
             await invoke(
-                boundary, server, recoveryPolicy(recorder), counter, scoped: scoped, delivered: delivered)
-                as? RecoveryError)
+                boundary,
+                server,
+                recoveryPolicy(recorder),
+                counter,
+                scoped: scoped,
+                delivered: delivered
+            )
+                as? RecoveryError
+        )
         let cause = try #require(failure.failure.inspectEvidence().cause as? MojenticError)
         guard case .incompleteCompletion(let evidence) = cause else {
             Issue.record("Length failure lost its original typed completion evidence")
@@ -205,6 +233,22 @@ extension TypedRecoveryErrorTests {
         let deliveredBytes = boundary.path.streaming && boundary.provider.omlx ? 2 : 0
         #expect(delivered.withLock { $0 } == deliveredBytes)
         #expect(failure.failure.progress.delivered == RecoverySemanticProgress(contentBytes: deliveredBytes))
+        #expect(
+            recorder.events.withLock { $0 }
+                == RecoveryLifecycleEvidence(boundary).terminal(
+                    identity: identities[0],
+                    progress: lifecycleProgress(
+                        reply,
+                        observed: RecoverySemanticProgress(contentBytes: 2),
+                        delivered: RecoverySemanticProgress(contentBytes: deliveredBytes)
+                    ),
+                    category: .protocolFailure,
+                    outcome: boundary.path.streaming
+                        ? .interrupted : boundary.provider.anthropic ? .ineligible : .malformedResponse,
+                    reason: "observedSemanticOutput",
+                    phase: boundary.path.streaming ? .streaming : .decoding
+                )
+        )
         #expect(counter.value.withLock { $0 } == 0)
     }
 
@@ -220,18 +264,32 @@ extension TypedRecoveryErrorTests {
         let broker = LLMBroker(gateway: gateway)
         let tool = RecoveryCountingTool(calls: counter)
         let session = ChatSession(
-            broker: broker, model: "fixture", systemPrompt: "seeded history", tools: [tool])
+            broker: broker,
+            model: "fixture",
+            systemPrompt: "seeded history",
+            tools: [tool]
+        )
         let seed = await session.messages()
         #expect(seed == [.system("seeded history")])
         let failure: any Error
         if scoped {
             failure = try await withRecoveryStreamCancellation {
                 try await boundary.failure(
-                    gateway: gateway, session: session, broker: broker, tool: tool, delivered: delivered)
+                    gateway: gateway,
+                    session: session,
+                    broker: broker,
+                    tool: tool,
+                    delivered: delivered
+                )
             }
         } else {
             failure = try await boundary.failure(
-                gateway: gateway, session: session, broker: broker, tool: tool, delivered: delivered)
+                gateway: gateway,
+                session: session,
+                broker: broker,
+                tool: tool,
+                delivered: delivered
+            )
         }
         #expect(await session.messages() == seed)
         if boundary.path == .sessionImages {

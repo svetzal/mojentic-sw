@@ -1,53 +1,39 @@
 # Transient recovery conformance
 
-This file records how the Swift port meets
-[the transient recovery contract](TRANSIENT-RECOVERY-2026-10.md), the
-[original request](RECOVERY-REQUEST-2026-10.txt), and the October 10, 2026
-supplement that aligns the ports with the reviewed Rust implementation
-(`mojentic-ru` at `4ca1ed279c02eab37827a1ed07c30e961155ecf3`).
+This current-state record covers the transient recovery contract and original
+request, the October 10 supplement, and the authoritative monorepo root
+contract's October 12 amendment. The twelve binding decisions remain in force.
+This change closes only the remaining RecoveryEvent lifecycle-evidence portion
+of gap 6, under Evidence at the public boundary and binding decision 10.
 
-It is a current-state record. It replaces the cycle-by-cycle journals that the
-implementation work wrote here. Those journals, `RECOVERY-ACCEPTANCE.md` and
-`RECOVERY-REVIEW-EVIDENCE.json` are in git history at `b505f7d`. Do not use
-them as evidence: many of their claims were stale at that commit.
+Recovery is implemented for buffered and streaming completion on Ollama, oMLX,
+OpenAI Chat Completions and trait-enabled Anthropic Messages. Lifecycle
+expectations below use scripted loopback replies and contract semantics;
+UUIDs are anchored to public wire capture, independently of lifecycle output.
+No runtime behavior, dependency, version, gate, coverage floor or runtime pin
+changes accompany this evidence update.
 
-## Review
+## Validation and review
 
-- Revision reviewed: `b505f7d` (October 11, 2026).
-- Review date: October 12, 2026.
-- Method: a static review of the source and test code against each
-  requirement, with Rust `4ca1ed2` as the behavioural reference. The review
-  checked that each public entrypoint reaches the recovery engine, and it
-  checked the strength of each assertion, not the test names.
+All required gates passed on the integrated Linux x86_64 Swift 6.4 source,
+with the process file-descriptor limit set to 65,536.
+Validation covers every discovered
+`.hone-gates.json` gate: strict swift-format, strict SwiftLint, release build,
+parallel default tests, full-trait tests and DocC with warnings as errors,
+through `scripts/with-gate-environment`. The configured unfiltered OSV scan
+checked `Package.resolved`: three packages scanned, no issues found.
+The delivered recovery example probe also passed against scripted loopback HTTP.
+Apple platform and minimum Swift 6.1 CI results are not claimed for this tree.
+The default-trait DocC gate excludes trait-gated Anthropic documentation.
 
-**Verdict: met with limits, and with open gaps.** The recovery engine is
-complete for buffered and streaming requests on all four maintained completion
-adapters. The safety properties hold and have strong tests: one encoded
-payload, no replay after observed output, completed tools run once,
-authoritative cancellation, and provider-specific admission. The open gaps are in the
-section [Open gaps](#open-gaps). Capability gap 1 and provider metadata gap 2
-are closed by the acceptance evidence below; the remaining gaps stay open.
-
-## Validation
-
-| Check | Result |
-| --- | --- |
-| GitHub Actions `build.yml` run 38183304850 on `b505f7d` | `build-macos`, `build-linux`, `build-linux-minimum` (Swift 6.1), `lint` and `format-check` passed |
-| All six `.hone-gates.json` gates on macOS 27.2, Swift 6.4, October 12, 2026 | Passed. `swift test --parallel`: 338 tests in 90 suites. `swift test --traits full`: 350 tests in 95 suites. |
-| Provider metadata correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed. Default: 341 tests in 92 suites; full traits: 353 tests in 97 suites. Strict format, SwiftLint, release build and DocC with warnings as errors passed. |
-| Dependency security for the metadata correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
-| Preserved admission amendment | The earlier all-six-gates claim is withdrawn: cancellation could commit session history, and the rollback assertion lacked a producer-completion boundary. The deterministic probe rejected all eight delayed session cases before correction. |
-| Cancellation correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed on the corrected tree through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (350 in 94 suites), full-trait tests (362 in 99 suites), and DocC with warnings as errors. The focused public-boundary probe failed without the cancellation check and passed with it. |
-| Dependency security for the admission amendment and cancellation correction | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
-| oMLX keepalive correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (353 in 95 suites), full-trait tests (365 in 100 suites), and DocC with warnings as errors. The fixture-shaped loopback regression suite failed without the oMLX guard and passed with it. No dependency changes. |
-| Capability correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (356 in 96 suites), full-trait tests (369 in 101 suites), and DocC with warnings as errors. The full-trait public capability probe rejected the old idempotency value and passed with the correction. |
-| Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
-| Provider/operation vocabulary correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (361 in 98 suites), full-trait tests (374 in 103 suites), and DocC with warnings as errors. The public loopback probe rejected the old operation vocabulary and passed after migration. OSV scanned three packages with no issues; no dependencies changed. |
-| Reflection acceptance, Linux Swift 6.4 | The single-turn loopback probe requires typed nested failure and history children in the delivered event. It rejects summary substitutions, masked identities, and dropped or reordered histories. The full reflection suite covers every existing provider/operation boundary, including trait-enabled Anthropic. All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (364 in 99 suites), full-trait tests (377 in 104 suites), and DocC with warnings as errors. OSV scanned three locked packages with no issues; dependencies are unchanged. |
-| Typed-error correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (368 in 100 suites), full-trait tests (381 in 105 suites), and DocC with warnings as errors. The original buffered-length broker probe failed and the corrected probe passed. SwiftPM reported read-only global configuration/security caches; no compiler, lint or DocC diagnostics were reported. OSV scanned three locked packages with no issues; dependencies are unchanged. |
-| Public interruption acceptance, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (371 in 101 suites), full-trait tests (384 in 106 suites), and DocC with warnings as errors. All 32 full-trait public interruption cases plus the focused session probe passed. Controlled outcome and rollback violations were rejected, and restoration passed. OSV scanned three locked packages with no issues; dependencies and production behavior are unchanged. SwiftPM reported the existing read-only global cache warnings, with no compiler, lint or DocC diagnostics. |
-| Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
-| DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
+Independent skeptical review inspected public implementation paths and the
+strength of assertions, including classification versus terminal outcome,
+observed versus delivered progress, cancellation scope and producer completion.
+A controlled nil-phase regression first rejected the broker/session interruption
+probe; restoration passed. Further event-field corruption, missing/reordered
+transitions, masked identities and wrong progress are rejected through that real
+boundary. Exact commands, actual exits and complete logs are retained by the
+execution evidence system; they are not dependencies of this document.
 
 ## Public entrypoints
 
@@ -73,7 +59,7 @@ outside completion recovery.
 | Buffered gateway call | `complete`, `completeStructured`, `completeJSON` on a `recovery:` gateway | `RecoveryError` | same methods on a gateway without `recovery:`, which throw `MojenticError` |
 | Tool stream | `streamRecovering` | `RecoveryError` | `stream` |
 | Single-turn stream | `completeStreamEventsRecovering` | `.recoveryFailure(RecoveryError)` event | `completeStreamEvents` |
-| Broker single turn | `generateRecoveryStreamEvents` | `.recoveryFailure(RecoveryError)` event | `generateStreamEvents` |
+| Broker single turn | `generateRecoveryStreamEvents` | `.recoveryFailure(RecoveryError)`; paused cancellation can expose `.error(.cancelled)` | `generateStreamEvents` |
 | Broker tool stream, `ChatSession` | existing methods route to the recovery boundary | `RecoveryError` | existing methods on a gateway without `recovery:` |
 
 The legacy entrypoints send exactly one request, even on a gateway that has a
@@ -120,12 +106,12 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 
 | Case | Status | Proving tests |
 | --- | --- | --- |
-| 503 then success | met, all adapters and operations, exact | `RecoveryStatusConformanceTests`, `RecoveryJSONConformanceTests`, `RecoveryConformanceTests.bothOperationsPreserveShapingAndResults`, `StreamingRecoveryProofTests.publicHTTPRecovery`, `RecoveryMetadataConformanceTests.publicMetadata` |
+| Successful completion and 503 then success | met, all adapters and operations, exact | `RecoveryLifecycleCompletionTests`, `RecoveryStatusConformanceTests`, `RecoveryJSONConformanceTests`, `RecoveryConformanceTests.bothOperationsPreserveShapingAndResults`, `StreamingRecoveryProofTests.publicHTTPRecovery`, `RecoveryMetadataConformanceTests.publicMetadata` |
 | 429 and Retry-After | met, all adapters and operations, all three date forms, exact | `RecoveryTimingTests.retryAfterUsesInjectedTiming`, `.pastDateDoesNotReplaceJitterDelay`, `.retryAfterLimitRefusesResend`, `StreamingRecoveryTimingTests.retryAfterPreservesPolicy`, `.retryAfterRefusal`, `RecoveryHTTPDateTests` |
 | Persistent 504 | met, all adapters and operations, exact | `RecoveryStatusConformanceTests.persistent504ExhaustsExactLimit` |
 | Ambiguous local timeout | met for buffered; streaming uses a truncated body, not a client timeout | `ambiguousFailureWithoutHookRequiresAdmission`, `pendingAdmissionRequiresExplicitDecision`, `timeoutRemainsPendingUntilExplicitAllowOrReject`, `keepaliveAdmissionRemainsPending`, `RecoveryMetadataConformanceTests.metadataDisconnectRequiresAdmission` |
-| Cancellation | met; request, admission, backoff, capture and terminal delivery | `RecoveryAdmissionSafetyTests.cancellationWinsOverRefusal` (exact), `RecoveryCancellationTests.cancellationWinsAtEveryBoundary`, `PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming`, `TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt`, `pausedTerminalTelemetryCannotSucceed`, `SenderRegistrationCancellationTests`, `StreamingRecoveryCancellationTests` |
-| Partial stream | met at gateway and public broker/session boundaries; exact prefixes, typed interruption, no admission/replay/tool execution, seeded session rollback | `StreamingRecoveryTests.semanticInterruptionNeverRetries`, `RecoveryAdmissionSafetyTests.observedSemanticEvidenceRefusesReplay`, `PublicRecoveryInterruptionTests` |
+| Cancellation | met; exact lifecycle at pre-dispatch capture, active request, admission and backoff; existing terminal delivery and ownership checks preserved | `RecoveryLifecycleFailureTests.cancellationAtRequestCapturePreventsDispatch`, `RecoveryLifecycleScopedCancellationTests`, `RecoveryAdmissionSafetyTests.cancellationWinsOverRefusal` (exact), `RecoveryCancellationTests.cancellationWinsAtEveryBoundary`, `PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming`, `TerminalRecoveryDeliveryTests.terminalAcceptanceOwnsAttempt`, `pausedTerminalTelemetryCannotSucceed`, `SenderRegistrationCancellationTests`, `StreamingRecoveryCancellationTests` |
+| Partial stream | met at gateway and public broker/session boundaries; complete expected lifecycle, exact prefixes, typed interruption, no admission/replay/tool execution, seeded session rollback | `StreamingRecoveryTests.semanticInterruptionNeverRetries`, `RecoveryAdmissionSafetyTests.observedSemanticEvidenceRefusesReplay`, `PublicRecoveryInterruptionTests` |
 | Permanent errors | met; 400, 401 and 403 stay ineligible with truncated bodies and explicit selection | `RecoveryStatusConformanceTests.permanentStatusesKeepOneSend`, `malformedResponseNeverResends`, `redirectsAreNotFollowed` |
 | Keepalive only | met; fixture-shaped oMLX data frames are raw progress only in both recovery APIs, exact bytes and explicit admission | `StreamingRecoveryTimingTests.keepaliveAdmissionRemainsPending`, `OMLXRecoveryKeepAliveTests.keepaliveOnlyRequiresAdmission` |
 | oMLX interleaved keepalives | met; October 12 amendment, exact output, genuine metadata and frame indices preserved, terminal success and lifecycle order; OpenAI and `keepalive-2` preserved | `OMLXRecoveryKeepAliveTests.interleavedKeepalivesPreserveGenuineFrames`, `.exactModelAndProviderGuard` |
@@ -149,350 +135,87 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Native reasoning history (owner decision, October 11) | met | `LLMMessage.thinking`; sent as Ollama `thinking` and oMLX `reasoning_content`, omitted for OpenAI and Anthropic; `populatedHistoryAcrossPublicRetryBoundaries` (5 operations, 4 adapters, full message arrays), `additiveMessageAPIsAndCodableCompatibility` |
 | Streaming tool follow-up with exact assistant and tool structure | met | `completedToolRunsOnceAcrossFollowUp` compares the whole `messages` array |
 | Typed causes preserved through broker and session | met for policy, capture and length | `TypedRecoveryErrorTests`: every provider and public recovery boundary, scoped and unscoped streams, exact policy case/message, synthetic capture values, original length evidence, wire identities and seeded rollback |
-| Credential-echo tests | partial | safe strings and event JSON are tested; `providerCode` and `providerRequestID` are not (gap 2) |
+| Credential echoes | met | `RecoveryProviderMetadataTests`, `RecoveryProviderFrameMetadataTests`: safe code/request ID filtering, outbound credential/payload echoes, raw evidence retained |
 
-## Provider metadata acceptance (October 12, 2026)
+## Complete lifecycle evidence
 
-Gap 2 is closed. `BufferedRecovery.makeFailure` constructs filtered metadata once;
-`RecoveryFailure` delegates to those same `RecoveryEvidence` values. Streaming
-uses this shared constructor. Unknown codes and outbound credential/payload echoes
-are nil on both public surfaces. Codes are explicitly allowlisted; Anthropic reads
-native `error.type` and `request-id`. SSE codes are read from the existing typed
-provider-error cause when the raw response is not a JSON document. Eligibility,
-admission, request encoding and other characterized behavior are unchanged.
+The lifecycle acceptance arrays compare the complete ordered `RecoveryEvent` array:
+logical ID, attempt ID, wire number, transition, provider, operation, phase,
+category, status, eligibility, reason, acceptance, delay and complete observed
+and delivered progress, including nil values. `RecoveryLifecycleEvidence`
+constructs expectations from explicit fixture values and wire identities, never
+from emitted events or production classification helpers. Before-encoding
+cancellation has no wire candidate, so only its logical UUID is anchored to
+the public error; all other expected fields remain independently specified.
 
-`RecoveryProviderMetadataTests.everyPublicExposure` exercises real scripted loopback
-HTTP through ordinary, structured, JSON, tool-stream and single-turn recovery for
-Ollama, oMLX, OpenAI and Anthropic (under `full`). It separately echoes credentials
-into code and request-ID fields, then echoes user text, nested schemas, quoted text
-and a Unicode-escaped value inside JSON carried in a payload string into request IDs.
-An unrelated request ID and allowed code survive; unknown codes do not. Assertions
-read final failure, full history, admission callbacks, completion report history and
-both public metadata accessor surfaces. Exact response bytes, captured header
-dictionaries, typed HTTP causes, logical/attempt identities, request counts and
-byte-for-byte immutable outbound requests are compared.
+| Scenario | Public acceptance evidence |
+| --- | --- |
+| Success and retry-to-success | `RecoveryLifecycleCompletionTests`, `RecoveryLifecycleBufferedCallerTests`: ordinary, structured and JSON buffered calls, broker projections and session/image callers; gateway/broker/session tool streams and gateway/broker single-turn recovery streams; exact socket bytes, identities, Unicode content and terminal delivery |
+| Partial content, reasoning and tools | `PublicRecoveryInterruptionTests`: `LLMBroker.stream`, `ChatSession.stream`, `generateRecoveryStreamEvents`; hidden reasoning and withheld tools remain observed-only; exact prefixes, raw bytes, typed causes, no admission/replay/tool execution and seeded rollback |
+| Cancellation before dispatch | `RecoveryCancellationTests` before encoding; `RecoveryLifecycleFailureTests` at request capture on all typed public paths; no wire attempt consumed, nil identity, acceptance no and zero socket requests |
+| Active request, admission and backoff cancellation | `RecoveryCancellationTests`, `StreamingRecoveryCancellationTests`, `RecoveryLifecycleBufferedCancellationTests`, `RecoveryLifecycleScopedCancellationTests`: original attempt retained, exactly one request, observed/delivered progress, ordered terminal events, held active socket closure and completed relay before session history assertion |
+| Capture before/after dispatch | `TypedRecoveryErrorTests.captureCause`: all applicable gateway, broker, session, image, projected, tool-stream and single-turn paths, scoped/unscoped; `RecoveryCancellationTests` separates request/header/body capture; exact synthetic causes and zero delivered progress |
+| Malformed and length responses | `RecoveryLifecycleFailureTests.malformedAtEveryPublicPath`, `TypedRecoveryErrorTests.lengthCause`: all typed public paths; original length evidence, exact observed versus delivered bytes, socket bodies, no tool execution and session rollback |
+| Budget/deadline refusal | `RecoveryLifecycleLimitTests`: all typed public paths, pre-admission and prospective backoff refusal; HTTP classification stays selected/eligible, original typed cause/attempt retained, no resend |
+| Status exhaustion, permanent errors, policy and bounded delays | Existing `assertSelectionLifecycle`, `RecoveryPolicySelectionTests`, `RecoveryBoundedTimingTests` remain intact, including HTTP 500/502/418 selection, category selection, saturation, non-finite jitter and exponent cap |
 
-`wrappedCredentialAndEscapedPayload` explicitly checks a Bearer-wrapped outbound
-credential and decoded user content. `RecoveryProviderFrameMetadataTests` covers
-allowed, credential and unknown codes in provider-error frames on both streaming
-APIs for all four adapters, comparing original typed provider causes and raw frames.
-The original implementation failed these public accessor assertions; the corrected
-implementation passes `swift test --traits full --filter RecoveryProvider`.
+All adapter matrices include Anthropic under full traits. Tool fragments are
+inapplicable to single-turn APIs, which accept content and reasoning only.
+A streaming length response after observed content ends as interrupted;
+a buffered length response ends as ineligible for Anthropic (adapter decoding
+rejects length) and malformedResponse for the other adapters, with no delivered
+content. All retain the original typed length cause.
+Lifecycle reasons describe classification: observed semantic output can take
+precedence over capture/cancellation/length outcome names. Limit refusal keeps
+the original selected HTTP classification. Starting events have no status,
+phase, category, eligibility, reason or delay, and zero progress.
 
-Only gap 2 is removed. Raw evidence is still sensitive and retained unchanged for
-explicit inspection. Conservative overlap checks can omit a legitimate token that
-also appears in outbound data. The complete token rules and code allowlists are in
-[BufferedCompletionRecovery.md](Sources/Mojentic/Mojentic.docc/BufferedCompletionRecovery.md).
+The new lifecycle fixture suites serialize their parameterized cases to bound
+additional socket usage. The gate environment retains its existing descriptor
+floor; validation uses a higher host limit. The parallel gate and all
+existing cancellation tests remain unchanged.
 
-## Retry-After HTTP-date acceptance (October 12 robustness amendment)
+The existing sender-registration cancellation, cleanup, socket closure, terminal
+ownership, telemetry, completed-tool execution and tool-depth checks remain
+unchanged. A paused broker single-turn relay can expose its established typed
+`MojenticError.cancelled`; its underlying recovery lifecycle/report still has
+the exact cancelled attempt. No scheduling cause or remote termination is
+inferred, and no cancellation behavior is changed.
 
-`RecoveryHTTPDateTests` uses scripted loopback HTTP on Ollama, oMLX, OpenAI
-and Anthropic through ordinary, structured, JSON, tool-stream and single-turn
-recovery entrypoints. Each IMF-fixdate, RFC 850 and asctime case asserts the
-exact parsed UTC date, injected sleep, immutable outbound bytes, logical identity,
-distinct attempt identities, wire numbers and lifecycle after 429 then success.
-Future minima exceed jitter; past dates retain jitter. Date-based ceiling and
-remaining-budget refusals retain typed failure/history and make exactly one wire
-request. RFC 850 year tests use the injected clock on both sides of the 50-year
-boundary, including exactly 50 years. Absence, invalidity and integer seconds
-remain distinct. Existing timing assertions are preserved, including the shared
-admission budget timer; StreamingRecovery still delegates timing to BufferedRecovery.
+## Preserved contract evidence
 
-The obsolete-date ceiling probe failed against the original parser by treating
-the date as invalid and sending a second request. It passes with the shared
-three-format parser. Only gap 3 is closed by this amendment; other gaps below
-remain explicit. Legacy non-recovery entrypoints are unchanged.
+Provider metadata tests assert allowlisted codes and non-echo request IDs across
+all public exposures, including Anthropic native field names, while retaining raw
+private evidence for explicit inspection. Reflection tests require typed safe
+children and exact identities/history, excluding private evidence recursively.
+Capability tests assert all twenty facility values and their evidence limits.
+Retry-After tests cover all three HTTP-date forms, invalid and past values,
+provider minimum delays and bounded monotonic recovery timing.
 
-## Admission amendment acceptance evidence
+Admission tests cover missing hooks (remote retries versus local admission),
+explicit allow/reject, undecided streams, asynchronous expiry and cancellation
+precedence. Exact request bytes, status, raw response bytes, histories and typed
+causes accompany the checks. Recovery budgets start at first failure and do not
+cut off healthy generation. Policy selection and bounded backoff retain their
+complete independently expected lifecycle arrays.
 
-`RecoveryAdmissionContractTests` closes gap 8 through scripted loopback HTTP on
-ordinary, structured, JSON, recovering tool-stream and single-turn stream calls
-for Ollama, oMLX, OpenAI and Anthropic (the latter under full traits).
+Typed policy/capture/length tests retain the original errors before projection,
+including multimodal image payloads and session rollback. Native history support
+remains Ollama/oMLX only. Recovery metadata tests retain provider telemetry,
+frame indices and length progress/metrics/failure ordering. Completed tool
+follow-up tests still prove one tool execution without depth reset or replay.
 
-- `providerAdmissionRules` asserts no-hook remote success with exactly two
-  requests, byte-identical bodies, unchanged logical identity, distinct actual
-  attempt identities and consecutive wire numbers. Ambiguous local failures
-  stop after one request with `admissionRequired`. Explicit allow and reject
-  control every provider. Reports retain the original typed HTTP cause and
-  one-element failure history; lifecycle order and eligibility, acceptance,
-  phase, category, reason, operation and scheduled delay are asserted.
-- `emptyAdmissionDoesNotReject` proves an empty decision stream never resends,
-  returns `admissionUndecided`, preserves the typed original cause/history,
-  and emits the matching terminal lifecycle transition.
-- `pendingAdmissionTerminates` awaits the hook stream's termination callback
-  and asserts its `cancelled` reason for owning-call cancellation and budget
-  expiry. It then asserts the public result (`cancelled` or `limitRefused`),
-  original typed cause in history, exact lifecycle order, one actual request
-  and no subsequent dispatch through each public entrypoint.
-- `syntheticUnacceptedLocalFailure` exercises the local acceptance `no`
-  exception using an eligible failure with no dispatched identity. It also
-  proves a configured rejecting hook controls that case. This is synthetic
-  pre-dispatch evidence, not proof of remote termination or nonacceptance.
-
-All admission decisions still converge in `BufferedRecovery.admit`, including
-both `StreamingRecovery` entrypoints. Eligibility, cancellation, attempt limits,
-Retry-After/backoff, capture and no-replay-after-output checks remain in place.
-Other open gaps below remain explicit.
-
-## Paused session cancellation correction
-
-The admission implementation and its tests are preserved. `ChatSession.runStream`
-now checks scoped producer cancellation inside its rollback-protected block after
-upstream iteration, before committing an assistant turn. Swift can end a cancelled
-iterator normally; that end no longer establishes successful session completion.
-The check is scoped to recovery cancellation ownership; legacy unscoped streaming
-keeps its existing behavior.
-
-`PausedRecoveryOwnershipTests.pausedConsumerClosesActiveHTTPBeforeResuming` keeps
-both the original scheduling cases and a deterministic interleaving that pauses the
-session producer before upstream iteration. It uses the real public stream and
-scripted loopback HTTP across Ollama, oMLX, OpenAI and Anthropic. The caller and
-public stream remain alive while HTTP cleanup and keepalive peer closure are
-checked. A report callback signals HTTP cleanup; both broker and session relay
-completion callbacks must arrive before history is inspected. No sleep substitutes
-for either completion boundary.
-
-Assertions retain exact lifecycle order, body bytes, headers, request payload,
-logical/attempt identity, one actual wire request, observed and delivered progress,
-zero tool executions, restored empty session history, and cancellation on the
-retained public stream. The deterministic session cases fail without the scoped
-cancellation check and pass with it, for both keepalive and terminal responses.
-A broker single-turn relay can expose `.error(.cancelled)` rather than a typed
-`recoveryFailure`; this existing limitation is retained, not corrected here.
-Other open gaps below remain explicit.
-
-## oMLX keepalive acceptance (October 12 amendment)
-
-`RecoveryStreamDecoder` reuses `OMLXKeepAliveFilter.isKeepAlive` only for the
-`omlx` provider, after raw byte capture and before indexing or parsing a frame.
-Both recovery stream entrypoints use this decoder. Legacy filtering and the
-other three providers retain their existing parsing paths.
-
-`OMLXRecoveryKeepAliveTests` sends the first data frame from the tracked
-`stream_thinking.sse` fixture through scripted loopback HTTP and both public
-recovery APIs. Keepalive-only truncation retains exact inspected body bytes
-and zero observed/delivered semantic progress; admission remains pending with
-one wire request until explicitly rejected. Interleaved streams deliver exactly
-`é猫`, preserve genuine model/id/timestamp evidence, and end in success with
-exact lifecycle order and raw byte totals. A genuine frame precedes a keepalive
-so metadata overwriting is detectable. Single-turn terminal evidence is inspected
-through the public API; synchronized decoder snapshots additionally verify
-metadata and frame indices for both paths, since oMLX does not emit recovery
-metrics events. Indices match the stream without keepalives. OpenAI frames with
-model `keepalive` and oMLX model `keepalive-2` remain ordinary semantic frames.
-The focused suite fails when the provider guard is removed and passes when it
-is restored. Only gap 5 is closed by this correction.
-
-## Capability acceptance (October 12 amendment)
-
-`RecoveryCapabilityTests` imports the public module and reads each gateway's
-`recoveryCapabilities`. Its four tests assert the literal expected value of all
-five fields independently, twenty assertions in total; Anthropic is compiled
-and executed under `--traits full`. They neither count fields nor compare
-adapters with the shared default. No network dispatch is needed to read this
-public capability boundary.
-
-Regression proof: after adding the missing exact-attempt termination field and
-Anthropic accessor, the full-trait focused probe exited 1 with four individual
-idempotency assertion failures against the old `.unsupported` classification.
-Changing that source value to `.unknown` made the same probe exit 0 with all
-four tests passing. The additive API surfaces were present in both runs, so the
-rejection is behavioral rather than a compilation failure. Assertions also
-reject an incorrect local cancellation, remote cancellation, status or
-termination field. Only capability gap 1 is closed by this correction.
-
-Limits: no request behavior, admission policy, request bytes, wire counts,
-cancellation implementation, legacy entrypoint or provider trait boundary
-changes. Capability values do not authorize a retry or prove remote termination.
-No live provider cancellation/status/idempotency experiment was performed.
-
-## Provider and operation acceptance (October 12 amendment)
-
-The authoritative root contract's **Operation and provider** amendment is met
-by `RecoveryProvider` and `RecoveryOperation`, closed Sendable, Codable enums.
-All four provider identities are available independently of provider traits.
-Every adapter uses `ordinary`, `structured` and `streaming`, including both
-recovery stream APIs. Failures, history, admission callbacks and lifecycle
-events expose these types; no adapter-specific string aliases remain.
-
-`RecoveryVocabularyTests.publicVocabulary` characterizes loopback HTTP through
-ordinary and structured buffered calls and both recovery streaming paths for
-Ollama, oMLX, OpenAI and Anthropic (full traits). Before migration, the same
-assertions passed with the old operation expectations. Changing only the
-licensed operation expectations rejected OpenAI and Anthropic failures and
-lifecycle JSON; the migrated implementation passes. It asserts final failures,
-retry and report history, admission observations, lifecycle order, exact
-captured/socket request bytes, response evidence, two actual sends, shared
-logical identity and distinct attempt identities. Event Codable round-trips
-and rejects unknown provider and operation values.
-
-`RecoveryVocabularyCodableTests` consumes the public types without testable
-import, exhaustively switches over all cases, asserts exact serialized values
-and round-trips, and rejects unknown values and former operation aliases.
-
-Routing retains every characterized decision: buffered operation phase and
-interruption handling; streaming provider framing and finish handling; buffered
-provider semantic fields; metadata code allowlists and native error/header
-fields; oMLX's typed `recoveryChat` operation and keepalive guard. Admission,
-cancellation, tools and legacy non-recovery paths keep their prior behavior.
-The required gates exercise the existing regression suites for these paths.
-
-The vocabulary sub-gap was closed by this acceptance; binding decision 12 closes
-the remaining documentation gap below. The lifecycle-event coverage gap remains
-open. No dependency, version, release or live-inference change is included.
-
-## Default formatting and reflection acceptance
-
-`RecoveryFailure`, `RecoveryEvidence`, `RecoveryWireEvent`, `RecoveryError` and
-`CompletionRecoveryReport` implement `CustomReflectable`. Failure mirrors expose
-all safe metadata, including exact logical and attempt identities, progress,
-provider metadata, classification and retry evidence. Evidence mirrors expose
-only validated provider code and request ID. Wire mirrors expose `kind`, exact
-`identity` and the received `status` for the headers case. URLs, headers, raw
-bytes and causes have no reachable reflection children. Errors and reports keep
-typed `RecoveryFailure` terminal children and ordered `[RecoveryFailure]` histories;
-report histories also retain `[RecoveryFailure]`. Delivered `recoveryFailure`
-events preserve the typed error and these nested safe mirrors.
-
-`RecoveryReflectionTests.allPublicBoundaries` exercises scripted loopback HTTP
-503 exhaustion through ordinary, structured, JSON, tool-stream and single-turn
-completion APIs on Ollama, oMLX, OpenAI and trait-enabled Anthropic (20 cases).
-The probe checks `Mirror`, recursive reflection, `dump`, `String(describing:)`
-and `String(reflecting:)` for failures, evidence, histories, reports, every wire
-case and actual single-turn failure events. Nested failure and history children
-are cast to their required types, then every safe field is compared with expected
-failures built from independently checked socket identities and scripted replies.
-These expectations include exact logical and attempt IDs, provider, operation,
-classification, status, retry-after, full progress, acceptance, phase, eligibility,
-reason and validated provider metadata. History length and positional comparisons
-require both attempts in wire order. The delivered single-turn event is reflected
-and its typed error children are checked against the same expectations.
-Exact child names and typed scalar comparisons prevent masking; recursive checks
-reject private fields, byte containers, header dictionaries, URLs and raw causes. Explicit inspection retains exact
-headers, UTF-8 bytes and typed HTTP status causes. Capture bytes match actual
-socket requests, both attempts share a logical ID with distinct attempt IDs,
-and lifecycle order and terminal delivery are asserted. Synthetic cases add
-secret-bearing URLs and typed cause messages while retaining safe provider IDs.
-
-The single-turn public-boundary proof rejects replacing the terminal failure,
-error history or report history with summary strings, masking failure identities,
-and dropping or reversing history. The unchanged runtime mirrors pass the same
-probe. Summary-string equality is not used as proof of nested evidence retention.
-Only the reflection sub-gap of gap 6 is closed. The remaining telemetry and
-broker/session cause requirements below are unchanged.
-
-## Public interruption acceptance (October 12 amendment)
-
-Gap 4 is closed under the authoritative contract's October 12 amendment,
-Evidence at the public boundary, and mission binding decision 9.
-`PublicRecoveryInterruptionTests.publicPartialStreamNeverReplays` consumes
-`LLMBroker.stream`, `ChatSession.stream` and
-`LLMBroker.generateRecoveryStreamEvents` using the real recovery-enabled
-Ollama, oMLX, OpenAI and trait-enabled Anthropic adapters against scripted
-loopback HTTP. There are 32 applicable public cases with full traits:
-content and reasoning on all three APIs, and unfinished tools on broker and
-session paths. The single-turn API does not accept tools; this matrix does
-not claim tool delivery there.
-
-Every case asserts the exact ordered public prefix, typed `RecoveryError`
-with `interrupted` outcome, transport classification and
-`observedSemanticOutput` ineligibility, one failed wire request and history
-entry, identity relationships across capture/error/history/events/report,
-original typed `URLError` cause and its equality in history/report, exact
-captured response bytes, and observed versus delivered counters. Three
-attempts, selected transport retries and an admission hook that would allow
-retry are configured. The exact lifecycle is started, failed, interrupted;
-there is no admission invocation, replay or successful completion. Counting
-tools are advertised on broker/session requests but execute zero times;
-neither a tool request nor a tool result reaches the public consumer.
-
-Reasoning-only cases deliberately expect an empty public reasoning prefix
-for OpenAI and the single-turn API while retaining three observed UTF-8
-reasoning bytes. Single-turn Ollama progress and Anthropic metrics remain
-in the exact event prefix. oMLX/OpenAI tool arguments are incomplete JSON;
-Anthropic interrupts an open tool block after an incomplete JSON delta.
-Ollama supplies an argument object before its stream terminal marker: its
-observed completed-call counter is one, but delivered calls and executions
-remain zero. These protocol distinctions are asserted rather than hidden.
-
-Session cases first establish and characterize a system/user/assistant
-conversation through a successful real adapter call, then require exact
-restoration after the failed producer rolls back: no failed user turn or
-partial assistant remains. Prefix delivery gates connection closure; for
-hidden-only output, the capture callback closes only after the complete
-fixture has been parsed and observed. Streams are created and consumed
-inside `withRecoveryStreamCancellation`; scoped failure delivery follows
-producer cleanup, so rollback assertions do not race termination.
-
-The focused `unfinishedToolRestoresSession` probe delivers content plus an
-unfinished Ollama tool through `ChatSession.stream`. Temporarily substituting
-`exhausted` for the engine's interruption outcome made that public probe
-reject both the error outcome and lifecycle; restoring the existing engine
-made it pass. A second controlled violation removed the streaming error
-rollback; the same public probe rejected the retained failed user turn and
-passed after the original rollback was restored. No production change was
-required. This acceptance adds to,
-and preserves, the separate gateway interruption matrix, completed-tool
-follow-up tests and terminal-delivery cancellation tests. It claims scripted
-Linux interruption evidence, not live inference or additional legacy-path
-coverage.
-
-## Policy selection and bounded backoff acceptance
-
-Gap 7 is closed under binding decision 10 and the authoritative root contract's
-public-boundary amendment. `RecoveryPolicySelectionTests` pairs selected and
-unselected policies through ordinary, structured, JSON, tool-stream and
-single-turn recovery on Ollama, oMLX, OpenAI and Anthropic under full traits.
-Removing HTTP 500 or 502 from the default set, adding HTTP 418, disabling HTTP,
-and removing transport eligibility change classification and actual resends.
-Truncated HTTP 500/502 remain HTTP failures; truncated HTTP 200 supplies the
-transport case. Selected failures exhaust three attempts; unselected failures
-terminate as ineligible after one, without admission or delivered output.
-
-The shared assertions compare captured request bodies against actual loopback
-socket bodies, exact ordered response headers/bytes, distinct attempt IDs and
-one logical ID. Final, historical, admitted and reported failures retain exact
-provider, operation, phase, status, eligibility, reason, acceptance, Retry-After,
-progress, public metadata and typed HTTP/URL causes. Lifecycle comparison asserts
-every `RecoveryEvent` field and the complete transition sequence.
-
-`RecoveryBoundedTimingTests` checks exact injected jitter ceilings, sleeper
-arguments and lifecycle delays for negative, above-ceiling, NaN and both infinite
-samples across the same public matrix. Ordinary saturation yields `[1, 2, 3, 3]`.
-The shared engine's exponent cap is separately exercised through Ollama buffered
-and single-turn requests: a least-normal positive base and ceiling 16 yield
-exactly 2 at failed attempts 1024–1026, where uncapped exponentiation yields 16.
-Full wire, failure, history and lifecycle assertions still run for all 1027 sends.
-No real backoff sleep or live inference is used.
-
-Before expanding the matrix, a public single-turn status-removal probe rejected
-a controlled default-only selector on eligibility, reason and wire evidence,
-then passed after restoration. Further controlled regressions of status addition,
-category selection, each jitter bound, non-finite fallback and the exponent cap
-all reject; each restored implementation passes. Ordered commands, actual exits,
-full captures and independent assertion review are retained outside the worktree.
-No production correction was required. Typed-policy validation, admission,
-Retry-After, cancellation, legacy paths, runtime pins and the twelve binding
-decisions are preserved. Gap 6 remains open; documentation gap 9 is closed below.
-
-Cancellation evidence was reviewed before any proposed cancellation change.
-Historical socket-establishment failures are accompanied by a retained
-same-binary descriptor-limit isolation that distinguishes capacity from cache
-warnings. Three bounded current focused rechecks passed the existing default
-binary's 18 cases; they do not explain other historical intermittency or establish
-Anthropic coverage. No scheduling diagnosis is made, and sender-registration
-cancellation, cleanup, socket-closure and progress assertions remain unchanged.
+Binding decision 12 documentation remains delivered in the Unreleased notes,
+DocC recovery guides and executable `RecoveryExample`, with
+`scripts/probe-recovery-example.py` exercising explicitly admitted 503 then
+success and identical payload bytes. No changelog or example change is needed
+for this assertion-only correction.
 
 ## Open gaps
 
-These are requirements with no implementation, or with an implementation that
-no test would catch if it regressed.
-
-6. **Weaker privacy and cause evidence.**
-   - The safe fields of `RecoveryEvent` (phase, category, eligible, reason,
-     acceptance, delay, operation) are now asserted for admission, policy-selection
-     and bounded-backoff scenarios.
-     Equivalent coverage for other recovery scenarios remains incomplete.
+No remaining portion of gap 6 is open. The documented limits below remain
+explicit; this statement concerns completion recovery evidence, not coordinated
+cross-port release readiness or live inference.
 
 ## Documented limits
 
@@ -521,80 +244,3 @@ These are permitted by the contract and documented. They are not gaps.
   and local-provider replay still needs caller admission with acceptance `unknown`.
   The library cannot see the discarded bytes.
 - The tests cover only some unsupported request options.
-
-## Typed-error amendment acceptance evidence
-
-`TypedRecoveryErrorTests` covers gateway ordinary, structured and JSON calls,
-`LLMBroker.complete`, `LLMBroker.completeJSON`, `LLMBroker.generateResponse`,
-`ChatSession.send(_:)`, `ChatSession.send(text:images:)`, gateway/broker/session
-throwing streams, and gateway/broker single-turn recovery event streams. All four
-providers run under full traits. Every boundary runs with and without cancellation
-scope. Broker JSON, native response and multimodal send have explicit typed-error
-coverage in the same matrix.
-
-The three added callers use actual recovery-enabled Ollama, oMLX, OpenAI and
-Anthropic adapters against scripted loopback HTTP. Broker JSON supplies a valid
-schema and an incompatible response payload, so exact recovery causes must survive
-before Codable projection. Native response exercises the shared `requestResponse`
-path. Multimodal send carries an inline synthetic one-pixel PNG: assertions inspect
-the proposed request even when capture rejects dispatch, and the actual socket
-request after dispatch. They require Ollama's base64 `images` array, oMLX/OpenAI's
-`image_url` data URL, or Anthropic's base64 image source block, alongside the exact
-user text. Every failed invocation restores the exact initial system-message
-history. This is rollback evidence for a seeded session, not concurrent sends or
-arbitrary accumulated conversations.
-
-Invalid limits retain the exact `MojenticError.invalidArgument` case and message,
-with zero socket requests, wire-capture callbacks, lifecycle callbacks and tool
-executions after each invalid policy. Cases cover zero/negative attempts and
-negative, NaN and both infinite delay/budget values, plus nonfinite deadlines.
-Synthetic capture causes independently assert stage and sequence values: request capture
-fails before dispatch (one proposed identity, no actual attempt/history), while
-response capture fails after exactly one request. Ordered captured identities
-and bytes match actual socket bytes and response captures. Length fixtures use
-Ollama NDJSON, oMLX/OpenAI SSE with `[DONE]`, and native Anthropic named SSE events
-(or each provider's buffered envelope). Causes are cast back to `MojenticError`
-and assert exact finish reason, usage, model and metadata. History is exactly one
-actual failed attempt, with distinct logical and attempt IDs. Terminal and
-historical length evidence retain the exact response body and headers; post-response
-capture failures retain the same evidence and progress in history. These tests
-establish single-attempt history order, not a multi-retry typed-cause history.
-Observed and delivered semantic counters are independently checked against content
-received through the public stream. Streams have one
-failure terminal and end afterward; sessions restore seeded history exactly.
-No failure triggers a resend or tool execution.
-
-The focused multimodal loopback acceptance command is
-`./scripts/with-gate-environment swift test --traits full --filter TypedRecoveryErrorTests/multimodalLengthThroughSession`.
-With only the `sessionImages` invocation temporarily changed to
-`session.send("question")`, this probe exits 1 with four provider-specific
-missing-image assertions against actual socket request bytes. The rejecting
-command, revision, input diff, exit status and assertion output were recorded and
-validated before restoring the image invocation or updating this document.
-After restoration to `send(text:images:)`, the same probe exits 0 for all four
-providers. This negative control establishes that the retained assertions detect
-missing images while preserving the exact user text; it requires no runtime
-change. Earlier validation runs are not evidence of this acceptance order.
-
-The initial loopback broker probe rejected buffered Ollama `length` being returned
-as success. It passes after recovery-only length validation before projection.
-Single-turn setup handling now preserves typed `MojenticError` rather than replacing
-policy errors with a generic setup message. Admission, retry selection, cancellation,
-terminal accounting, successful completions and legacy finish handling are unchanged.
-Only the policy/capture/length bullets of gap 6 are closed; its general telemetry
-bullet remains open. Documentation gap 9 is closed below. Policy selection and bounded
-backoff are covered by the acceptance above.
-
-## Documentation acceptance — binding decision 12
-
-Gap 9 is closed. Unreleased now introduces the opt-in recovery APIs, guarantees,
-limits and authorized breaking changes. `RecoveryExample` is a SwiftPM executable
-product/target included in the release build, with complete loopback run instructions
-and a DocC link. `scripts/probe-recovery-example.py` runs that delivered executable,
-not a substitute implementation: a scripted eligible 503 precedes explicitly
-admitted success; it asserts two completion requests with identical encoded bytes,
-exact Unicode content, credential arrival and safe diagnostics excluding credential
-and private response evidence. The missing executable was rejected before
-implementation; the delivered executable passed. The entrypoint error rules,
-cited capabilities, oMLX keepalive behavior and documented limits remain unchanged.
-Gap 6's broader lifecycle-event coverage remains open.

@@ -9,10 +9,17 @@ struct RecoveryCancellationTests {
         _ boundary: RecoveryBoundary,
         _ phase: String,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [boundary.success()])
+        let success = try boundary.success()
+        let reply =
+            phase == "headers"
+            ? RecoveryReply(body: success.body, hold: true, splitAt: 0) : success
+        let server = try RecoveryLoopback(replies: [reply])
+        defer { server.release() }
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
+        let capture = policy.wireObserver
         policy.wireObserver = { event in
+            try capture?(event)
             switch (phase, event) {
             case ("request", .request), ("headers", .headers), ("body", .body):
                 throw RecoveryCaptureSentinel()
@@ -21,6 +28,42 @@ struct RecoveryCancellationTests {
         }
         let failure = try await recoveryFailure {
             _ = try await boundary.complete(boundary.gateway(server, policy: policy))
+        }
+        let candidate = try #require(recorder.requests.withLock { $0.first?.0 })
+        let lifecycle = RecoveryLifecycleEvidence(boundary)
+        if phase == "request" {
+            #expect(
+                recorder.events.withLock { $0 }
+                    == lifecycle.undispatched(
+                        logicalID: candidate.logicalID,
+                        outcome: .captureFailed,
+                        category: .capture,
+                        reason: "captureFailed"
+                    )
+            )
+        } else {
+            var progress = RecoveryProgress()
+            progress.headersReceived = true
+            if phase == "body" {
+                progress = lifecycleProgress(
+                    try boundary.success(),
+                    observed: RecoverySemanticProgress(
+                        reasoningBytes: 9,
+                        contentBytes: boundary.structured ? 13 : 9
+                    )
+                )
+            }
+            #expect(
+                recorder.events.withLock { $0 }
+                    == lifecycle.terminal(
+                        identity: candidate,
+                        progress: progress,
+                        category: .capture,
+                        outcome: .captureFailed,
+                        reason: phase == "body" ? "observedSemanticOutput" : "captureFailed",
+                        phase: .receiving
+                    )
+            )
         }
         #expect(failure.outcome == .captureFailed)
         #expect(failure.failure.inspectEvidence().cause is RecoveryCaptureSentinel)
@@ -63,6 +106,16 @@ struct RecoveryCancellationTests {
         #expect(failure.failure.inspectEvidence().cause is CancellationError)
         #expect(server.requests.withLock { $0.isEmpty })
         #expect(recorder.events.withLock { $0.map(\.transition.rawValue) } == ["cancelled"])
+        #expect(
+            recorder.events.withLock { $0 }
+                == RecoveryLifecycleEvidence(boundary).undispatched(
+                    logicalID: failure.logicalID,
+                    outcome: .cancelled,
+                    category: .cancellation,
+                    reason: "callerCancelled"
+                )
+        )
+
     }
 
     @Test(arguments: RecoveryBoundary.all, ["active", "admission", "backoff", "success"])
@@ -98,8 +151,10 @@ struct RecoveryCancellationTests {
                 try Task.checkCancellation()
             }
         }
+        let capture = policy.wireObserver
         if phase == "active" {
             policy.wireObserver = { event in
+                try capture?(event)
                 if case .body = event {
                     ready.continuation.yield(())
                 }
@@ -109,6 +164,7 @@ struct RecoveryCancellationTests {
         let launch = AsyncStream<Void>.makeStream()
         if phase == "success" {
             policy.wireObserver = { event in
+                try capture?(event)
                 if case .body = event {
                     handle.withLock { $0?.cancel() }
                 }
@@ -147,6 +203,14 @@ struct RecoveryCancellationTests {
         if phase == "success" {
             #expect(failure.failure.progress.observed.completedToolCalls == 1)
             #expect(failure.failure.progress.observed.reasoningBytes == 9)
+        }
+        if phase != "success" {
+            try assertCancellationLifecycle(
+                recorder,
+                lifecycle: RecoveryLifecycleEvidence(boundary),
+                reply: reply,
+                phase: phase
+            )
         }
         let events = recorder.events.withLock { $0 }
         #expect(events.filter { $0.transition == .cancelled }.count == 1)
