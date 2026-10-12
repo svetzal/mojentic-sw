@@ -347,25 +347,30 @@ public enum RecoveryPhase: String, Sendable, Codable {
 
 /// Capability support does not imply proof that an individual request ended.
 public enum RecoveryCapabilitySupport: String, Sendable, Codable {
-    /// The adapter exposes this facility.
+    /// The inspected documentation describes this facility for the exact endpoint.
     case supported
-    /// The adapter does not expose this facility.
+    /// The inspected endpoint documentation describes no such facility.
     case unsupported
-    /// Evidence cannot establish support or acceptance.
+    /// Documentation is absent or ambiguous, or exact-attempt evidence is unavailable.
     case unknown
 }
 
-/// Verified provider facilities for completion recovery.
+/// Documented facilities for the four maintained completion recovery adapters.
+///
+/// See <doc:RecoveryCapabilities> for each endpoint, evidence source and inspection date.
+/// These values describe facilities, not evidence that a particular request ended.
 public struct CompletionRecoveryCapabilities: Sendable {
     /// Cancelling the local HTTP task is supported, without remote termination proof.
     public let localRequestCancellation: RecoveryCapabilitySupport = .supported
-    /// Remote cancellation is unsupported; local task cancellation proves no termination.
+    /// The inspected completion endpoints describe no active-request cancellation operation.
     public let remoteRequestCancellation: RecoveryCapabilitySupport = .unsupported
-    /// Exact-attempt status querying is unsupported by this adapter.
+    /// The inspected completion endpoints describe no active exact-attempt status query.
     public let exactRequestStatus: RecoveryCapabilitySupport = .unsupported
-    /// Provider idempotency is unsupported; no invented header is sent.
-    public let idempotency: RecoveryCapabilitySupport = .unsupported
-    /// Create the documented default value.
+    /// The inspected references give no inference idempotency guarantee; no header is invented.
+    public let idempotency: RecoveryCapabilitySupport = .unknown
+    /// No adapter has evidence that this exact remote attempt terminated.
+    public let exactAttemptTermination: RecoveryCapabilitySupport = .unknown
+    /// Create the values documented for Ollama, oMLX, OpenAI Chat Completions and Anthropic Messages.
     public init() {}
 }
 

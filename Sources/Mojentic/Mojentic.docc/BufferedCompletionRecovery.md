@@ -138,11 +138,12 @@ promptly; admission producers and injected sleepers must cooperate with cancella
 ## Verified capability limits
 
 ``OllamaGateway/recoveryCapabilities``, ``OMLXGateway/recoveryCapabilities`` and
-``OpenAIGateway/recoveryCapabilities`` report local HTTP task cancellation as
-supported and remote request cancellation, exact-attempt status queries, and
-inference idempotency as unsupported by these adapters. `AnthropicGateway` has no
-capability property yet; its facilities are the same. Local cancellation does not prove remote termination. No invented
-idempotency header, model unload, process termination, or tool replay is used.
+``OpenAIGateway/recoveryCapabilities``, plus `AnthropicGateway.recoveryCapabilities`
+under the `anthropic` or `full` trait, expose all five facilities. Local task
+cancellation is supported; remote cancellation and active exact-attempt status
+queries are unsupported; inference idempotency and exact-attempt termination are
+unknown. See <doc:RecoveryCapabilities> for all twenty values, exact endpoints,
+evidence sources, inspection dates and limits.
 
 Recovery-enabled sends use a fresh ephemeral URLSession per wire attempt, with
 redirects refused, cookie/credential storage disabled, and body-stream replay

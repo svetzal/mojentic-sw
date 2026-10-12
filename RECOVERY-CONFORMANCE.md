@@ -25,9 +25,8 @@ complete for buffered and streaming requests on all four maintained completion
 adapters. The safety properties hold and have strong tests: one encoded
 payload, no replay after observed output, completed tools run once,
 authoritative cancellation, and provider-specific admission. The open gaps are in the
-section [Open gaps](#open-gaps). The most important are the provider
-capability surface (gap 1); provider metadata gap 2 is closed by the acceptance
-evidence below.
+section [Open gaps](#open-gaps). Capability gap 1 and provider metadata gap 2
+are closed by the acceptance evidence below; the remaining gaps stay open.
 
 ## Validation
 
@@ -41,6 +40,8 @@ evidence below.
 | Cancellation correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed on the corrected tree through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (350 in 94 suites), full-trait tests (362 in 99 suites), and DocC with warnings as errors. The focused public-boundary probe failed without the cancellation check and passed with it. |
 | Dependency security for the admission amendment and cancellation correction | `osv-scanner scan source --lockfile=Package.resolved` (2.6.0): three packages scanned, no issues found. No dependency changes. |
 | oMLX keepalive correction, Linux Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (353 in 95 suites), full-trait tests (365 in 100 suites), and DocC with warnings as errors. The fixture-shaped loopback regression suite failed without the oMLX guard and passed with it. No dependency changes. |
+| Capability correction, Linux x86_64 Swift 6.4, October 12, 2026 | All six required gates passed through `scripts/with-gate-environment`: strict format, SwiftLint, release build, default tests (356 in 96 suites), full-trait tests (369 in 101 suites), and DocC with warnings as errors. The full-trait public capability probe rejected the old idempotency value and passed with the correction. |
+| Dependency security for the capability correction | `osv-scanner scan source --lockfile=Package.resolved`: three packages scanned, no issues found. No dependency changes. |
 | Strict concurrency | Swift 6 language mode (`swiftLanguageModes: [.v6]`), zero warnings |
 | DocC | `generate-documentation --warnings-as-errors` passes with default traits. The Anthropic symbols are behind the `anthropic` trait, so this gate does not build their documentation. |
 
@@ -76,18 +77,37 @@ recovery policy. They never convert a recovery error into a legacy error.
 
 ## Provider capabilities
 
-| Adapter | Local HTTP cancellation | Remote cancellation | Exact-attempt status | Idempotency | Recovery telemetry |
+| Adapter and exact POST endpoint | Local HTTP cancellation | Remote cancellation | Active exact-attempt status | Idempotency | Exact-attempt termination |
 | --- | --- | --- | --- | --- | --- |
-| Ollama | supported | unsupported | unsupported | unsupported | progress and reported metrics |
-| oMLX | supported | unsupported | unsupported | unsupported | none (no invented events) |
-| OpenAI Chat Completions | supported | unsupported | unsupported | unsupported | usage metrics |
-| Anthropic Messages | supported | unsupported | unsupported | unsupported | usage, model, message ID, finish |
+| Ollama `/api/chat` | supported | unsupported | unsupported | unknown | unknown |
+| oMLX `/v1/chat/completions` | supported | unsupported | unsupported | unknown | unknown |
+| OpenAI `https://api.openai.com/v1/chat/completions` | supported | unsupported | unsupported | unknown | unknown |
+| Anthropic `https://api.anthropic.com/v1/messages` | supported | unsupported | unsupported | unknown | unknown |
 
-Local cancellation does not prove that remote inference stopped. Ollama model
-unload, loaded-model lists and oMLX model activity are model-level evidence,
-not proof that one request ended. The engine never uses them.
-`OllamaGateway`, `OMLXGateway` and `OpenAIGateway` expose these values as
-`recoveryCapabilities`. See gap 1 for what is missing.
+Every provider/facility pair has an endpoint, evidence source, inspection date
+(October 12, 2026) and evidence limit in the
+[DocC capability table](Sources/Mojentic/Mojentic.docc/RecoveryCapabilities.md)
+and API comments on its public `recoveryCapabilities` accessor. Anthropic's
+accessor remains gated on the `anthropic` trait. The provider references reuse
+Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3`'s citations, inspected again:
+[Ollama chat](https://docs.ollama.com/api/chat),
+[oMLX documentation](https://github.com/jundot/omlx),
+[OpenAI Chat Completions create](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create),
+and [Anthropic Messages create](https://platform.claude.com/docs/en/api/messages/create).
+[URLSessionTask.cancel()](https://developer.apple.com/documentation/foundation/urlsessiontask/cancel())
+is the local task facility, not a provider termination promise.
+
+The authoritative root contract's October 12 Capabilities amendment controls:
+`supported` requires a documented facility for the exact endpoint;
+`unsupported` means the inspected reference describes no such operation;
+`unknown` covers absent or ambiguous guarantees. The endpoint references describe
+no cancellation/status operation for an active exact request and provide no
+inference idempotency guarantee. Exact-attempt termination remains unknown
+because no adapter has evidence for one attempt. Stored OpenAI completion
+retrieval and cancellation on other endpoints do not establish active-attempt
+status or termination here. Ollama unload/loaded-model lists and oMLX model
+activity are model-level evidence, never exact-attempt proof. The engine never
+uses them. No remote facility or idempotency header is implemented.
 
 ## Contract acceptance cases
 
@@ -108,7 +128,7 @@ lifecycle order. Test suites are in `Tests/MojenticTests/Gateways/`.
 | Compatibility | met, exact | `ReasoningHistoryConformanceTests.defaultPolicyKeepsOneAttemptWithNilHistory`, `RecoveryConformanceTests.disabledRecoveryRetainsLegacyOneSend`, `.successfulLegacyAndRecoveryResultsMatch`, `ReleaseBaselineCompatibilityTests.configuredRecoveryDoesNotChangeLegacyStreams`, `StreamingRecoveryTests.legacyRemainsSingleSend` |
 | Privacy | partial (gaps 2 and 6) | sentinel checks of `String(describing:)`, `String(reflecting:)` and event JSON in `StreamingRecoveryTests`, `AnthropicRecoveryCaptureTests`, `RecoveryStatusConformanceTests` |
 | Broker tools | met, exact | `StreamingRecoveryConsumerTests.completedToolRunsOnceAcrossFollowUp`, `.recoveryPreservesStreamingToolDepth`, `RecoveryToolSafetyTests.recoveryDoesNotResetToolDepth` |
-| Capabilities | not met (gap 1) | none |
+| Capabilities | met; all twenty values explicitly asserted through public accessors, including Anthropic under full traits | `RecoveryCapabilityTests` |
 
 ## Supplement requirements
 
@@ -259,20 +279,34 @@ model `keepalive` and oMLX model `keepalive-2` remain ordinary semantic frames.
 The focused suite fails when the provider guard is removed and passes when it
 is restored. Only gap 5 is closed by this correction.
 
+## Capability acceptance (October 12 amendment)
+
+`RecoveryCapabilityTests` imports the public module and reads each gateway's
+`recoveryCapabilities`. Its four tests assert the literal expected value of all
+five fields independently, twenty assertions in total; Anthropic is compiled
+and executed under `--traits full`. They neither count fields nor compare
+adapters with the shared default. No network dispatch is needed to read this
+public capability boundary.
+
+Regression proof: after adding the missing exact-attempt termination field and
+Anthropic accessor, the full-trait focused probe exited 1 with four individual
+idempotency assertion failures against the old `.unsupported` classification.
+Changing that source value to `.unknown` made the same probe exit 0 with all
+four tests passing. The additive API surfaces were present in both runs, so the
+rejection is behavioral rather than a compilation failure. Assertions also
+reject an incorrect local cancellation, remote cancellation, status or
+termination field. Only capability gap 1 is closed by this correction.
+
+Limits: no request behavior, admission policy, request bytes, wire counts,
+cancellation implementation, legacy entrypoint or provider trait boundary
+changes. Capability values do not authorize a retry or prove remote termination.
+No live provider cancellation/status/idempotency experiment was performed.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
 no test would catch if it regressed.
 
-1. **Provider capabilities.** No test reads any capability value.
-   `AnthropicGateway` has no `recoveryCapabilities`.
-   `CompletionRecoveryCapabilities` is one set of constants for every adapter
-   and never reports `unknown`. The contract requires unsupported and unknown
-   facilities to be explicit, with the documented evidence source. Rust reports
-   idempotency as unknown, cites the provider documentation it inspected, and
-   tests the values. To close: decide `unknown` or `unsupported` with a cited
-   source for each facility, add the Anthropic property, and test every field
-   for every adapter.
 4. **Interruption through broker and session.** The content, reasoning and
    tool interruption cases are tested only at the gateway stream APIs. No test
    runs them through `LLMBroker.stream`, `ChatSession.stream` or
