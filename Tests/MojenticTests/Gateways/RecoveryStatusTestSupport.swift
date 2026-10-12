@@ -126,16 +126,25 @@ func assertStatusWires(
 }
 
 func assertStatusFailure(
-    _ failure: RecoveryFailure, identity: RecoveryIdentity, reply: RecoveryReply,
+    _ failure: RecoveryFailure,
+    identity: RecoveryIdentity,
+    reply: RecoveryReply,
+    eligible: Bool? = nil,
 ) throws {
     #expect(failure.identity == identity)
     #expect(failure.logicalID == identity.logicalID)
-    #expect(failure.category == .http)
+    #expect(failure.category == (reply.status == 200 ? .transport : .http))
     #expect(failure.status == reply.status)
     #expect(failure.acceptance == .unknown)
-    #expect(failure.eligible == ([503, 504].contains(reply.status)))
+    let selected = eligible ?? [503, 504].contains(reply.status)
+    #expect(failure.eligible == selected)
     #expect(
-        failure.reason == ([503, 504].contains(reply.status) ? "selectedHTTPStatus" : "permanentHTTPStatus")
+        failure.reason
+            == (selected
+                ? (reply.status == 200 ? "transientTransport" : "selectedHTTPStatus")
+                : reply.status == 200
+                    ? "nonTransientTransport"
+                    : [400, 401, 403].contains(reply.status) ? "permanentHTTPStatus" : "unselectedHTTPStatus")
     )
     #expect(failure.progress.headersReceived)
     #expect(failure.progress.rawBytes == reply.body.utf8.count)

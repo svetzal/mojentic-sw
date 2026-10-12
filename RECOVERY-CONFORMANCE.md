@@ -437,6 +437,52 @@ follow-up tests and terminal-delivery cancellation tests. It claims scripted
 Linux interruption evidence, not live inference or additional legacy-path
 coverage.
 
+## Policy selection and bounded backoff acceptance
+
+Gap 7 is closed under binding decision 10 and the authoritative root contract's
+public-boundary amendment. `RecoveryPolicySelectionTests` pairs selected and
+unselected policies through ordinary, structured, JSON, tool-stream and
+single-turn recovery on Ollama, oMLX, OpenAI and Anthropic under full traits.
+Removing HTTP 500 or 502 from the default set, adding HTTP 418, disabling HTTP,
+and removing transport eligibility change classification and actual resends.
+Truncated HTTP 500/502 remain HTTP failures; truncated HTTP 200 supplies the
+transport case. Selected failures exhaust three attempts; unselected failures
+terminate as ineligible after one, without admission or delivered output.
+
+The shared assertions compare captured request bodies against actual loopback
+socket bodies, exact ordered response headers/bytes, distinct attempt IDs and
+one logical ID. Final, historical, admitted and reported failures retain exact
+provider, operation, phase, status, eligibility, reason, acceptance, Retry-After,
+progress, public metadata and typed HTTP/URL causes. Lifecycle comparison asserts
+every `RecoveryEvent` field and the complete transition sequence.
+
+`RecoveryBoundedTimingTests` checks exact injected jitter ceilings, sleeper
+arguments and lifecycle delays for negative, above-ceiling, NaN and both infinite
+samples across the same public matrix. Ordinary saturation yields `[1, 2, 3, 3]`.
+The shared engine's exponent cap is separately exercised through Ollama buffered
+and single-turn requests: a least-normal positive base and ceiling 16 yield
+exactly 2 at failed attempts 1024–1026, where uncapped exponentiation yields 16.
+Full wire, failure, history and lifecycle assertions still run for all 1027 sends.
+No real backoff sleep or live inference is used.
+
+Before expanding the matrix, a public single-turn status-removal probe rejected
+a controlled default-only selector on eligibility, reason and wire evidence,
+then passed after restoration. Further controlled regressions of status addition,
+category selection, each jitter bound, non-finite fallback and the exponent cap
+all reject; each restored implementation passes. Ordered commands, actual exits,
+full captures and independent assertion review are retained outside the worktree.
+No production correction was required. Typed-policy validation, admission,
+Retry-After, cancellation, legacy paths, runtime pins and the twelve binding
+decisions are preserved. Gaps 6 and 9 remain open.
+
+Cancellation evidence was reviewed before any proposed cancellation change.
+Historical socket-establishment failures are accompanied by a retained
+same-binary descriptor-limit isolation that distinguishes capacity from cache
+warnings. Three bounded current focused rechecks passed the existing default
+binary's 18 cases; they do not explain other historical intermittency or establish
+Anthropic coverage. No scheduling diagnosis is made, and sender-registration
+cancellation, cleanup, socket-closure and progress assertions remain unchanged.
+
 ## Open gaps
 
 These are requirements with no implementation, or with an implementation that
@@ -444,12 +490,9 @@ no test would catch if it regressed.
 
 6. **Weaker privacy and cause evidence.**
    - The safe fields of `RecoveryEvent` (phase, category, eligible, reason,
-     acceptance, delay, operation) are now asserted for admission scenarios.
+     acceptance, delay, operation) are now asserted for admission, policy-selection
+     and bounded-backoff scenarios.
      Equivalent coverage for other recovery scenarios remains incomplete.
-7. **Policy selection and validation.** No test shows that changing
-   `retryableStatuses` or `retryableCategories` changes eligibility. HTTP 500
-   and 502 are never exercised. Invalid-limit error propagation is covered by the typed-error tests; the
-   jitter clamp and exponent cap still have no tests.
 9. **Documentation.** `CHANGELOG.md` records scoped recovery corrections but
    lacks a general introduction of the recovery API, which is new since
    `v2.1.0`. There is no runnable example under `Examples/`.
@@ -545,4 +588,5 @@ Single-turn setup handling now preserves typed `MojenticError` rather than repla
 policy errors with a generic setup message. Admission, retry selection, cancellation,
 terminal accounting, successful completions and legacy finish handling are unchanged.
 Only the policy/capture/length bullets of gap 6 are closed; its general telemetry
-bullet and the separate policy selection and example gaps remain open.
+bullet and the separate example gap remain open. Policy selection and bounded
+backoff are covered by the acceptance above.
