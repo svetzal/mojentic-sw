@@ -439,8 +439,8 @@ These are permitted by the contract and documented. They are not gaps.
 `ChatSession.send(_:)`, `ChatSession.send(text:images:)`, gateway/broker/session
 throwing streams, and gateway/broker single-turn recovery event streams. All four
 providers run under full traits. Every boundary runs with and without cancellation
-scope. The earlier matrix omitted broker JSON, native response and multimodal send;
-the original acceptance statement did not establish their typed-error coverage.
+scope. Broker JSON, native response and multimodal send have explicit typed-error
+coverage in the same matrix.
 
 The three added callers use actual recovery-enabled Ollama, oMLX, OpenAI and
 Anthropic adapters against scripted loopback HTTP. Broker JSON supplies a valid
@@ -474,11 +474,17 @@ received through the public stream. Streams have one
 failure terminal and end afterward; sessions restore seeded history exactly.
 No failure triggers a resend or tool execution.
 
-The added multimodal loopback probe rejected the old text-only test invocation
-for all four providers because it omitted the image from actual request bytes. It
-passes when the test invokes `send(text:images:)`; the expanded matrix requires no
-runtime change. Existing caller paths, legacy behavior and recovery guarantees are
-preserved.
+The focused multimodal loopback acceptance command is
+`./scripts/with-gate-environment swift test --traits full --filter TypedRecoveryErrorTests/multimodalLengthThroughSession`.
+With only the `sessionImages` invocation temporarily changed to
+`session.send("question")`, this probe exits 1 with four provider-specific
+missing-image assertions against actual socket request bytes. The rejecting
+command, revision, input diff, exit status and assertion output were recorded and
+validated before restoring the image invocation or updating this document.
+After restoration to `send(text:images:)`, the same probe exits 0 for all four
+providers. This negative control establishes that the retained assertions detect
+missing images while preserving the exact user text; it requires no runtime
+change. Earlier validation runs are not evidence of this acceptance order.
 
 The initial loopback broker probe rejected buffered Ollama `length` being returned
 as success. It passes after recovery-only length validation before projection.

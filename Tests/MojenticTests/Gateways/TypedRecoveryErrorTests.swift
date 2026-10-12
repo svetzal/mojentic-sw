@@ -4,7 +4,9 @@ import Testing
 
 @Suite("Typed recovery errors at public boundaries")
 struct TypedRecoveryErrorTests {
-    @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
+    @Test(
+        "Multimodal session length preserves exact provider image bytes",
+        arguments: RecoveryBoundary.all.filter { !$0.structured })
     func multimodalLengthThroughSession(_ provider: RecoveryBoundary) async throws {
         try await lengthCause(.init(provider: provider, path: .sessionImages), false)
     }
