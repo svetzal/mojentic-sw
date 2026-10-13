@@ -1,0 +1,37 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Starting]
+[13 / 91] Logging
+[17 / 89] Mojentic
+[21 / 88] Mojentic
+[44 / 134] SimpleLLM-product
+[44 / 134] WebSearch-product
+[46 / 134] SimpleLLM-product
+[51 / 135] WorkingMemory-product
+[55 / 136] SimpleTool-product
+[60 / 140] ReAct-product
+[69 / 144] IterativeSolver-product
+[75 / 148] ImageAnalysis-product
+[83 / 151] CodingFileTool-product
+[95 / 158] BrokerExamples-product
+[98 / 158] ImageAnalysis-product
+[100 / 160] IterativeSolver-product
+[108 / 165] EphemeralTaskManagerExample-product
+[115 / 167] SimpleTool-product
+[127 / 167] ImageAnalysis-product
+[136 / 171] AsyncLLM-product
+[138 / 171] SolverChatSession-product
+[143 / 171] RealtimeManualVAD-product
+[146 / 171] ReAct-product
+[148 / 171] Mojentic-product
+[154 / 171] OMLXChat-product
+[157 / 171] ListModels-product
+[164 / 171] CodingFileTool-product
+[167 / 171] ImageAnalysis-product
+[171 / 171] TracerDemo-product
+[171 / 171] CodingFileTool-product
+[171 / 171] AsyncLLM-product
+Build complete! (36.44 secs)
