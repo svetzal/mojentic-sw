@@ -1,11 +1,18 @@
 # Transient recovery conformance
 
-This current-state record describes the transient recovery contract. The twelve
-binding decisions remain in force.
-The lifecycle matrix and listener ownership correction remain preserved. Gap 6's
-sender-readiness dependency is characterized by controlled replacement HTTP
-experiments below. The historical per-call causes and other gap 6 sub-gaps remain
-open: aggregate descriptor counts and successful reruns cannot establish them.
+This record reconciles the delivered Swift implementation at
+`d3da7f1755ab989b4413e304e3be492bf5e50c68` with the nine original gaps in
+`54a0662`, the twelve binding owner decisions and the authoritative monorepo
+contract's October 12 amendment. The authoritative contract was inspected
+read-only with SHA-256
+`a53a3a4eb118fa4687dd703d6ce918dd40dd6cb4eda796abc6c429a6e932e7a3`;
+the repository's older contract copy does not supersede it.
+
+The original implementation requirements are closed by the executable evidence
+mapped below. Under the October 13 owner decision, unavailable historical
+per-call causes remain explicit historical limits. Controlled replacement
+findings establish only their own measured interleavings. Passing validation
+does not attribute the original failures.
 
 Recovery is implemented for buffered and streaming completion on Ollama, oMLX,
 OpenAI Chat Completions and trait-enabled Anthropic Messages. Lifecycle
@@ -14,122 +21,54 @@ UUIDs are anchored to public wire capture, independently of lifecycle output.
 No runtime behavior, dependency, version, gate, coverage floor or runtime pin
 changes accompany this evidence update.
 
-## Validation and review
+## Historical limits
 
-The previous listener correction removes redundant listener ownership and
-synchronizes close/clear with fixture shutdown. Its preserved traced full suite
-reported 102 issues without `EMFILE`: 16 malformed-tail assertions, eight
-healthy-generation client timeouts, 15 sender-registration readiness failures
-and 63 interruption cause/category/lifecycle assertions. That trace recorded
-descriptor operations without endpoint or wire bytes, delegate callbacks or
-producer identities. Exact per-call causal correlation cannot be recovered from
-it. The original logs and source hashes remain retained; these limitations are
-not converted into a scheduling explanation or a production cancellation claim.
+The retained descriptor-only full-suite trace lacks endpoint and wire bytes,
+HTTP delegate callbacks and producer identities. It cannot establish exact
+per-call causes for its readiness, timeout, malformed-tail or interruption
+failures. Aggregate descriptor counts, matching case labels and successful
+reruns do not reconstruct that missing evidence. Under the October 13 owner
+decision this remains a historical evidence limit, not an open implementation
+requirement. The listener ownership correction and its original evidence remain
+preserved.
 
-The replacement comparisons use identical integrated Swift source, the same
-unfiltered full-trait suite, the same memory diagnostics and exactly 8,192 soft
-descriptors. Memory diagnostics passed all 401 tests and checked 3,031 fixture
-traces. Adding syscall tracing rejected with 127 issues, without `EMFILE`.
-All 66 specifically named boundary probes have correlated wire capture; 54
-received HTTP delegate timeout errors while their fixtures were still held.
-Completion occurred 5.65–6.34 seconds after request capture, under the unchanged
-five-second HTTP limit. Partial-body observation preceded fixture release by
-5.80–48.31 seconds. All 17 sender probes, including the two ownership controls,
-expired at the registration readiness precondition. Those rejected readiness
-cases do not establish a cancellation cleanup failure.
+Controlled replacement comparisons recorded failures with per-call wire capture
+and HTTP completion while fixtures were held. These findings apply to those
+replacement calls only. They neither identify the original sends nor establish
+production cancellation failure. The public ownership-selector proof separately
+rejects selecting a sender by occurrence count and uses the actual producer's
+call-site role. It establishes fixture selection behavior, not the cause of the
+original readiness failures.
 
-The 21 interruption timeout cases match the original 21 failing case labels
-exactly. Eight malformed-tail and eight healthy-generation calls also timed out
-while held: their intended tail/close or remaining body had not been released
-before transport termination. This is measured replacement evidence of tracing
-interference with fixture-to-consumer handshakes, not an inferred delay from
-suite duration. The original descriptor-only trace cannot identify its actual
-sends, so matching case labels do not reconstruct its wire identities. Passing
-reruns alone remain insufficient causal evidence.
+`SenderRegistrationCancellationTests.publicHTTPBeforeSenderRegistration`
+compares an incomplete first record with the same response completed through a
+separate fixture signal. Prefix bytes alone do not establish sender readiness.
+With the record completed, cancellation occurs before continuation registration,
+while consumer, registration and fixture are independently held. Assertions
+compare exact request/response bytes and wire identities, observed/delivered
+progress, typed causes and complete expected lifecycle fields. HTTP delegate
+completion, actual producer completion and successful socket close or peer FIN
+are checked separately before consumer resumption. JSON request inputs compare
+as values because encoder key order can differ; raw bytes remain captured.
+`scripts/characterize-recovery-traces.py` checks existing per-call captures and
+ordering. No new causal-reconstruction run accompanies this record correction.
 
-Controlled public HTTP evidence rejects a fixture ownership ambiguity: selecting
-the second sender of a shared event type can hold a gateway instead of its broker,
-or a broker instead of its session. An independent barrier forces the inner
-sender ahead, without sleeps or changed deadlines. Selection now uses the role
-captured at the actual producer call site. The rejecting and corrected probes
-retain exact request/response bytes and identities, cancelled transport evidence,
-observed/delivered progress, ordered lifecycle and terminal assertions. Registration,
-consumer and fixture remain independently held; cleanup assertions still run
-before consumer resumption. This is a fixture selection correction, not evidence
-of a production cancellation defect or an explanation of the 15 readiness failures.
+## Validation scope
 
-The replacement sender experiment now controls the earliest missing handshake:
-availability of a complete first provider record. Each pair uses the same scripted
-response bytes and public request inputs, response headers, five-second HTTP
-limit, ten-second readiness bound and independent consumer/registration holds.
-The fixture first sends and obtains a public wire-observer acknowledgement of
-the prefix before the first LF. In the rejecting interleaving it closes the
-truncated response without supplying that LF or suffix. HTTP delegate completion
-and a typed transport report precede any decoded event sender; raw bytes and
-headers are retained, while observed and delivered semantic progress remain zero.
-This rejects the expectation that received prefix bytes alone establish sender
-readiness, without waiting for a readiness timeout. FoundationNetworking reports
-the partial-file transport cause as `URLError.unknown`; Apple's corresponding
-lost-connection expectation remains unexecuted here.
+Required checks are the six commands in `.hone-gates.json`: configured strict
+`swift format` lint, strict SwiftLint, release build, parallel default tests,
+full-trait tests and DocC with warnings as errors. Applicable additional checks
+are the unfiltered OSV scan of `Package.resolved` and the scripted
+`scripts/probe-recovery-example.py` check. Complete captures, exact source
+hashes, exit results and independent review are retained in a verified durable
+evidence receipt. A successful test count alone
+is insufficient evidence of boundary conformance.
 
-The matched control supplies exactly the withheld suffix through a separate
-fixture signal and keeps transport closure held. The first framed event then
-reaches the named producer's pre-registration seam. Caller cancellation occurs
-after this handshake, with its handler installed and continuation still absent;
-the existing cancellation assertions retain this interleaving. Supplying the
-record dependency is the intervention; cancellation versus truncated closure is
-the subsequent observation protocol. It is not a production behavior correction.
-For Anthropic, the first framed event includes message-start metadata; the prefix
-is the unterminated `event:` line, not a content delta. The broker single-turn
-error path can also attempt to send a terminal `recoveryFailure` after transport
-completion. That terminal sender is distinguished from decoded-event readiness,
-then cancelled to complete its existing rendezvous while the consumer stays held.
-Its original typed transport report is preserved; its established public
-cancelled projection is checked separately.
-
-`publicHTTPBeforeSenderRegistration` covers both interleavings for all 20
-applicable provider/API/path combinations with full traits (15 with default
-traits): gateway and broker single-turn paths, plus gateway, broker and session
-tool-stream paths for Ollama, oMLX, OpenAI and trait-enabled Anthropic. Session
-single-turn combinations remain inapplicable. The two ownership-selector
-regressions remain separate and preserved. Every applicable pair asserts one
-request, exact per-call wire UUIDs and request/response bytes, independently
-specified progress and full lifecycle fields, typed terminal cause, actual
-producer completion and successful local socket close or observed peer FIN before
-consumer resumption. Public JSON request inputs are compared as values because
-JSONEncoder can reorder keys; both exact raw captures remain retained. Pair
-characterization rejects unequal scripted bodies, missing controls and violations
-of the prefix/suffix/sender/cancellation/completion ordering. Complete experiment
-logs, source hashes, gate exit codes and skeptical review accompany the durable
-Foundry evidence bundle. These controlled findings do not identify which
-handshake was absent in any original descriptor-only call.
-
-Opt-in per-call tracing buffers private scripted evidence in memory and writes
-after the probe. It correlates wire UUIDs and bytes with fixture port and socket
-lifetime, per-delivery UUID and call-site role, HTTP delegate completion,
-cancellation, terminal report and observed/delivered counters. Delivery finishing
-and actual producer task completion are recorded separately. Sender tests require
-HTTP delegate completion with exact identity/body and actual producer completion
-before consumer resumption. The internal diagnostic hooks are absent by default;
-no recovery classification, cancellation or ownership behavior changes.
-`scripts/characterize-recovery-traces.py` checks byte agreement and independently
-expected completion ordering, and preserves call-specific chronology rather than
-classifying failures from aggregate totals. A launch-return diagnostic is not
-claimed to precede delegate callbacks. Memory client-close events record close
-intent; complete syscall logs establish actual descriptor close results. Diagnostic
-export may overlap other concurrent calls, so the comparisons measure the same
-logger with and without syscall tracing rather than asserting zero interference.
-
-Independent skeptical review confirms that the controlled public probe rejects
-the delivered count-based selector, while readiness failures alone do not reject
-production cancellation. It also requires delegate completion to be distinguished
-from FIN and producer task completion from delivery finishing. Integrated
-validation requires every discovered quality gate: strict swift-format, strict
-SwiftLint, release build, parallel default tests, full-trait tests and DocC with
-warnings as errors, plus the configured unfiltered OSV lockfile scan and scripted
-recovery example. All run in the host login Swift 6.4 environment at exactly 8,192
-soft descriptors. Apple platform and minimum Swift 6.1 CI results are not claimed.
-The default-trait DocC gate excludes trait-gated Anthropic documentation.
+Apple-platform and minimum Swift 6.1 validation on this revision remain pending.
+Linux results do not establish those results. Default-trait DocC excludes
+trait-gated Anthropic symbols. No cross-repository boundary changed in this
+record correction; this record makes no claim of a shared versioned executable
+contract verified by another repository.
 
 ## Public entrypoints
 
@@ -266,9 +205,9 @@ precedence over capture/cancellation/length outcome names. Limit refusal keeps
 the original selected HTTP classification. Starting events have no status,
 phase, category, eligibility, reason or delay, and zero progress.
 
-The new lifecycle fixture suites serialize their parameterized cases to bound
+The lifecycle fixture suites serialize their parameterized cases to bound
 additional socket usage. The gate environment retains its existing descriptor
-floor; validation sets the soft limit to exactly 8,192. The parallel gate and all
+floor of 8,192. The parallel gate and all
 existing cancellation tests remain unchanged.
 
 The existing sender-registration cancellation, cleanup, socket closure, terminal
@@ -305,15 +244,51 @@ Binding decision 12 documentation remains delivered in the Unreleased notes,
 DocC recovery guides and executable `RecoveryExample`, with
 `scripts/probe-recovery-example.py` exercising explicitly admitted 503 then
 success and identical payload bytes. No changelog or example change is needed
-for this assertion-only correction.
+for this record correction.
+
+## Reconciliation of the nine original gaps
+
+Closure is based on public implementation paths and assertion bodies, not names,
+aggregate counts, masked identities or a schema match. The existing assertions
+and coverage remain unchanged.
+
+| Original gap at `54a0662` | Current evidence and disposition |
+| --- | --- |
+| 1. Provider capabilities | Closed: all five fields on all four public adapters are asserted in `RecoveryCapabilityTests`; API comments and `RecoveryCapabilities.md` retain endpoint, source, inspection date and evidence limits. |
+| 2. Credential-shaped metadata | Closed: provider-specific allowlisted codes and non-echo IDs, including Anthropic fields, are checked across safe exposures in `RecoveryProviderMetadataTests`; raw values remain explicit-inspection evidence. |
+| 3. Retry-After dates | Closed: `RecoveryHTTPDateTests` checks all three date forms and invalid/past values; timing suites assert provider minimums and refusal rather than shortening limits. |
+| 4. Public interruption | Closed: `StreamingRecoveryTests.semanticInterruptionNeverRetries` exercises gateway paths; `PublicRecoveryInterruptionTests` and its support exercise broker and session paths with exact captured identities/bytes, delivered prefixes, typed causes, full lifecycle, zero replay/tool execution and seeded session rollback. Tool fragments do not apply to single-turn APIs. |
+| 5. oMLX keepalive frames | Closed: `OMLXRecoveryKeepAliveTests` checks real data frames, interleaved frames, metadata/index preservation and provider/model guards through both recovery stream APIs. |
+| 6. Privacy, lifecycle and typed causes | Closed: `RecoveryReflectionTests` checks exact safe reflection children and recursive private evidence exclusion; lifecycle suites compare independently expected complete events; `TypedRecoveryErrorTests` retains policy/capture/length types across public paths. Sender assertions distinguish HTTP completion, producer completion and socket closure. Historical traced causes remain limited as described above. |
+| 7. Policy selection/validation | Closed: `RecoveryPolicySelectionTests` removes defaults, adds a non-default and removes categories through real HTTP paths, including 500/502; `TypedRecoveryErrorTests.invalidPolicy` checks validation; `RecoveryBoundedTimingTests` checks non-finite jitter, saturation and exponent bounds. |
+| 8. Admission edges | Closed: `RecoveryAdmissionContractTests` checks missing hooks, allow/reject, distinct undecided reason and pending-stream termination on cancellation/expiry; request bytes, typed causes, histories and lifecycle supplement attempt counts. |
+| 9. Documentation and typed vocabulary | Closed: Unreleased notes, DocC capability/error guidance and `RecoveryExample` are delivered; `RecoveryProvider` and `RecoveryOperation` are closed types used across adapters. The executable probe checks actual HTTP and identical resend bytes. |
+
+## Twelve binding decisions
+
+| Decision | Evidence |
+| --- | --- |
+| 1. Remote/local admission without hook | `RecoveryAdmissionContractTests.providerAdmissionRules`; local acceptance `no` is synthetic pre-dispatch evidence only. |
+| 2. No decision is not rejection | `emptyAdmissionDoesNotReject` asserts `admissionUndecided` and no resend. |
+| 3. Five documented capabilities | Gap 1 evidence above, including trait-enabled Anthropic. |
+| 4. Safe provider metadata | Gap 2 evidence above; private raw evidence remains inspectable. |
+| 5. Three HTTP-date forms | Gap 3 evidence above. |
+| 6. Closed provider/operation types | `RecoveryProvider`, `RecoveryOperation`; exact lifecycle/metadata assertions on adapter matrices. |
+| 7. oMLX keepalive semantics | Gap 5 evidence above. |
+| 8. Typed policy/capture/length errors | Gap 6 evidence above, including broker single-turn and applicable session paths. |
+| 9. Public partial interruption | Gap 4 evidence above, including delivered versus observed progress and no tool replay. |
+| 10. Lifecycle, policy, jitter and admission termination | Lifecycle matrix above; gaps 7 and 8 evidence; exact fields and histories rather than counts alone. |
+| 11. Safe default formatting/reflection | `RecoveryReflectionTests` and metadata/privacy suites retain sentinel and exact-child assertions. |
+| 12. Documentation/migration/example | Gap 9 evidence above; `LocalModelsWithOMLX.md` describes the delivered keepalive behavior. |
 
 ## Open gaps
 
-Gap 6 remains open for complete causal attribution of the traced readiness and
-transport failures. The public ownership-selector regression closes a fixture
-characterization defect; it does not establish the cause of every original traced
-failure. Integrated passing gates are necessary validation, not causal evidence
-by themselves.
+No remaining implementation or executable assertion requirement from the nine
+original gaps or twelve binding decisions was identified in this reconciliation.
+Apple-platform and minimum Swift 6.1 verification remains pending on the
+reviewed revision. Historical per-call attribution is an
+explicit evidence limit under the October 13 owner decision, not an unimplemented
+recovery requirement. Controlled findings and green gates cannot close it.
 
 ## Documented limits
 
