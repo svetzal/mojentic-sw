@@ -1,0 +1,20 @@
+Building for production...
+[Computing dependencies]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Starting]
+[1 / 71] Mojentic
+[5 / 77] Logging
+[10 / 80] Mojentic
+[19 / 44] SimpleStructured-product
+[25 / 44] TracerDemo-product
+[27 / 44] RecursiveAgent-product
+[28 / 44] SimpleLLM-product
+[36 / 44] CodingFileTool-product
+[37 / 44] ReAct-product
+[38 / 44] ImageAnalysis-product
+[44 / 44] AnthropicSimple-product
+[44 / 44] ChatSessionExample-product
+[44 / 44]
+[44 / 45] RecursiveAgent-product
+Build complete! (34.39 secs)
