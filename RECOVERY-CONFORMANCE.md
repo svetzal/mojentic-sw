@@ -53,13 +53,11 @@ as values because encoder key order can differ; raw bytes remain captured.
 `scripts/characterize-recovery-traces.py` checks existing per-call captures and
 ordering. No new causal-reconstruction run accompanies this record correction.
 
-## Cycle 22 acceptance ordering
+## Focused validation evidence
 
-The focused full-traits acceptance run on trunk
-`5ebb0a11ab977a1d2e614744ed85e535ac759b52` precedes this cycle's broad
-validation. Remote main was checked read-only and matched that commit; Foundry
-prohibits fetching or changing refs in this worktree. Existing executable
-proofs were reused without changing runtime behavior or the contract.
+The focused full-traits validation tested source
+`5ebb0a11ab977a1d2e614744ed85e535ac759b52` using the existing executable
+proofs and authoritative contract identified above.
 
 With `RECOVERY_TRACE_DIRECTORY` enabled, `SenderRegistrationCancellationTests`
 and `PublicRecoveryInterruptionTests` passed (exit 0).
@@ -74,11 +72,10 @@ before registration. The authoritative contract hash remains the one above.
 | Public interruption | 32 matrix cases across all four adapters: content/reasoning/tool at broker/session tool streams and content/reasoning at single-turn broker streams; one additional unfinished-tool session rollback case. |
 | Boundary assertions | Exact socket/request/response bytes; unmasked logical and attempt identities; typed causes; independently expected complete lifecycle events; observed/delivered prefixes; one interrupted request; no admission or tool execution; seeded session rollback. Sender cases separately require HTTP completion, producer completion and socket closure before paused-consumer resumption. |
 
-The durable receipt is identified as `mojentic-sw-cycle22-5ebb0a11` in the
-Foundry tool-log evidence store, outside disposable worktrees. It retains
-complete logs, captures, correlation, source and authoritative-contract hashes,
-command ordering and actual exits. These replacement results establish their
-own measured interleavings only; they cannot reconstruct the original failures.
+Retained evidence includes complete logs, captures, correlation, source and
+authoritative-contract hashes and actual exits. These replacement results
+establish their own measured interleavings only; they cannot reconstruct the
+original failures.
 The focused run directly supports original gaps 4 and 6 and decisions 6, 8,
 9 and 10; the other decisions retain their existing executable mappings and
 require the broad gates below.
