@@ -1,11 +1,11 @@
 # Transient recovery conformance
 
-This record verifies the unchanged Swift implementation on trunk
-`3e44ab78b4321d41d1e676ad86088360e30952f1`, mapped to the nine original
+This record describes the Swift implementation at source commit
+`965e884aa39ab548dca42b7764b0b8e7b8f2d8b7`, mapped to the nine original
 gaps, twelve binding owner decisions and the authoritative monorepo contract's
-October 12 amendment. The retrieved authoritative contract SHA-256 is
+October 12 amendment. The previously reported authoritative contract SHA-256 is
 `a53a3a4eb118fa4687dd703d6ce918dd40dd6cb4eda796abc6c429a6e932e7a3`.
-The retained contract bytes verify that hash; the repository's older contract
+That historical inspection is not repeated here; the repository's older contract
 copy does not supersede it.
 
 The original implementation requirements are closed by the executable evidence
@@ -71,45 +71,34 @@ These controlled tests establish only their own measured interleavings; they
 cannot reconstruct the original failures. They directly cover gaps 4 and 6 and
 decisions 6, 8, 9 and 10. Other mappings below are exercised by the broad gates.
 
-## Retrievable evidence
-
-The durable locator is [docs/evidence/transient-recovery](docs/evidence/transient-recovery).
-From a checkout, run:
-
-```sh
-python3 scripts/verify-recovery-evidence.py
-```
-
-[The manifest](docs/evidence/transient-recovery/manifest.json) identifies the
-archive and every member by SHA-256, the tested source files and base commit,
-the authoritative contract, ordered commands, actual exits and complete logs.
-The archive retains raw per-call captures, correlation output, original
-receipts, source snapshots and review evidence. It can be retrieved with the
-repository; no separate host filesystem is needed. The verifier checks both
-original receipts, every archive member and the current tested source, then
-reruns the existing correlator on both retained and regenerated captures.
-
-Retrieved receipts verified 168 artifact hashes. Seven previously listed log
-hashes could not be retrieved; the manifest preserves those hashes as unavailable,
-without claiming their replacement logs reproduce them. Only unavailable
-validation evidence was regenerated through the existing executable proofs;
-available captures, correlation, contract and reviews were preserved byte for
-byte. Historical source identities remain in their original receipts. The
-current source manifest distinguishes tested files from generated evidence.
-
 ## Validation results
 
-The manifest retains complete results for the six required gates in
-`.hone-gates.json`, the focused full-traits HTTP proof and correlation, the
-unfiltered OSV lockfile scan and the delivered scripted recovery example.
-Commands run against the final integrated project files; their exact hashes
-are retained alongside the unchanged implementation's trunk identity. The
-focused proof covers 75 calls, including 20 framing pairs. The existing
-assertions compare unmasked wire identities and bytes, complete lifecycle
-fields, observed/delivered prefixes, zero replay/tool execution and seeded
-session rollback. The independent review in the evidence directory checks
-these against raw captures and executable assertions; hashes and totals alone
-are insufficient.
+All commands below test source commit
+`965e884aa39ab548dca42b7764b0b8e7b8f2d8b7` with this documentation correction
+applied. Only `RECOVERY-CONFORMANCE.md` differs from that commit; implementation,
+tests, dependencies and gates are identical. Every log SHA-256 below is computed
+from a run performed for this correction, over stdout bytes followed by stderr
+bytes. Commands use the existing gate environment.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0; no format diagnostics | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0; 209 files, 0 violations | `e79a9f5c4d3e297f0ab8b5705b38e7cd5023058bb3e8849bf4bf1c99bde33972` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0; release build succeeded | `494240bb9a513d16a99931ca77d775146dddacae498096c63524e03ff15818a6` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 388 tests, 109 suites, 0 failures | `43fca73e51b8a31fe227ac66c4a5e7f5e45797966e7d34da444daf32e383ee48` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 401 tests, 114 suites, 0 failures | `4783621ce4216ddf49cae1d6d601c293efbe76a0f742e1193d27b4f2fe1fc346` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; 1 target (Mojentic), warnings-as-errors | `91e27ba424e01cb99d180d19a34e67417cad25ee98f20432ade294b67a4f8c0c` |
+| `RECOVERY_TRACE_DIRECTORY="$TRACE_DIRECTORY" ./scripts/with-gate-environment swift test --traits full --filter 'SenderRegistrationCancellationTests\|PublicRecoveryInterruptionTests'` | Exit 0; 4 test functions, 2 suites, 0 failures | `f254b3290f20b248244c5abeb5d7156c34a6c46f137a80abfc0e9b792a9e27b0` |
+| `python3 scripts/characterize-recovery-traces.py "$TRACE_DIRECTORY" --output "$CORRELATION_OUTPUT"` | Exit 0; 75 calls, 0 byte/ordering violations, 0 HTTP timeouts before registration | `b24ba639a96285a3875bd232f442d2ab9cad7b4d74e25982adc3d3588b460d79` |
+| `python3 scripts/probe-recovery-example.py` | Exit 0; 2 HTTP requests, 1 admitted retry, identical resend bytes and safe diagnostics | `bf1ef1f033198c63b62ff241f5b30ca8de18081d031d9293aebd1a54b7935100` |
+
+For the focused commands, `$TRACE_DIRECTORY` represents the same trace input
+directory in both commands; `$CORRELATION_OUTPUT` represents the correlator's
+output argument. The format log is empty (the successful command is silent).
+
+The six required gates are defined in `.hone-gates.json`. A successful test
+count alone is insufficient evidence of boundary conformance; the assertion
+mappings below describe the behavior checked.
 
 Apple-platform and minimum Swift 6.1 validation on this revision remain pending.
 Linux results do not establish those results. Default-trait DocC excludes
