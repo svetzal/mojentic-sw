@@ -1,12 +1,12 @@
 # Transient recovery conformance
 
-This record reconciles the delivered Swift implementation at
-`d3da7f1755ab989b4413e304e3be492bf5e50c68` with the nine original gaps in
-`54a0662`, the twelve binding owner decisions and the authoritative monorepo
-contract's October 12 amendment. The authoritative contract was inspected
-read-only with SHA-256
-`a53a3a4eb118fa4687dd703d6ce918dd40dd6cb4eda796abc6c429a6e932e7a3`;
-the repository's older contract copy does not supersede it.
+This record describes the Swift implementation at source commit
+`965e884aa39ab548dca42b7764b0b8e7b8f2d8b7`, mapped to the nine original
+gaps, twelve binding owner decisions and the authoritative monorepo contract's
+October 12 amendment. The previously reported authoritative contract SHA-256 is
+`a53a3a4eb118fa4687dd703d6ce918dd40dd6cb4eda796abc6c429a6e932e7a3`.
+That historical inspection is not repeated here; the repository's older contract
+copy does not supersede it.
 
 The original implementation requirements are closed by the executable evidence
 mapped below. Under the October 13 owner decision, unavailable historical
@@ -23,14 +23,13 @@ changes accompany this evidence update.
 
 ## Historical limits
 
-The retained descriptor-only full-suite trace lacks endpoint and wire bytes,
-HTTP delegate callbacks and producer identities. It cannot establish exact
-per-call causes for its readiness, timeout, malformed-tail or interruption
-failures. Aggregate descriptor counts, matching case labels and successful
+The historical descriptor-only full-suite trace was reported without endpoint
+and wire bytes, HTTP delegate callbacks or producer identities. It cannot
+establish exact per-call causes for its readiness, timeout, malformed-tail or
+interruption failures. Aggregate descriptor counts, matching case labels and successful
 reruns do not reconstruct that missing evidence. Under the October 13 owner
 decision this remains a historical evidence limit, not an open implementation
-requirement. The listener ownership correction and its original evidence remain
-preserved.
+requirement. Current assertions do not establish the original per-call causes.
 
 Controlled replacement comparisons recorded failures with per-call wire capture
 and HTTP completion while fixtures were held. These findings apply to those
@@ -50,49 +49,56 @@ progress, typed causes and complete expected lifecycle fields. HTTP delegate
 completion, actual producer completion and successful socket close or peer FIN
 are checked separately before consumer resumption. JSON request inputs compare
 as values because encoder key order can differ; raw bytes remain captured.
-`scripts/characterize-recovery-traces.py` checks existing per-call captures and
-ordering. No new causal-reconstruction run accompanies this record correction.
+`scripts/characterize-recovery-traces.py` checks captured calls and ordering.
+No new causal-reconstruction run accompanies this record correction.
 
-## Cycle 22 acceptance ordering
+## Focused validation evidence
 
-The focused full-traits acceptance run on trunk
-`5ebb0a11ab977a1d2e614744ed85e535ac759b52` precedes this cycle's broad
-validation. Remote main was checked read-only and matched that commit; Foundry
-prohibits fetching or changing refs in this worktree. Existing executable
-proofs were reused without changing runtime behavior or the contract.
+The focused full-traits run exercises `SenderRegistrationCancellationTests` and
+`PublicRecoveryInterruptionTests` with opt-in per-call tracing. The correlator
+`scripts/characterize-recovery-traces.py` checks those calls for independent
+byte/ordering violations and HTTP timeouts before registration. Commands,
+results and log hashes for this validation are listed below.
 
-With `RECOVERY_TRACE_DIRECTORY` enabled, `SenderRegistrationCancellationTests`
-and `PublicRecoveryInterruptionTests` passed (exit 0).
-`scripts/characterize-recovery-traces.py` then passed (exit 0), correlating
-75 calls with zero independent byte/ordering violations and zero HTTP timeouts
-before registration. The authoritative contract hash remains the one above.
-
-| Focused coverage | Retained evidence |
+| Focused coverage | Executable assertions |
 | --- | --- |
 | Incomplete versus completed framing | 20 paired cases: each of Ollama, oMLX, OpenAI and Anthropic, tool streams at gateway/broker/session and single-turn streams at gateway/broker. Single-turn session is inapplicable. Exact first-line prefix/suffix and request values are compared separately from raw captured bytes. |
 | Relay ownership | Two additional Ollama cases, broker single-turn and session tool stream, select the actual producer role independently of the framing comparison. |
 | Public interruption | 32 matrix cases across all four adapters: content/reasoning/tool at broker/session tool streams and content/reasoning at single-turn broker streams; one additional unfinished-tool session rollback case. |
 | Boundary assertions | Exact socket/request/response bytes; unmasked logical and attempt identities; typed causes; independently expected complete lifecycle events; observed/delivered prefixes; one interrupted request; no admission or tool execution; seeded session rollback. Sender cases separately require HTTP completion, producer completion and socket closure before paused-consumer resumption. |
 
-The durable receipt is identified as `mojentic-sw-cycle22-5ebb0a11` in the
-Foundry tool-log evidence store, outside disposable worktrees. It retains
-complete logs, captures, correlation, source and authoritative-contract hashes,
-command ordering and actual exits. These replacement results establish their
-own measured interleavings only; they cannot reconstruct the original failures.
-The focused run directly supports original gaps 4 and 6 and decisions 6, 8,
-9 and 10; the other decisions retain their existing executable mappings and
-require the broad gates below.
+These controlled tests establish only their own measured interleavings; they
+cannot reconstruct the original failures. They directly cover gaps 4 and 6 and
+decisions 6, 8, 9 and 10. Other mappings below are exercised by the broad gates.
 
-## Validation scope
+## Validation results
 
-Required checks are the six commands in `.hone-gates.json`: configured strict
-`swift format` lint, strict SwiftLint, release build, parallel default tests,
-full-trait tests and DocC with warnings as errors. Applicable additional checks
-are the unfiltered OSV scan of `Package.resolved` and the scripted
-`scripts/probe-recovery-example.py` check. Complete captures, exact source
-hashes, exit results and independent review are retained in a verified durable
-evidence receipt. A successful test count alone
-is insufficient evidence of boundary conformance.
+All commands below test source commit
+`965e884aa39ab548dca42b7764b0b8e7b8f2d8b7` with this documentation correction
+applied. Only `RECOVERY-CONFORMANCE.md` differs from that commit; implementation,
+tests, dependencies and gates are identical. Every log SHA-256 below is computed
+from a run performed for this correction, over stdout bytes followed by stderr
+bytes. Commands use the existing gate environment.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0; no format diagnostics | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0; 209 files, 0 violations | `e79a9f5c4d3e297f0ab8b5705b38e7cd5023058bb3e8849bf4bf1c99bde33972` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0; release build succeeded | `494240bb9a513d16a99931ca77d775146dddacae498096c63524e03ff15818a6` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 388 tests, 109 suites, 0 failures | `43fca73e51b8a31fe227ac66c4a5e7f5e45797966e7d34da444daf32e383ee48` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 401 tests, 114 suites, 0 failures | `4783621ce4216ddf49cae1d6d601c293efbe76a0f742e1193d27b4f2fe1fc346` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; 1 target (Mojentic), warnings-as-errors | `91e27ba424e01cb99d180d19a34e67417cad25ee98f20432ade294b67a4f8c0c` |
+| `RECOVERY_TRACE_DIRECTORY="$TRACE_DIRECTORY" ./scripts/with-gate-environment swift test --traits full --filter 'SenderRegistrationCancellationTests\|PublicRecoveryInterruptionTests'` | Exit 0; 4 test functions, 2 suites, 0 failures | `f254b3290f20b248244c5abeb5d7156c34a6c46f137a80abfc0e9b792a9e27b0` |
+| `python3 scripts/characterize-recovery-traces.py "$TRACE_DIRECTORY" --output "$CORRELATION_OUTPUT"` | Exit 0; 75 calls, 0 byte/ordering violations, 0 HTTP timeouts before registration | `b24ba639a96285a3875bd232f442d2ab9cad7b4d74e25982adc3d3588b460d79` |
+| `python3 scripts/probe-recovery-example.py` | Exit 0; 2 HTTP requests, 1 admitted retry, identical resend bytes and safe diagnostics | `bf1ef1f033198c63b62ff241f5b30ca8de18081d031d9293aebd1a54b7935100` |
+
+For the focused commands, `$TRACE_DIRECTORY` represents the same trace input
+directory in both commands; `$CORRELATION_OUTPUT` represents the correlator's
+output argument. The format log is empty (the successful command is silent).
+
+The six required gates are defined in `.hone-gates.json`. A successful test
+count alone is insufficient evidence of boundary conformance; the assertion
+mappings below describe the behavior checked.
 
 Apple-platform and minimum Swift 6.1 validation on this revision remain pending.
 Linux results do not establish those results. Default-trait DocC excludes
@@ -143,8 +149,8 @@ Every provider/facility pair has an endpoint, evidence source, inspection date
 (October 12, 2026) and evidence limit in the
 [DocC capability table](Sources/Mojentic/Mojentic.docc/RecoveryCapabilities.md)
 and API comments on its public `recoveryCapabilities` accessor. Anthropic's
-accessor remains gated on the `anthropic` trait. The provider references reuse
-Rust `4ca1ed279c02eab37827a1ed07c30e961155ecf3`'s citations, inspected again:
+accessor remains gated on the `anthropic` trait. The capability table links
+the provider references:
 [Ollama chat](https://docs.ollama.com/api/chat),
 [oMLX documentation](https://github.com/jundot/omlx),
 [OpenAI Chat Completions create](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create),
@@ -155,9 +161,9 @@ is the local task facility, not a provider termination promise.
 The authoritative root contract's October 12 Capabilities amendment controls:
 `supported` requires a documented facility for the exact endpoint;
 `unsupported` means the inspected reference describes no such operation;
-`unknown` covers absent or ambiguous guarantees. The endpoint references describe
-no cancellation/status operation for an active exact request and provide no
-inference idempotency guarantee. Exact-attempt termination remains unknown
+`unknown` covers absent or ambiguous guarantees. The capability table records
+no cancellation/status operation for an active exact request and no inference
+idempotency guarantee. Exact-attempt termination remains unknown
 because no adapter has evidence for one attempt. Stored OpenAI completion
 retrieval and cancellation on other endpoints do not establish active-attempt
 status or termination here. Ollama unload/loaded-model lists and oMLX model
@@ -236,18 +242,15 @@ the original selected HTTP classification. Starting events have no status,
 phase, category, eligibility, reason or delay, and zero progress.
 
 The lifecycle fixture suites serialize their parameterized cases to bound
-additional socket usage. The gate environment retains its existing descriptor
-floor of 8,192. The parallel gate and all
-existing cancellation tests remain unchanged.
+additional socket usage. The gate environment sets a descriptor floor of 8,192.
 
-The existing sender-registration cancellation, cleanup, socket closure, terminal
-ownership, telemetry, completed-tool execution and tool-depth assertions remain
-preserved. Sender ownership selection and completion evidence are strengthened. A paused broker single-turn relay can expose its established typed
-`MojenticError.cancelled`; its underlying recovery lifecycle/report still has
+Sender-registration tests assert ownership selection, cleanup, socket closure
+and producer completion independently. A paused broker single-turn relay can
+expose its established typed `MojenticError.cancelled`; its underlying recovery lifecycle/report still has
 the exact cancelled attempt. No scheduling cause or remote termination is
 inferred, and no cancellation behavior is changed.
 
-## Preserved contract evidence
+## Contract assertions
 
 Provider metadata tests assert allowlisted codes and non-echo request IDs across
 all public exposures, including Anthropic native field names, while retaining raw
@@ -273,8 +276,7 @@ follow-up tests still prove one tool execution without depth reset or replay.
 Binding decision 12 documentation remains delivered in the Unreleased notes,
 DocC recovery guides and executable `RecoveryExample`, with
 `scripts/probe-recovery-example.py` exercising explicitly admitted 503 then
-success and identical payload bytes. No changelog or example change is needed
-for this record correction.
+success and identical payload bytes against scripted loopback HTTP.
 
 ## Reconciliation of the nine original gaps
 
