@@ -60,6 +60,9 @@ public protocol LLMGateway: Sendable {
         config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse
 
+    /// Discover the advertised window without changing subsequent requests.
+    func modelContextWindow(model: String) async throws -> ModelContextWindow?
+
     /// List models available on the provider.
     func availableModels() async throws -> [String]
 
@@ -115,4 +118,9 @@ extension LLMGateway {
         let content = (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         return StructuredGatewayResponse(value: value, response: LLMGatewayResponse(content: content))
     }
+}
+
+extension LLMGateway {
+    /// Gateways without metadata support advertise no window.
+    public func modelContextWindow(model: String) async throws -> ModelContextWindow? { nil }
 }

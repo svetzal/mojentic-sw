@@ -439,6 +439,12 @@ public struct OpenAIModelRegistry: Sendable {
         }
     }
 
+    /// Look up an exact catalog entry without the request-shaping pattern fallback.
+    public func modelContextWindow(model: String) -> ModelContextWindow? {
+        guard let maximum = entries[model]?.maxContextTokens, maximum > 0 else { return nil }
+        return ModelContextWindow(maxContextTokens: maximum, field: "registry")
+    }
+
     // MARK: - Lookup
 
     /// Look up capabilities for `model`.

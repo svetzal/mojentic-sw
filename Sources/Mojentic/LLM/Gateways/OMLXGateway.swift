@@ -191,6 +191,12 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         }
     }
 
+    /// Query the configured server for this exact model's advertised limit.
+    public func modelContextWindow(model: String) async throws -> ModelContextWindow? {
+        let response = try await send(TransportRequest(method: "GET", url: url("models")))
+        return try ContextWindowDecoder.omlx(response.body, model: model)
+    }
+
     /// List the models the server can serve (`GET /v1/models`), sorted.
     public func availableModels() async throws -> [String] {
         let response = try await send(TransportRequest(method: "GET", url: url("models")))

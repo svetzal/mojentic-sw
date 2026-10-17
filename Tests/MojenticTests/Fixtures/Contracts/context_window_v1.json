@@ -1,0 +1,1069 @@
+{
+  "version": "context-window-v1",
+  "source_sha256": "a085da1c0d110f9d587a24ace6ac2854b653e1ac28905b3829d94d665b2c906e",
+  "supported_api": [
+    "3.0 optional metadata callback",
+    "legacy gateways without callback: not advertised"
+  ],
+  "cases": [
+    {
+      "provider": "ollama",
+      "name": "qwen3_5",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 262144}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 262144,
+          "field": "model_info.qwen3_5.context_length"
+        }
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "qwen4_exp",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen4_exp.context_length\": 262144}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 262144,
+          "field": "model_info.qwen4_exp.context_length"
+        }
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "model-num-ctx",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen4_exp.context_length\": 262144}, \"parameters\": \"temperature 0.6\\nnum_ctx 32768\\n\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 262144,
+          "field": "model_info.qwen4_exp.context_length",
+          "model_num_ctx": 32768
+        }
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "whitespace-num-ctx",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"  num_ctx\\t16384\\n\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 8192,
+          "field": "model_info.qwen3_5.context_length",
+          "model_num_ctx": 16384
+        }
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "missing-info",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": null
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "no-matching-key",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"other\": 8192}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": null
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "no-architecture-from-num-ctx",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"parameters\": \"num_ctx 32768\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": null
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window-0",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 0}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window--1",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": -1}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window-1.5",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 1.5}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window-8192",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": \"8192\"}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window-True",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": true}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-window-None",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": null}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx-0",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx 0\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx--1",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx -1\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx-1.5",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx 1.5\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx-8192junk",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx 8192junk\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx-",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx \"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "invalid-num-ctx-8192 extra",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": \"num_ctx 8192 extra\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "info-list",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": []}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "parameters-list",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}, \"parameters\": []}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "exact-selection",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model-extra\", \"max_model_len\": 1}, {\"id\": \"exact-model\", \"max_model_len\": 262144}, {\"id\": \"different\", \"max_model_len\": 2}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 262144,
+          "field": "max_model_len"
+        }
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "no-model",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model-extra\", \"max_model_len\": 8192}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "window": null
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "no-field",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\"}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "window": null
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window-0",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": 0}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window--1",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": -1}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window-1.5",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": 1.5}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window-8192",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": \"8192\"}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window-True",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": true}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "invalid-window-None",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": null}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "missing-data",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "data-object",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": {}}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "bad-entry",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [1]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "missing-id",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "malformed-{",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "malformed-[]",
+      "model": "exact-model",
+      "status": 200,
+      "response": "[]",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "malformed-null",
+      "model": "exact-model",
+      "status": 200,
+      "response": "null",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "malformed-42",
+      "model": "exact-model",
+      "status": 200,
+      "response": "42",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "malformed-\"text\"",
+      "model": "exact-model",
+      "status": 200,
+      "response": "\"text\"",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "http-401",
+      "model": "exact-model",
+      "status": 401,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          401
+        ]
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "http-404",
+      "model": "exact-model",
+      "status": 404,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          404
+        ]
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "http-418",
+      "model": "exact-model",
+      "status": 418,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          418
+        ]
+      }
+    },
+    {
+      "provider": "ollama",
+      "name": "non-200-success",
+      "model": "exact-model",
+      "status": 201,
+      "response": "{\"model_info\": {\"qwen3_5.context_length\": 8192}}",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 8192,
+          "field": "model_info.qwen3_5.context_length"
+        }
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "malformed-{",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "malformed-[]",
+      "model": "exact-model",
+      "status": 200,
+      "response": "[]",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "malformed-null",
+      "model": "exact-model",
+      "status": 200,
+      "response": "null",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "malformed-42",
+      "model": "exact-model",
+      "status": 200,
+      "response": "42",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "malformed-\"text\"",
+      "model": "exact-model",
+      "status": 200,
+      "response": "\"text\"",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "http-401",
+      "model": "exact-model",
+      "status": 401,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          401
+        ]
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "http-404",
+      "model": "exact-model",
+      "status": 404,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          404
+        ]
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "http-418",
+      "model": "exact-model",
+      "status": 418,
+      "response": "{\"error\": \"not available\"}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "error": [
+          "http_error",
+          418
+        ]
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "non-200-success",
+      "model": "exact-model",
+      "status": 201,
+      "response": "{\"data\": [{\"id\": \"exact-model\", \"max_model_len\": 8192}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 8192,
+          "field": "max_model_len"
+        }
+      }
+    },
+    {
+      "provider": "omlx",
+      "name": "exact-selection-without-api-key",
+      "model": "exact-model",
+      "status": 200,
+      "response": "{\"data\": [{\"id\": \"exact-model-extra\", \"max_model_len\": 1}, {\"id\": \"exact-model\", \"max_model_len\": 262144}, {\"id\": \"different\", \"max_model_len\": 2}]}",
+      "request": {
+        "method": "GET",
+        "path": "/v1/models",
+        "body": null
+      },
+      "expected": {
+        "window": {
+          "max_context_tokens": 262144,
+          "field": "max_model_len"
+        }
+      },
+      "without_api_key": true
+    },
+    {
+      "provider": "ollama",
+      "name": "reject-json-string-object",
+      "model": "exact-model",
+      "status": 200,
+      "response": "\"{\\\"model_info\\\":{\\\"qwen4_exp.context_length\\\":262144}}\"",
+      "request": {
+        "method": "POST",
+        "path": "/api/show",
+        "body": {
+          "model": "exact-model"
+        }
+      },
+      "expected": {
+        "error": "invalid_response"
+      }
+    }
+  ],
+  "registry_cases": [
+    {
+      "model": "gpt-5.4",
+      "window": {
+        "max_context_tokens": 1050000,
+        "field": "registry"
+      }
+    },
+    {
+      "model": "gpt-5.4-unknown",
+      "window": null
+    },
+    {
+      "model": "o1-custom",
+      "window": null
+    },
+    {
+      "model": "completely-unknown",
+      "window": null
+    }
+  ],
+  "effective_cases": [
+    {
+      "window": null,
+      "num_ctx": null,
+      "expected": null
+    },
+    {
+      "window": null,
+      "num_ctx": 8192,
+      "expected": null
+    },
+    {
+      "window": {
+        "max_context_tokens": 262144,
+        "field": "fixture"
+      },
+      "num_ctx": null,
+      "expected": 262144
+    },
+    {
+      "window": {
+        "max_context_tokens": 262144,
+        "field": "fixture",
+        "model_num_ctx": 32768
+      },
+      "num_ctx": null,
+      "expected": 32768
+    },
+    {
+      "window": {
+        "max_context_tokens": 262144,
+        "field": "fixture",
+        "model_num_ctx": 32768
+      },
+      "num_ctx": 8192,
+      "expected": 8192
+    },
+    {
+      "window": {
+        "max_context_tokens": 262144,
+        "field": "fixture",
+        "model_num_ctx": 32768
+      },
+      "num_ctx": 65536,
+      "expected": 65536
+    },
+    {
+      "window": {
+        "max_context_tokens": 262144,
+        "field": "fixture",
+        "model_num_ctx": 32768
+      },
+      "num_ctx": 524288,
+      "expected": 262144
+    },
+    {
+      "window": {
+        "max_context_tokens": 8192,
+        "field": "fixture",
+        "model_num_ctx": 16384
+      },
+      "num_ctx": null,
+      "expected": 8192
+    }
+  ],
+  "lookup_cases": [
+    {
+      "provider": "ollama",
+      "response": {
+        "models": [
+          {
+            "name": "b"
+          },
+          {
+            "name": "a"
+          }
+        ]
+      },
+      "names": [
+        "b",
+        "a"
+      ],
+      "path": "/api/tags"
+    },
+    {
+      "provider": "omlx",
+      "response": {
+        "data": [
+          {
+            "id": "b"
+          },
+          {
+            "id": "a"
+          }
+        ]
+      },
+      "names": [
+        "a",
+        "b"
+      ],
+      "path": "/v1/models"
+    },
+    {
+      "provider": "openai",
+      "response": {
+        "data": [
+          {
+            "id": "b"
+          },
+          {
+            "id": "a"
+          }
+        ]
+      },
+      "names": [
+        "a",
+        "b"
+      ],
+      "path": "/v1/models"
+    }
+  ]
+}

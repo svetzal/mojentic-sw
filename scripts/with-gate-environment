@@ -4,8 +4,8 @@ set -eu
 
 # Concurrent loopback HTTP tests exceed the default Linux limit of 1,024.
 # Fail before starting a gate if the host cannot provide the required capacity.
-if [ "$(ulimit -S -n)" != unlimited ] && [ "$(ulimit -S -n)" -lt 8192 ]; then
-    ulimit -S -n 8192
+if [ "$(ulimit -S -n)" != unlimited ] && [ "$(ulimit -S -n)" -lt 16384 ]; then
+    ulimit -S -n 16384
 fi
 
 # Global manifest/module caches can be read-only inside the Foundry sandbox.

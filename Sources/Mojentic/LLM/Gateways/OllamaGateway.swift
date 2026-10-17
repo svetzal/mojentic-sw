@@ -172,6 +172,15 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         }
     }
 
+    /// Read advertised capacity and model parameters without applying them to requests.
+    public func modelContextWindow(model: String) async throws -> ModelContextWindow? {
+        let bytes = try await client.postRaw(
+            url: baseURL.appendingPathComponent("api/show"),
+            body: JSONValue.object(["model": .string(model)]),
+            headers: headers)
+        return try ContextWindowDecoder.ollama(bytes)
+    }
+
     /// List models available on the Ollama server (`/api/tags`).
     public func availableModels() async throws -> [String] {
         let url = baseURL.appendingPathComponent("api/tags")

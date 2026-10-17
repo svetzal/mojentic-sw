@@ -10,6 +10,20 @@ move independently.
 
 ## [Unreleased]
 
+### Added — context-window discovery
+
+- `LLMGateway.modelContextWindow(model:)` returns advertised capacity and field
+  provenance, `nil` when unadvertised, or existing typed provider/transport errors.
+  Existing conformers inherit `nil`; no implementation changes are required.
+- Configured Ollama `/api/show` preserves architecture provenance and separates
+  optional model `num_ctx` from capacity. Authenticated oMLX `/v1/models` selects
+  the exact model. OpenAI uses exact registry entries without HTTP or inferred
+  model profiles.
+- `effectiveContextWindow(_:config:)` computes Ollama's upper bound using caller,
+  model, then advertised limits. Pass `numCtx: nil` to consider model defaults;
+  the existing default config still sets 32,768. Discovery never applies limits
+  to later requests. First-token timing and request-fidelity migration remain pending.
+
 ### Breaking changes and migration (native reasoning)
 
 - `ReasoningEffort` adds `.disabled`, `.enabled` and `.xhigh`. Update exhaustive

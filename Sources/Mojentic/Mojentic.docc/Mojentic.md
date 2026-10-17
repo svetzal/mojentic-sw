@@ -46,6 +46,7 @@ See <doc:BuildingChatbots> for the multi-turn `ChatSession` form and
 - <doc:ImageAnalysis>
 - <doc:StreamingAndEvidence>
 - <doc:LocalModelsWithOMLX>
+- <doc:ModelContextWindows>
 - <doc:BufferedCompletionRecovery>
 - <doc:StreamingCompletionRecovery>
 
@@ -69,6 +70,8 @@ for building your own.
 - ``ChatSession``
 - ``LLMMessage``
 - ``CompletionConfig``
+- ``ModelContextWindow``
+- ``effectiveContextWindow(_:config:)``
 - ``ResponseFormat``
 - ``LLMResponse``
 - ``LLMGatewayResponse``

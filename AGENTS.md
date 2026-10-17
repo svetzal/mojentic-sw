@@ -14,12 +14,13 @@ those conditions are met. Swift's git tag is its package version; keep
 `swift-tools-version` at 6.1. Follow the coordinator's release process only
 when release work is explicitly assigned.
 
-The authorized release scope includes native reasoning (part 2), following
-`REASONING-PROTOTYPE-2026-10.md` and the Rust reference. This correction
-implements part 2 on the established recovery baseline. Part 3 remains pending;
-do not implement metadata, timing or request-fidelity changes in this correction.
-Do not change recovery semantics, dependencies, swift-tools-version, versions,
-tags or publication state. Foundry owns Git finalization for its isolated task
+The authorized release includes native reasoning (part 2), following
+`REASONING-PROTOTYPE-2026-10.md` and the Rust reference, and model metadata
+and request fidelity (part 3), following `MODEL-METADATA-2026-10.md`.
+The current correction implements only part 3 section 1, context-window discovery.
+Timing and request fidelity remain pending. Preserve recovery, native reasoning,
+request defaults and shaping, dependencies, swift-tools-version, versions,
+tags and publication state. Foundry owns Git finalization for its isolated task
 worktrees: leave changes uncommitted and do not push or modify refs there.
 
 This file provides Swift-specific guidance for AI agents working in this

@@ -194,6 +194,11 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         }
     }
 
+    /// Return only an explicitly registered context limit, without HTTP or inferred profiles.
+    public func modelContextWindow(model: String) async throws -> ModelContextWindow? {
+        registry.modelContextWindow(model: model)
+    }
+
     /// List models available on the OpenAI account (`/v1/models`).
     public func availableModels() async throws -> [String] {
         let url = baseURL.appendingPathComponent("models")

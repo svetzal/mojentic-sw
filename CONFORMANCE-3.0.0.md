@@ -4,7 +4,7 @@ Status: the part 1 recovery baseline passes all six local gates on macOS and
 every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
 `db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
 `v2.1.0` reported no breaking changes for that recovery baseline. Part 2 is
-implemented locally below, with external verification pending. Part 3 is pending.
+implemented locally below, with external verification pending. Part 3 section 1 is implemented locally; timing and request fidelity remain pending.
 This is not release readiness; the historical API result does not cover part 2.
 
 The governing authorization is
@@ -219,7 +219,7 @@ Initiative finding `fnd_sw_native_reasoning_v1_external_verification` was record
 with `foundry finding add` (exit 0). It requests separately authorized paired
 verification of this exact set; no other repository was changed. Local fixture
 verification cannot certify live server behavior or benchmark efficacy. The
-publication hold remains and part 3 remains explicitly pending.
+publication hold remains; see the part-3 section for current context-window status.
 
 ### Part-2 validation
 
@@ -262,11 +262,219 @@ have no CI run yet. Local results do not claim macOS or Swift 6.1 execution for
 this patch; those remain CI validation after Foundry finalization.
 
 
-## Part 3: model metadata and request fidelity — pending
+## Part 3 section 1: context-window discovery — local verification
 
-No metadata features are implemented by this correction. Context-window lookup,
-client first-token timing, caller-only parameters and removal of `num_predict`
-still require implementation, migration notes and executable conformance tests.
+This correction starts at Swift `a4738d7c87cc7608e5f7e3ddf9638a76148c65d0`.
+The binding owner brief SHA-256 is
+`ea6a0efa56bfb3cd74b5ce728f80cc33c6fbd853114bec94b8aabe79f5d28e6e`.
+The inspected coordinating `MODEL-METADATA-2026-10.md` SHA-256 is
+`d9945dca45ce09e2163843263a75b5e93028b00ee1baf191fc3ff13396830e9c`;
+only section 1 is implemented here. Recovery, native reasoning, request defaults,
+dependencies, toolchain minimum, versions, refs and publication state are preserved.
+
+The unchanged executable [context-window-v1](Tests/MojenticTests/Fixtures/Contracts/context_window_v1.json)
+was copied from Elixir `df29a1c36f6b4b172b3ff352d40201d6583a9890`.
+Its SHA-256 is `9327502962112a020bafb46c6a677366df732f5a29cd44c92f17e8f632281395`.
+The contract's embedded `source_sha256` identifies its original specification
+snapshot, not the current coordinating document above. No contract row was edited.
+The Swift [verification manifest](Tests/MojenticTests/Fixtures/Contracts/context_window_v1.manifest.sha256)
+identifies the runtime, package, transport, fixture and test sources for this
+uncommitted candidate. Its SHA-256 is
+`6aa597d308356ef7f57ce78b79947161317bd2ef51934d8316c37c051e86d699`.
+
+### Executable assertions and supported versions
+
+`ContextWindowContractTests.sharedProviderAndConsumerRows` runs every provider row
+below twice: direct metadata consumption and consumption through the pure
+`effectiveContextWindow` helper. The scripted TCP responses and expectations both
+come from that row. Production `HTTPClient` and `URLSession` execute every request;
+no independently authored gateway mock stands in for the provider. Each invocation
+asserts the exact model body (Ollama), HTTP method, path, configured host/port,
+configured headers, bearer key or absence, empty GET body, capacity, field provenance,
+optional model parameter, and typed error outcome. HTTP errors also assert exact
+status and raw body. The exact requested identity is `exact-model` in every row;
+`exact-selection` additionally distinguishes `exact-model-extra` and `different`.
+Positive integer validation rejects booleans, fractions, strings, null and
+nonpositive values. Malformed JSON and top-level nonobjects are errors, including
+the encoded JSON-object string regression. No second JSON decode is permitted.
+
+| Provider | Contract case identity | Asserted outcome |
+| --- | --- | --- |
+| ollama | `qwen3_5` | 262144; `model_info.qwen3_5.context_length`; model_num_ctx=absent |
+| ollama | `qwen4_exp` | 262144; `model_info.qwen4_exp.context_length`; model_num_ctx=absent |
+| ollama | `model-num-ctx` | 262144; `model_info.qwen4_exp.context_length`; model_num_ctx=32768 |
+| ollama | `whitespace-num-ctx` | 8192; `model_info.qwen3_5.context_length`; model_num_ctx=16384 |
+| ollama | `missing-info` | not advertised |
+| ollama | `no-matching-key` | not advertised |
+| ollama | `no-architecture-from-num-ctx` | not advertised |
+| ollama | `invalid-window-0` | decoding error |
+| ollama | `invalid-window--1` | decoding error |
+| ollama | `invalid-window-1.5` | decoding error |
+| ollama | `invalid-window-8192` | decoding error |
+| ollama | `invalid-window-True` | decoding error |
+| ollama | `invalid-window-None` | decoding error |
+| ollama | `invalid-num-ctx-0` | decoding error |
+| ollama | `invalid-num-ctx--1` | decoding error |
+| ollama | `invalid-num-ctx-1.5` | decoding error |
+| ollama | `invalid-num-ctx-8192junk` | decoding error |
+| ollama | `invalid-num-ctx-` | decoding error |
+| ollama | `invalid-num-ctx-8192 extra` | decoding error |
+| ollama | `info-list` | decoding error |
+| ollama | `parameters-list` | decoding error |
+| omlx | `exact-selection` | 262144; `max_model_len`; model_num_ctx=absent |
+| omlx | `no-model` | not advertised |
+| omlx | `no-field` | not advertised |
+| omlx | `invalid-window-0` | decoding error |
+| omlx | `invalid-window--1` | decoding error |
+| omlx | `invalid-window-1.5` | decoding error |
+| omlx | `invalid-window-8192` | decoding error |
+| omlx | `invalid-window-True` | decoding error |
+| omlx | `invalid-window-None` | decoding error |
+| omlx | `missing-data` | decoding error |
+| omlx | `data-object` | decoding error |
+| omlx | `bad-entry` | decoding error |
+| omlx | `missing-id` | decoding error |
+| ollama | `malformed-{` | decoding error |
+| ollama | `malformed-[]` | decoding error |
+| ollama | `malformed-null` | decoding error |
+| ollama | `malformed-42` | decoding error |
+| ollama | `malformed-"text"` | decoding error |
+| ollama | `http-401` | HTTP 401 with exact response body |
+| ollama | `http-404` | HTTP 404 with exact response body |
+| ollama | `http-418` | HTTP 418 with exact response body |
+| ollama | `non-200-success` | 8192; `model_info.qwen3_5.context_length`; model_num_ctx=absent |
+| omlx | `malformed-{` | decoding error |
+| omlx | `malformed-[]` | decoding error |
+| omlx | `malformed-null` | decoding error |
+| omlx | `malformed-42` | decoding error |
+| omlx | `malformed-"text"` | decoding error |
+| omlx | `http-401` | HTTP 401 with exact response body |
+| omlx | `http-404` | HTTP 404 with exact response body |
+| omlx | `http-418` | HTTP 418 with exact response body |
+| omlx | `non-200-success` | 8192; `max_model_len`; model_num_ctx=absent |
+| omlx | `exact-selection-without-api-key` | 262144; `max_model_len`; model_num_ctx=absent |
+| ollama | `reject-json-string-object` | decoding error |
+
+`transportFailureIsAnError` additionally exercises a real truncated response for
+Ollama and oMLX and requires a transport error. `exactSelectionThroughHTTP` is the
+initial behavioral failure/pass probe: the legacy nil default failed the capacity,
+GET path and authentication assertions; the implemented production boundary passed.
+
+`registryRowsNeverRequestHTTP` verifies exact identities `gpt-5.4` (1,050,000 tokens,
+`registry` provenance), `gpt-5.4-unknown`, `o1-custom`, and `completely-unknown`
+(all unadvertised) against the same `registry_cases`. It asserts zero HTTP requests.
+Pattern inference in existing completion shaping remains available and unchanged.
+`legacyGatewayHasNoWindow` uses an unchanged pre-metadata protocol conformance and
+requires nil, covering the contract's supported legacy callback version alongside
+the new optional 3.0 metadata API.
+
+`effectiveRows` executes the unchanged `effective_cases` in order:
+
+| Advertised | Model num_ctx | Caller num_ctx | Expected |
+| --- | --- | --- | --- |
+| unknown | absent | absent | unknown |
+| unknown | absent | 8192 | unknown |
+| 262144 | absent | absent | 262144 |
+| 262144 | 32768 | absent | 32768 |
+| 262144 | 32768 | 8192 | 8192 |
+| 262144 | 32768 | 65536 | 65536 |
+| 262144 | 32768 | 524288 | 262144 |
+| 8192 | 16384 | absent | 8192 |
+
+### Completion invariance and incompatible lookup row
+
+`ContextWindowJourneyTests.discoveryPreservesCompletion` executes all combinations
+of exact same-model `exact-model` (Ollama/oMLX) or `gpt-4o` (OpenAI) with `ordinary`,
+`json`, `structured`, `stream`, and `events`. Production HTTP captures assert exact
+JSON values before/after discovery, identical header lines irrespective of order,
+model identity, response content/decoded value, stream flag, temperature 1,
+max_tokens/num_predict 16,384 and Ollama num_ctx 32,768. OpenAI discovery adds no
+HTTP request; Ollama/oMLX insert only their metadata request. No completion limit
+is updated from advertised capacity.
+
+**Raw byte identity is not proven.** An initial probe comparing raw request bodies
+and raw header strings failed across all three providers: JSON object key order
+and URLSession header order already vary between equivalent sends. Even OpenAI's
+registry-only discovery (no network or gateway mutation) exhibited that variance.
+The retained journeys assert semantic and header-value invariance, explicitly not
+byte equality. Stabilizing encoding would change existing wire bytes and lies
+outside the instruction to preserve request shaping. This acceptance gap requires
+owner coordination; it has not been hidden by normalizing a claimed byte proof.
+
+`configuredLookupKeepsExistingSwiftOrder` executes all three unchanged
+`lookup_cases` through configured HTTP, asserting paths, headers and empty GET
+bodies. oMLX and OpenAI match the contract's `[a, b]`. **The Ollama lookup row is
+incompatible:** it specifies `[b, a]`, while Swift's established implementation
+sorts `[a, b]`. The test explicitly asserts both the contract's expectation and
+the differing Swift result. Neither contract nor existing ordering is changed;
+no shared conformance is claimed for that row. This is a coordination gap.
+
+### Gate resource capacity
+
+The new metadata suites use Swift Testing's `.serialized` trait to bound their
+own socket usage without dropping any row. The full-traits matrix still exhausted
+the existing 8,192-descriptor minimum (`socket`/`pipe` errno 24), producing downstream
+recovery assertion failures. `scripts/with-gate-environment` now provisions 16,384
+instead. All gate commands are unchanged; no recovery implementation, recovery
+fixture or recovery assertion was modified. The complete gate set was restarted
+after this environment correction.
+
+### Counterpart evidence and remaining initiative work
+
+| Side | Tested identity and command | Result and limits |
+| --- | --- | --- |
+| Swift production adapters and local metadata consumers | Base `a4738d7` plus the Swift manifest above; `scripts/verify-context-window-contract` | Runs the shared rows, registry, pure helper, legacy conformer, configured lookup and completion journeys. See current gate results below. |
+| Elixir recorded production adapter/consumer verification | Read-only conformance record at `df29a1c36f6b4b172b3ff352d40201d6583a9890`, cycle 12: base `35013e921793710e344a708fdfea209248d4fd8e` plus manifest `407e4a0e7acec1c04dfe8d22b7e55a9722dc4e59182ce56c69f0cb81db070434`; `scripts/verify-context-window-contract` | Recorded exit 0, 233 tests, same contract hash. The current checkout is clean and `sha256sum --check test/contracts/context_window_v1.manifest.sha256` was rerun read-only here: exit 0, all entries match. Elixir tests were not rerun in this Swift-only task. |
+| Actual Ollama/oMLX server producers | No tested server revision/version or shared verification command available | Missing external producer verification; fixtures do not certify the live servers. |
+| External application consumers | No tested application revision or paired command available | Missing external consumer verification. Assign separately authorized initiative work against this exact contract hash. |
+
+The counterpart record was inspected before fixture reuse, including its latest
+manifest and double-decoding correction. Matching Elixir and Swift fixtures do
+not establish external producer/consumer compatibility. Initiative coordination
+must retain the Ollama ordering discrepancy, raw-byte acceptance gap, and missing
+external verification as unfinished work. No other repository was changed.
+
+Client first-token timing and request fidelity (caller-only parameters and
+`num_predict` removal) remain **pending**, as do their migration/conformance work.
+Part 3 and the release are not complete. The publication hold remains.
+
+
+### Current correction validation (Linux Swift 6.4)
+
+Tested revision is `a4738d7c87cc7608e5f7e3ddf9638a76148c65d0` plus the
+uncommitted runtime/test candidate identified by manifest
+`6aa597d308356ef7f57ce78b79947161317bd2ef51934d8316c37c051e86d699`.
+All commands below ran through Foundry capture after the resource correction;
+all six required gates in the only repository `.hone-gates.json` passed. The
+contract tests run automatically in both test gates. Logs remain execution
+evidence, not package sources. Digests cover stdout bytes followed by stderr bytes.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | strict format, exit 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | strict lint, zero violations, exit 0 | `be556036d70e63f996fe83139c4f3a70d693c1e3691ee8dfca34d517bc73bc71` |
+| `./scripts/with-gate-environment swift build -c release` | release build, exit 0 | `7fe471575fa4f63e4e78fcd865ab0627c6d1a520c766da175319658879305858` |
+| `scripts/verify-context-window-contract` | 12 tests; every named shared row and journey, exit 0 | `8bc43976bb88dfa0a2eed07085638fad7e58d67e2831c3ee5b77f797280c5885` |
+| `./scripts/with-gate-environment swift test --parallel` | 410 tests, 116 suites, exit 0 | `e03fd3a9735a9b79402837baf3f0c1d74949a006a7b8571a11bfdb6865640389` |
+| `./scripts/with-gate-environment swift test --traits full` | 423 tests, 121 suites, exit 0 | `21948cb36eded09720f2b4fb1557d2aec8d08bd83d7080038bedb12c4f355182` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Mojentic DocC, warnings as errors, exit 0 | `d4d85b9ed82d1139ba0a97d9e34c0a3f9d786bc0f462c77296444bd9b89a2ba4` |
+
+The initial behavioral probe ran
+`./scripts/with-gate-environment swift test --filter ContextWindowContractTests`
+with unchanged assertions: the legacy metadata default rejected exact capacity,
+GET route and authentication (exit 1); the implemented production HTTP boundary
+passed (exit 0). Rejecting log SHA-256:
+`fd94bb3e43aecce967ba64480ae81b4270e07d60ba1441b5be1ef2d6b9fe8ad8`;
+corrected log SHA-256:
+`3ad15d257f5511a3fe1a6fadb8b38f91d68ebe38f56a09216a12ff8d7e28b893`.
+JSON field types, observed exit codes and nonempty log files were validated.
+The later failed raw-byte probe is a separate acceptance gap, not a passing proof.
+
+Initiative finding `mojentic-sw-context-window-v1-final-evidence-a4738d7`
+supersedes the earlier candidate identity in
+`mojentic-sw-context-window-v1-gaps-a4738d7`, preserving all three coordination
+gaps. No external verification or release readiness is claimed. Changes remain
+uncommitted for Foundry finalization.
 
 ## Validation on main
 

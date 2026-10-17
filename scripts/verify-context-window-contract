@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Verify Swift adapters and consumers using the unchanged shared executable rows.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo context-window-v1
+git rev-parse HEAD
+sha256sum --check Tests/MojenticTests/Fixtures/Contracts/context_window_v1.manifest.sha256
+exec ./scripts/with-gate-environment swift test --filter ContextWindow "$@"
