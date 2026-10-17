@@ -26,6 +26,7 @@ final class RecoveryLoopback: @unchecked Sendable {
     let url: URL
     let requests = RecoveryLocked<[Data]>([])
     let requestHeaders = RecoveryLocked<[String]>([])
+    let responseHeaders = RecoveryLocked<[Data]>([])
     let closedClients = RecoveryLocked<Int>(0)
     private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
@@ -229,7 +230,9 @@ final class RecoveryLoopback: @unchecked Sendable {
         for (name, value) in reply.headers {
             header += "\(name): \(value)\r\n"
         }
-        write(Data((header + "\r\n").utf8), to: client)
+        let headerBytes = Data((header + "\r\n").utf8)
+        let sentHeaders = write(headerBytes, to: client)
+        responseHeaders.withLock { $0.append(sentHeaders) }
         let split = reply.splitAt ?? (reply.hold && !reply.truncated ? data.count / 2 : data.count)
         write(Data(data.prefix(split)), to: client)
         arrival.yield(index + 1)
@@ -283,12 +286,13 @@ final class RecoveryLoopback: @unchecked Sendable {
         return recv(client, &byte, 1, Int32(MSG_PEEK)) <= 0
     }
 
-    private func write(_ data: Data, to client: Int32) {
+    @discardableResult
+    private func write(_ data: Data, to client: Int32) -> Data {
         #if !os(Linux)
             var noSignal: Int32 = 1
             setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
         #endif
-        data.withUnsafeBytes { bytes in
+        return data.withUnsafeBytes { bytes in
             var offset = 0
             while offset < bytes.count {
                 #if os(Linux)
@@ -311,6 +315,7 @@ final class RecoveryLoopback: @unchecked Sendable {
                 }
                 offset += count
             }
+            return Data(data.prefix(offset))
         }
     }
 }
