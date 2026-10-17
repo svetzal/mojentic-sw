@@ -1,30 +1,24 @@
 # Mojentic Swift — Agent Guidance
 
-## Coordinated 2.1.0 release authorization
+## Coordinated 3.0.0 release authorization
 
-Stacey authorized this release on September 30, 2026. If `v2.1.0` does not
-exist yet, the next release is exactly **2.1.0**, even when a normal major or
-minor bump would choose a different version. All six ports are ready at their
-audited main commits. Use September 30, 2026 as the changelog date.
+Stacey authorized the coordinated major release on October 15, 2026 in
+[`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md).
+That authorization supersedes the September 30 coordinated 2.1.0 instructions.
+The release includes transient recovery with the October 12 amendment, native
+reasoning, and model metadata/request fidelity across all six ports.
 
-Keep scope to release preparation. Disabled reasoning parity is deferred to
-2.2.0. Ordinary generate finish handling is deferred to a later major release.
-Swift and Kotlin keep whole-text embeddings as the accepted 2.1.0 exception.
-Do not add features, update dependencies, or change runtime behavior.
+Release only when all six ports are ready, their conformance records cover
+parts 1–3, and required gates and CI pass. Keep the publication hold until
+those conditions are met. Swift's git tag is its package version; keep
+`swift-tools-version` at 6.1. Follow the coordinator's release process only
+when release work is explicitly assigned.
 
-This AGENTS.md section is the release coordinator's known, authorized edit.
-The clone was synced before it was added. Preserve it and include it in the
-release commit after all required gates pass. Do not stash or revert it.
-Fetch again before work; rebase only if the tree permits it and stop on conflicts.
-
-Update all actual package versions and lockfile root versions, finalize the
-Unreleased changelog as 2.1.0, then commit on main and tag that commit v2.1.0.
-Create and publish a GitHub release using those changelog notes so workflows
-that require the release-published event run. No branch or PR.
-For Kotlin use gradle.properties version=2.1.0 and the configured
-com.vetzal.mojentic group. Tag push runs the Maven Central workflow. For Swift,
-the git tag is the package version; do not change swift-tools-version.
-Verify the tag points at the version/changelog HEAD commit before pushing.
+The current correction establishes the recovery baseline before parts 2 and 3.
+Do not add reasoning or metadata features, change recovery semantics, update
+dependencies, bump versions, tag or publish in this correction. Foundry owns
+Git finalization for its isolated task worktrees: leave changes uncommitted
+and do not push or modify refs there.
 
 This file provides Swift-specific guidance for AI agents working in this
 sub-project. The monorepo root `AGENTS.md` covers shared cross-port principles;

@@ -65,7 +65,25 @@ move independently.
   are rejected. Safe default reflection omits sensitive raw evidence, which
   remains available only through explicit inspection or opt-in wire capture.
 
+### Migration for the coordinated 3.0.0 release
+
+- Catch `RecoveryError` for recovery-enabled buffered and throwing streaming
+  APIs; handle `.recoveryFailure` for single-turn recovery event streams.
+  Existing callers can retain gateway initialization without `recovery:` to
+  keep legacy one-send behavior.
+- Update recovery metadata switches to `RecoveryProvider`/`RecoveryOperation`
+  and persisted operation values to `ordinary`, `structured`, or `streaming`.
+  Old `complete`/`completeStructured` JSON aliases are rejected. Read sensitive
+  headers, body bytes and causes through explicit evidence inspection rather
+  than reflection.
+- Native reasoning and model metadata/request fidelity (release parts 2 and 3)
+  remain pending; this recovery baseline does not implement them.
+
 ### Fixed
+
+- Recovery conformance expectations now account for Apple URLSession's Latin-1
+  interpretation of UTF-8 HTTP header octets. Exact header dictionaries and
+  non-ASCII body bytes remain asserted; captured runtime evidence is unchanged.
 
 - On Apple platforms, a recovery attempt whose non-2xx body ends before its
   `Content-Length` now keeps a `URLError.networkConnectionLost` cause.
