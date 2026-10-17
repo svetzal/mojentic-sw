@@ -87,8 +87,9 @@ move independently.
 - The recovery loopback test fixture now stops its accept thread on macOS.
   `shutdown` on a listening socket does not wake `accept` on Darwin, so every
   fixture leaked its thread and listener, and macOS CI requests timed out with
-  no response. The header-boundary capture test now sends one body byte,
-  because Apple URLSession reports a response only after its first body byte.
+  no response. On Apple platforms the header-boundary capture test now sends
+  one body byte before holding, because Apple URLSession reports a response
+  only after its first body byte.
   Test harness only; library behaviour is unchanged.
 
 - On Apple platforms, a recovery attempt whose non-2xx body ends before its

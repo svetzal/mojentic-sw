@@ -11,10 +11,17 @@ struct RecoveryCancellationTests {
     ) async throws {
         let success = try boundary.success()
         // Apple URLSession reports a response only after its first body byte, so a
-        // header-only hold never reaches the headers boundary there.
+        // header-only hold never reaches the headers boundary there. Elsewhere the
+        // hold stays header-only: FoundationNetworking delivers a prefix byte even
+        // after the headers observer cancels, which would count as raw progress.
+        #if os(Linux)
+            let prefix = 0
+        #else
+            let prefix = 1
+        #endif
         let reply =
             phase == "headers"
-            ? RecoveryReply(body: success.body, hold: true, splitAt: 1) : success
+            ? RecoveryReply(body: success.body, hold: true, splitAt: prefix) : success
         let server = try RecoveryLoopback(replies: [reply])
         defer { server.release() }
         let recorder = RecoveryRecorder()
