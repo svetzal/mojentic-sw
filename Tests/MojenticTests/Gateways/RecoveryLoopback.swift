@@ -20,7 +20,7 @@ struct RecoveryReply: Sendable {
 
 /// A real loopback HTTP server with deterministic request/active-send signals.
 ///
-/// Listener ownership and reply state are synchronized with the server thread.
+/// Reply state is synchronized with the server thread, which alone owns the listener.
 final class RecoveryLoopback: @unchecked Sendable {
     let trace = RecoveryCallTrace()
     let url: URL
@@ -31,7 +31,8 @@ final class RecoveryLoopback: @unchecked Sendable {
     private let activeClient = RecoveryLocked<Int32?>(nil)
     let arrivals: AsyncStream<Int>
     private let arrival: AsyncStream<Int>.Continuation
-    private let listener = RecoveryLocked<Int32?>(nil)
+    /// Write end of the accept thread's wake pipe; `deinit` closes it to stop the thread.
+    private let wakeWriter: Int32
     private let replies: [RecoveryReply]
     private let condition = NSCondition()
     private let requestCondition = NSCondition()
@@ -79,26 +80,40 @@ final class RecoveryLoopback: @unchecked Sendable {
         }
         try #require(nameResult == 0, "getsockname failed with errno \(errno)")
         url = try #require(URL(string: "http://127.0.0.1:\(UInt16(bigEndian: address.sin_port))"))
-        // The accept thread owns the listener until shutdown unblocks it. Keeping
-        // it open until accept returns prevents descriptor reuse during teardown;
-        // a second descriptor for the same socket is unnecessary.
-        // Closure and shutdown share ownership state, so an accept error cannot
-        // leave teardown addressing a descriptor that another socket has reused.
+        var wake: [Int32] = [-1, -1]
+        try #require(pipe(&wake) == 0, "pipe failed with errno \(errno)")
+        let wakeReader = wake[0]
+        wakeWriter = wake[1]
+        // The accept thread alone closes the listener and the wake pipe's read
+        // end, so no other thread can address either descriptor after reuse.
+        // Teardown wakes it by closing the pipe's write end, which `deinit`
+        // owns: shutdown on a listening socket does not wake accept on Darwin.
+        // Closing rather than writing cannot raise SIGPIPE if the thread has
+        // already left after an accept error.
         // A weak owner prevents the blocking accept loop from retaining the fixture.
-        listener.withLock { $0 = descriptor }
         trace.record("listener.open", "\(url) fd=\(descriptor)")
         transferred = true
-        Thread.detachNewThread { [weak self, listener, trace] in
+        Thread.detachNewThread { [weak self, trace] in
             defer {
-                let closed = listener.withLock { current in
-                    let closed = current.map { ($0, close($0)) }
-                    current = nil
-                    return closed
-                }
-                if let closed { trace.record("listener.close", "fd=\(closed.0) result=\(closed.1)") }
+                let result = close(descriptor)
+                trace.record("listener.close", "fd=\(descriptor) result=\(result)")
+                close(wakeReader)
                 trace.flushIfIdle()
             }
             while true {
+                var ready = [
+                    pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0),
+                    pollfd(fd: wakeReader, events: Int16(POLLIN), revents: 0),
+                ]
+                if poll(&ready, nfds_t(ready.count), -1) < 0 {
+                    if errno == EINTR { continue }
+                    trace.record("listener.poll.end", "fd=\(descriptor) errno=\(errno)")
+                    break
+                }
+                if ready[1].revents != 0 {
+                    trace.record("listener.wake", "fd=\(descriptor)")
+                    break
+                }
                 let client = accept(descriptor, nil, nil)
                 if client < 0 {
                     trace.record("listener.accept.end", "fd=\(descriptor) errno=\(errno)")
@@ -115,9 +130,7 @@ final class RecoveryLoopback: @unchecked Sendable {
 
     deinit {
         release()
-        listener.withLock { current in
-            if let current { shutdown(current, Int32(SHUT_RDWR)) }
-        }
+        close(wakeWriter)
         arrival.finish()
     }
 

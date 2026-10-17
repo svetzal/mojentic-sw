@@ -24,6 +24,13 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      # Loopback recovery tests start one accept thread and listener per
+      # fixture; record the runner's ceilings alongside each test run.
+      - name: Show host limits
+        run: |
+          sysctl hw.ncpu hw.memsize kern.num_taskthreads kern.maxfilesperproc
+          ulimit -n
+
       - name: Build (debug)
         run: swift build
 

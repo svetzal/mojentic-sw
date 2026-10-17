@@ -84,6 +84,12 @@ move independently.
 - Recovery conformance expectations now account for Apple URLSession's Latin-1
   interpretation of UTF-8 HTTP header octets. Exact header dictionaries and
   non-ASCII body bytes remain asserted; captured runtime evidence is unchanged.
+- The recovery loopback test fixture now stops its accept thread on macOS.
+  `shutdown` on a listening socket does not wake `accept` on Darwin, so every
+  fixture leaked its thread and listener, and macOS CI requests timed out with
+  no response. The header-boundary capture test now sends one body byte,
+  because Apple URLSession reports a response only after its first body byte.
+  Test harness only; library behaviour is unchanged.
 
 - On Apple platforms, a recovery attempt whose non-2xx body ends before its
   `Content-Length` now keeps a `URLError.networkConnectionLost` cause.

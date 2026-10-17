@@ -10,9 +10,11 @@ struct RecoveryCancellationTests {
         _ phase: String,
     ) async throws {
         let success = try boundary.success()
+        // Apple URLSession reports a response only after its first body byte, so a
+        // header-only hold never reaches the headers boundary there.
         let reply =
             phase == "headers"
-            ? RecoveryReply(body: success.body, hold: true, splitAt: 0) : success
+            ? RecoveryReply(body: success.body, hold: true, splitAt: 1) : success
         let server = try RecoveryLoopback(replies: [reply])
         defer { server.release() }
         let recorder = RecoveryRecorder()
