@@ -89,7 +89,14 @@ public struct AnthropicModelRegistry: Sendable {
         // https://platform.claude.com/docs/en/models/sonnet-4-5/overview
         // https://platform.claude.com/docs/en/models/haiku-4-5/overview
         // https://platform.claude.com/docs/en/models/opus-4-7/overview
+        // Legacy model limits: https://docs.anthropic.com/en/docs/about-claude/models/all-models
         let limits = [
+            "claude-3-haiku-20240307": 4096,
+            "claude-3-5-haiku-20241022": 8192, "claude-3-5-haiku-latest": 8192,
+            "claude-3-5-sonnet-20240620": 8192, "claude-3-5-sonnet-20241022": 8192,
+            "claude-3-5-sonnet-latest": 8192,
+            "claude-3-opus-20240229": 4096, "claude-3-opus-latest": 4096,
+            "claude-3-7-sonnet-latest": 64000, "claude-3-7-sonnet-20250219": 64000,
             "claude-opus-4-7": 128000,
             "claude-sonnet-4-5": 64000, "claude-sonnet-4-5-20250929": 64000,
             "claude-haiku-4-5": 64000, "claude-haiku-4-5-20251001": 64000,

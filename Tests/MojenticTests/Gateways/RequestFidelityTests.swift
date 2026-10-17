@@ -10,7 +10,20 @@ struct RequestFidelityTests {
     }
 
     @Test func unsupportedReasoningIsDropped() async throws {
-        try await verifyRequestShapes(modelFilter: "gpt-4o")
+        _ = RequestFidelityLogCapture.install
+        RequestFidelityLogCapture.entries.withLock { $0.removeAll() }
+        try await RequestFidelityLogCapture.$recording.withValue(true) {
+            try await verifyRequestShapes(modelFilter: "gpt-4o")
+        }
+        let rows = try requestFidelityRows("cases").filter { $0.objectValue?["model"] == "gpt-4o" }
+        let expected = try #require(rows.first?.objectValue?["warning"]?.stringValue)
+        let warnings = RequestFidelityLogCapture.entries.withLock { entries in
+            entries.filter {
+                $0.label == "mojentic.gateway.openai" && $0.level == .warning
+                    && $0.message == expected
+            }
+        }
+        #expect(warnings.count == 2, "Each default/explicit request must warn when dropping reasoning")
     }
 
     @Test func forbiddenTemperatureIsOmitted() async throws {
@@ -60,6 +73,24 @@ struct RequestFidelityTests {
     }
 
     #if anthropic
+        @Test(arguments: ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-20241022"], [false, true])
+        func documentedLegacyOutputLimit(model: String, explicit: Bool) async throws {
+            let server = try RecoveryLoopback(replies: [try requestFidelityReply("anthropic")])
+            defer { server.release() }
+            let config = CompletionConfig(maxTokens: explicit ? 8192 : nil, reasoning: .high)
+            let result = try await AnthropicGateway(apiKey: "contract-secret", baseURL: server.url).complete(
+                model: model, messages: [.user("hello")], tools: nil, config: config)
+            #expect(result.content == "answer")
+            let bytes = try #require(server.requests.withLock { $0.first })
+            let body = try #require(JSONDecoder().decode(JSONValue.self, from: bytes).objectValue)
+            let limit = explicit ? 8192 : (model == "claude-3-7-sonnet-latest" ? 64000 : 8192)
+            #expect(body["model"] == .string(model))
+            #expect(body["max_tokens"] == .integer(limit))
+            if model == "claude-3-7-sonnet-latest" {
+                #expect(body["thinking"] == ["type": "enabled", "budget_tokens": .integer(limit / 4)])
+            }
+        }
+
         @Test(arguments: try requestFidelityRows("anthropic_cases"), [false, true])
         func anthropicRequiredLimitAndThinking(row: JSONValue, explicit: Bool) async throws {
             let fields = try #require(row.objectValue)
@@ -68,21 +99,33 @@ struct RequestFidelityTests {
                 try requestFidelityReply("anthropic")
             ])
             defer { server.release() }
+            let explicitLimit = try #require(fields["explicit_max_tokens"]?.intValue)
             let config = CompletionConfig(
                 temperature: explicit ? 0 : nil,
-                maxTokens: explicit ? 8192 : nil,
+                maxTokens: explicit ? explicitLimit : nil,
                 reasoning: .high)
             let result = try await AnthropicGateway(apiKey: "contract-secret", baseURL: server.url).complete(
                 model: model, messages: [.user("hello")], tools: nil, config: config)
             #expect(result.content == "answer")
             let bytes = try #require(server.requests.withLock { $0.first })
             let body = try #require(JSONDecoder().decode(JSONValue.self, from: bytes).objectValue)
-            let limit = explicit ? 8192 : try #require(fields["max_tokens"]?.intValue)
-            #expect(body["max_tokens"] == .integer(limit))
+            let limit = explicit ? explicitLimit : try #require(fields["max_tokens"]?.intValue)
+            #expect(body["model"] == .string(model))
+            #expect(body["max_tokens"] == .integer(limit), "case: \(model), explicit: \(explicit)")
             #expect(body["temperature"] == (explicit ? .integer(0) : nil))
             if fields["thinking"] == true {
-                #expect(body["thinking"] == ["type": "enabled", "budget_tokens": .integer(limit / 4)])
+                #expect(
+                    body["thinking"] == ["type": "enabled", "budget_tokens": .integer(max(1024, limit / 4))])
+            } else {
+                #expect(body["thinking"] == nil)
             }
+            print("PASS anthropic/\(model)/\(explicit ? "explicit" : "default")")
+        }
+
+        @Test func anthropicContractCoversRegisteredModels() throws {
+            let covered = try Set(
+                requestFidelityRows("anthropic_cases").compactMap { $0.objectValue?["model"]?.stringValue })
+            #expect(Set(AnthropicModelRegistry.shared.registeredModels()).isSubset(of: covered))
         }
     #endif
 

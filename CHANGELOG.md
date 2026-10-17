@@ -35,6 +35,17 @@ move independently.
   complete captured body bytes across ordinary, JSON, structured and both
   streaming APIs for Ollama, oMLX and OpenAI with unset and explicit configs.
 
+### Fixed — registered Anthropic output limits
+
+- Complete exact output metadata for all registered Claude 3.x IDs and aliases:
+  Claude 3 Haiku/Opus use 4096, Claude 3.5 Haiku/Sonnet use 8192, and Claude
+  3.7 Sonnet uses 64000. Include the known 3.7 dated alias. Explicit `maxTokens`
+  still wins; unknown IDs keep 4096. Thinking budgets use the resolved limit.
+- Extend request-fidelity-v1 public URLSession and fresh packaged-consumer
+  verification across the registered set, with named default/explicit cases.
+  Assert the actual unsupported-reasoning warning as well as payload omission;
+  a warning-suppression mutation must fail the regression.
+
 ### Added — context-window discovery
 
 - `LLMGateway.modelContextWindow(model:)` returns advertised capacity and field

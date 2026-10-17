@@ -722,3 +722,162 @@ worktree. The existing Ollama lookup-order discrepancy remains recorded for
 coordination; no ordering or contract changes were made locally. First-token
 timing remains pending. Changes are uncommitted for Foundry; publication remains
 on hold.
+
+## Residual request-fidelity acceptance correction — October 17, 2026
+
+This record supersedes the request-fidelity evidence above for the final source
+in this correction. Tested base: `9139e35aacff64e5e11c846e19236c13978b5a2d`, plus
+the uncommitted source identified below. The initiative brief was read and its
+SHA-256 verified as
+`ea6a0efa56bfb3cd74b5ce728f80cc33c6fbd853114bec94b8aabe79f5d28e6e`.
+Only Swift's exact Anthropic output metadata and its acceptance verification
+changed. Recovery, other reasoning behavior, dependencies, tools version 6.1,
+package versions, refs and publication state are preserved. No Darwin work or
+first-token timing is claimed; publication remains on hold.
+
+### Contract and authoritative limit provenance
+
+The existing `request-fidelity-v1` mechanism is extended additively as revision
+`registered-output-limits-2026-10-17`. Existing cases and expectations remain;
+new named rows cover all registered Anthropic IDs, supported exact dated aliases,
+and unknown lookalikes. Both local URLSession tests and the fresh packaged
+consumer/provider use this identical executable fixture. Its OpenAI rows also
+name the required warning text. The verifier checks fixture and implementation
+manifests before execution. No dependent or external counterpart verification
+is required by the owner's library-distribution rule.
+
+Limits follow Anthropic's historical
+[model comparison](https://docs.anthropic.com/en/docs/about-claude/models/all-models):
+Claude 3 Haiku/Opus 4096, Claude 3.5 Haiku/Sonnet 8192, Claude 3.7 Sonnet 64000.
+That primary URL now redirects to the current overview; this correction retains
+legacy-model limits, rather than substituting replacement-model limits. The
+newer exact entries retain the base's authoritative specifications:
+[Sonnet 4.5](https://platform.claude.com/docs/en/models/sonnet-4-5/overview),
+[Haiku 4.5](https://platform.claude.com/docs/en/models/haiku-4-5/overview), and
+[Opus 4.7](https://platform.claude.com/docs/en/models/opus-4-7/overview).
+Limits are standard synchronous API maxima, without beta opt-ins. These local
+checks verify request behavior against the pinned expectations; they do not
+claim live access to retired Anthropic endpoints.
+
+### Named acceptance behavior
+
+- `RequestFidelityTests.documentedLegacyOutputLimit`: exact model identifier,
+  omitted and explicit limits for `claude-3-7-sonnet-latest` and
+  `claude-3-5-sonnet-20241022`, including the 3.7 thinking budget.
+- `RequestFidelityTests.anthropicRequiredLimitAndThinking`: every row below,
+  production URLSession, exact requested model, documented omitted maximum,
+  explicit 2048 (distinct from every default), and thinking budget
+  `max(1024, resolvedLimit / 4)` or omitted `thinking` for unsupported models.
+- `RequestFidelityTests.anthropicContractCoversRegisteredModels`: fails if any
+  registry-listed model lacks an executable contract row.
+- `RequestFidelityTests.unsupportedReasoningIsDropped`: both `gpt-4o` default
+  and explicit requests omit `reasoning_effort` and emit the contract's exact
+  diagnostic with level `warning` and label `mojentic.gateway.openai`.
+  A task-scoped capture observes the production swift-log handler.
+- `scripts/verify-packaged-request-fidelity`: detached source archive, fresh
+  SwiftPM consumer with full provider traits, and real HTTP provider. The
+  provider verifies every model and request field against the same fixture;
+  the consumer verifies the public response and actual warning output. Both
+  print identifiable per-case results. Existing six OpenAI cases still pass:
+  `openai/{gpt-4o,o3,gpt-4o-search-preview}/{default,explicit}`.
+
+Each Anthropic row below passed `/default` and `/explicit` on both the local
+URLSession side and packaged consumer/provider side. The explicit output limit
+is 2048 throughout; its thinking budget is 1024 when supported.
+
+| Case ID (prefix `anthropic/`) | Default output limit | Default thinking budget | Local URLSession | Packaged consumer + provider |
+| --- | --- | --- | --- | --- |
+| `claude-sonnet-4-5` | 64000 | 16000 | Pass, both cases | Pass, both cases |
+| `claude-sonnet-4-5-20250929` | 64000 | 16000 | Pass, both cases | Pass, both cases |
+| `claude-haiku-4-5` | 64000 | omitted | Pass, both cases | Pass, both cases |
+| `claude-opus-4-7` | 128000 | 32000 | Pass, both cases | Pass, both cases |
+| `unknown-sonnet-4` | 4096 | 1024 | Pass, both cases | Pass, both cases |
+| `unregistered` | 4096 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-haiku-20240307` | 4096 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-5-haiku-20241022` | 8192 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-5-haiku-latest` | 8192 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-5-sonnet-20240620` | 8192 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-5-sonnet-20241022` | 8192 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-5-sonnet-latest` | 8192 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-opus-20240229` | 4096 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-opus-latest` | 4096 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-7-sonnet-latest` | 64000 | 16000 | Pass, both cases | Pass, both cases |
+| `claude-haiku-4-5-20251001` | 64000 | omitted | Pass, both cases | Pass, both cases |
+| `claude-3-7-sonnet-unregistered` | 4096 | 1024 | Pass, both cases | Pass, both cases |
+| `claude-3-7-sonnet-20250219` | 64000 | 16000 | Pass, both cases | Pass, both cases |
+
+### Final source and contract identities
+
+All following commands ran against the tested base plus the source identified
+by these manifests. The source manifest includes the changed registry, public
+API tests, warning capture, verifier programs, DocC page and unchanged package
+manifest/lockfile. The context manifest refresh changes only source provenance;
+its executable fixture is unchanged. Native reasoning and recovery expectations
+are unchanged.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `Tests/MojenticTests/Fixtures/Contracts/request_fidelity_v1.json` | `369a944ecbd8426a69dd8b299d9cf3718393b38b129ac854f2424dcf0d72e3d5` |
+| `Tests/MojenticTests/Fixtures/Contracts/request_fidelity_v1.manifest.sha256` | `49b59bb55db8c1414fa9f821ab16782162a8659a5343dfb72bdabca8de12f1d1` |
+| `Tests/MojenticTests/Fixtures/Contracts/request_fidelity_v1.swift.sha256` | `d51be4ff634bea73518b64f3e30791e44c29412da0fd977a03374b7226c2dc77` |
+| `Tests/MojenticTests/Fixtures/Contracts/context_window_v1.json` | `9327502962112a020bafb46c6a677366df732f5a29cd44c92f17e8f632281395` |
+| `Tests/MojenticTests/Fixtures/Contracts/context_window_v1.manifest.sha256` | `9052f2da98f7edf5e30db1935a661a9c95f81ae4a3b1660d91a14cc06c9f94d9` |
+| `Tests/MojenticTests/Fixtures/Contracts/native_reasoning_v1.json` | `be212ff011125f1d0927e3a65a0d7cd87eedbf9f5ff69e803b4112a80ae6b1f6` |
+| `Sources/Mojentic/LLM/Gateways/AnthropicModelRegistry.swift` | `c68a653e4cfefe81f908f679ce5d197121c30acc9c5dcbdcb6e71f2001784a4f` |
+| `Tests/MojenticTests/Gateways/RequestFidelityTests.swift` | `c03416478ad8a776ff7d9562993aa34a7e34df4a5799c8a36de603158fb014b8` |
+| `Tests/MojenticTests/Gateways/RequestFidelityLogCapture.swift` | `9f540acc93a063d174e75ff16a362689b4cf7c6ee3f05ccb470e99afb1264e5b` |
+
+The inspected governing `MODEL-METADATA-2026-10.md` SHA-256 is
+`d9945dca45ce09e2163843263a75b5e93028b00ee1baf191fc3ff13396830e9c`.
+
+### Commands and observed results
+
+All six `.hone-gates.json` commands and the additional contract, distribution
+and security checks passed on Linux Swift 6.4. Combined log hashes cover complete
+stdout followed by stderr. The packaged verifier's consumer and provider each
+passed every case listed above and both unsupported-model warning checks. This
+is fresh archive consumption; published-registry installation remains a release
+step under the existing hold.
+
+| Command | Result | Complete log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0 | `f89412292a7613b69b40784596bd99d61b3c8ba768d4595c970934b4340301bd` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0 | `4fcb28b0793662a682bfcba0e3dbde95782676d864502348350a72e9511051fd` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 415 tests in 117 suites | `a331dfd58a3a2f5287993f476720fcb11e8691ab78c352f1aa559029c9ddc1ce` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 431 tests in 122 suites | `6e8fa63e90f182c280ad65d464e5f49e004114ead73531fb6fee0393b36ac5db` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0 | `8d2f3f945900202c49dbefd649c1753678a05ac4f3eab349ca662755c8776570` |
+| `scripts/verify-request-fidelity-contract` | Exit 0; 14 tests in 3 suites | `d88944a6eade27dae508ed8ff51b43241230a19051ed7bd02789c2f2cb778f2c` |
+| `scripts/verify-context-window-contract --traits full` | Exit 0; 12 tests in 4 suites | `c92306be4044a681f0d2b3bfa2a535fb0953711c24eca673b5e633c574f7ec73` |
+| `./scripts/with-gate-environment swift test --traits full --filter 'Recovery\|NativeReasoning\|ReasoningHistory'` | Exit 0; 154 tests in 59 suites | `d5d5a6f6eeb66980657df58d9b27f6ae4256584c055e14d52b449a8efd188d1f` |
+| `scripts/verify-packaged-request-fidelity` | Exit 0; all 42 named cases, both sides, plus warnings | `3b60859fafe867c187ad35d7fbf17415260447cad0a5d39d70effb3d4ebf7b8d` |
+| `osv-scanner scan source --lockfile=Package.resolved` | Exit 0; no issues found | `c61b17d749709ceda784f22942aac9d1d2899879fa7f23c3f4dd0b83949211e6` |
+
+### Rejecting and corrected boundary probes
+
+Before expanding fixtures or documentation, the same production URLSession
+command ran against the missing metadata and then the correction:
+`./scripts/with-gate-environment swift test --traits full --filter RequestFidelityTests.documentedLegacyOutputLimit`.
+The rejecting result was exit 1: Claude 3.7 sent 4096 instead of 64000 and
+budget 1024 instead of 16000; Claude 3.5 sent 4096 instead of 8192. Explicit
+limits already passed. The corrected run exited 0 for the unchanged four
+request cases. Later full contract runs cover the final source manifest above.
+
+| Probe | Exit code | Complete log SHA-256 |
+| --- | --- | --- |
+| Missing metadata | 1 | `9f441ae296be7cd89cef6aedfb814fe5ffd71e67fd0c792bbd83339dd2198bc0` |
+| Corrected metadata | 0 | `8e31bcdc451922072db4b5156378e9c1bfe4153903cc2c02ce2102b7cb1eba0e` |
+| Warning suppressed in production | 1 | `9bfcac05d59c9e23df81b2363f82841c16f857f83c39a32a3ef2f73962d8fb34` |
+| Production warning restored | 0 | `3c89aac0165bf96b0b41fd11e3ad5614a5e36760241a6cd9cd9cd12fbfe6e233` |
+
+The warning mutation used
+`./scripts/with-gate-environment swift test --traits full --filter RequestFidelityTests.unsupportedReasoningIsDropped`.
+Suppressing only the actual gateway warning yielded zero captured warnings and
+one failed warning assertion; payload assertions still passed. Restoring the
+warning passed the same test. The mutation was removed; `OpenAIGateway.swift`
+is unchanged from the tested base. The retained behavioral proof JSON was
+validated for exact field types, observed nonzero/zero exit codes, and existing
+nonempty logs. No marker toggle substitutes for the HTTP behavior.
+
+The final worktree is uncommitted for Foundry. No refs, versions, dependencies,
+publication state or first-token timing implementation were changed.

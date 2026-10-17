@@ -22,9 +22,39 @@ including for temperature. Providers validate supplied values.
 Anthropic requires an output limit. When unset, it uses
 ``AnthropicModelRegistry/maxOutputTokens(for:)`` or 4096 when output metadata
 is unknown. Output metadata uses exact registered identifiers and aliases;
-capability pattern matching does not infer limits. The documented Sonnet 4.5
-and Haiku 4.5 limits are 64000, and Opus 4.7 is 128000. Extended thinking keeps
+capability pattern matching does not infer limits. Extended thinking keeps
 its existing budget calculation, `max(1024, resolvedOutputLimit / 4)`.
+
+The exact output metadata covers the complete registered set:
+
+| Registered IDs and supported exact aliases | Maximum output tokens |
+| --- | --- |
+| `claude-3-haiku-20240307` | 4096 |
+| `claude-3-opus-20240229`, `claude-3-opus-latest` | 4096 |
+| `claude-3-5-haiku-20241022`, `claude-3-5-haiku-latest` | 8192 |
+| `claude-3-5-sonnet-20240620`, `claude-3-5-sonnet-20241022`, `claude-3-5-sonnet-latest` | 8192 |
+| `claude-3-7-sonnet-latest`, `claude-3-7-sonnet-20250219` | 64000 |
+| `claude-sonnet-4-5`, `claude-sonnet-4-5-20250929` | 64000 |
+| `claude-haiku-4-5`, `claude-haiku-4-5-20251001` | 64000 |
+| `claude-opus-4-7` | 128000 |
+
+These are the standard API output limits from Anthropic's
+[model comparison](https://docs.anthropic.com/en/docs/about-claude/models/all-models)
+and the [Sonnet 4.5](https://platform.claude.com/docs/en/models/sonnet-4-5/overview),
+[Haiku 4.5](https://platform.claude.com/docs/en/models/haiku-4-5/overview) and
+[Opus 4.7](https://platform.claude.com/docs/en/models/opus-4-7/overview) specifications.
+The comparison URL now redirects to the current model overview; these legacy
+entries preserve their documented limits rather than following replacement models.
+No beta output-limit opt-in is inferred. Discovery listings and reasoning
+capabilities are unchanged. A name such as `claude-3-7-sonnet-unregistered`
+therefore still uses 4096, even though the existing capability rules allow thinking.
+
+`request-fidelity-v1` revision `registered-output-limits-2026-10-17` exercises
+these exact names through production URLSession. Its shared fixture also drives
+`scripts/verify-packaged-request-fidelity`: a fresh SwiftPM consumer of a detached
+source archive and an HTTP provider verify each named default/explicit case.
+The warning assertions observe the actual swift-log diagnostic, including its
+level and model name, alongside omission of `reasoning_effort`.
 
 OpenAI rewrites a caller-set temperature to the model's only allowed value.
 If the registry declares no accepted temperatures, it omits the parameter.
