@@ -101,7 +101,9 @@ count alone is insufficient evidence of boundary conformance; the assertion
 mappings below describe the behavior checked.
 
 Apple-platform and minimum Swift 6.1 validation on this revision remain pending.
-Linux results do not establish those results. Default-trait DocC excludes
+Linux results do not establish those results. They were established later, at
+`db0354d61d334cb943e5ef8cb8a78d5951131ab4`, with the macOS test-harness causes
+and their evidence recorded in [CONFORMANCE-3.0.0.md](CONFORMANCE-3.0.0.md). Default-trait DocC excludes
 trait-gated Anthropic symbols. No cross-repository boundary changed in this
 record correction; this record makes no claim of a shared versioned executable
 contract verified by another repository.
@@ -317,8 +319,8 @@ and coverage remain unchanged.
 
 No remaining implementation or executable assertion requirement from the nine
 original gaps or twelve binding decisions was identified in this reconciliation.
-Apple-platform and minimum Swift 6.1 verification remains pending on the
-reviewed revision. Historical per-call attribution is an
+Apple-platform and minimum Swift 6.1 verification, pending on the reviewed
+revision, passes at `db0354d` (see [CONFORMANCE-3.0.0.md](CONFORMANCE-3.0.0.md)). Historical per-call attribution is an
 explicit evidence limit under the October 13 owner decision, not an unimplemented
 recovery requirement. Controlled findings and green gates cannot close it.
 
@@ -348,4 +350,8 @@ These are permitted by the contract and documented. They are not gaps.
   closes immediately after sending them. The attempt then shows no progress,
   and local-provider replay still needs caller admission with acceptance `unknown`.
   The library cannot see the discarded bytes.
+- On Apple platforms, URLSession reports a response only after its first body
+  byte or the end of the connection. A provider that sends headers and then
+  stalls leaves the attempt at phase `nil`, without `headersReceived`, until
+  then or until the idle timeout.
 - The tests cover only some unsupported request options.

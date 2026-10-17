@@ -1,8 +1,10 @@
 # Swift 3.0.0 conformance baseline
 
-Status: scoped recovery correction passes all six local gates. Parts 2 and 3
-are pending; macOS recovery baseline verification remains open.
-This is not release readiness or a green cross-platform baseline.
+Status: the part 1 recovery baseline passes all six local gates on macOS and
+every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
+`db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
+`v2.1.0` reports no breaking changes. Parts 2 and 3 are pending. This is not
+release readiness.
 
 The governing authorization is
 [`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md),
@@ -37,58 +39,104 @@ counts. Existing assertions remain intact.
 | Tool non-replay | `RecoveryToolSafetyTests.completedToolSurvivesRecoveredFollowUp`, `failurePreservesTypedCauseAfterCompletedTool`, `recoveryDoesNotResetToolDepth`: original actions and session history survive follow-up recovery without repeated tools. |
 | Safe reflection | `RecoveryReflectionTests.allPublicBoundaries`, `publicBoundaryProof`: sentinel privacy through public errors and events; explicit inspection preserves raw evidence. |
 
-### macOS investigation
+### macOS: cause and fix
 
-Inspected GitHub Actions run
-[38868417395](https://github.com/svetzal/mojentic-sw/actions/runs/38868417395),
-source `dd9bb07e85287c403466499db41f517e516f6541`:
+The macOS CI Test step failed on every run from October 12 to October 17. It
+passes from `baed786edd18c58bfd36c50c931ac7d8efe92fa0` on. Three Darwin-only
+causes were found; each was reproduced on a Mac (macOS 27.2, Swift 6.4) before
+it was changed. None of them is a library defect. Library sources, recovery
+semantics, dependencies and versions are unchanged.
 
-| Job | Job ID | Result on that source |
-| --- | --- | --- |
-| macOS | 116866520159 | Failed in `swift test --parallel`: 388 tests, 109 suites, 11,162 issues. |
-| Linux Swift 6.4 | 116866519786 | Success. |
-| Linux Swift 6.1 minimum | 116866520286 | Success. |
+1. **Header octets.** Apple URLSession exposes UTF-8 header octets as Latin-1;
+   FoundationNetworking decodes them as UTF-8. Corrected in
+   `4155430a1fe4ce1f9092b768ccdd1ee188eb4903` (the preserved Foundry commit
+   `bd87dba`, cherry-picked unchanged). See the header-encoding section below.
+2. **Leaked loopback fixtures.** `RecoveryLoopback.deinit` woke its accept
+   thread with `shutdown(SHUT_RDWR)` on the listening socket. On Darwin that
+   call fails with `ENOTCONN` and `accept()` stays blocked. Every fixture
+   therefore kept its thread, listener and port for the rest of the process.
+   A full parallel run creates about 2,300 fixtures. The macOS CI runner
+   (`hw.ncpu: 3`, `hw.memsize: 7516192768`) allows
+   `kern.num_taskthreads: 2048`. Past that ceiling a new fixture's accept
+   thread cannot start, the request waits in the listen backlog, and
+   URLSession times out with no response bytes (`NSURLErrorDomain -1001`,
+   `_kCFStreamErrorCodeKey=-2102`). A local Mac allows 16,384 threads, so the
+   same leak passes there. That is why every case after the ceiling failed
+   on CI while the same tests passed locally. The fix gives the accept thread
+   a wake pipe: it polls the listener and the pipe, and `deinit` closes the
+   pipe's write end. The accept thread remains the only closer of the
+   listener.
+3. **Response delivery at headers.** Apple URLSession calls
+   `didReceive(response:)` only after the first body byte or the end of the
+   connection. `X-Content-Type-Options: nosniff` does not change this.
+   `RecoveryCancellationTests.captureFailureIsTerminal` with phase `headers`
+   held a header-only reply, so its headers observer never ran on Darwin; the
+   attempt timed out, the retry waited behind the held connection, and the
+   test ended `exhausted` instead of `captureFailed` (36 issues, six
+   boundaries). On Apple platforms the fixture now holds after a one-byte
+   body prefix. Linux keeps the header-only hold: FoundationNetworking
+   delivers a byte that arrives with the headers even after the observer
+   cancels, which counts as raw progress (run `39036519235` below). The
+   assertions are unchanged.
 
-Command: `gh api repos/svetzal/mojentic-sw/actions/jobs/116866520159/logs`.
+The historical failing run is `39014529769` (source
+`863d4ceb367981f6b808232eed2f75c346f33c0b`, before causes 1 to 3 were
+corrected). Its macOS job ran 388 tests in 109 suites and failed with 11,226
+issues after 1,770 seconds. It contains 226 request timeouts with the error
+codes above; its header-dictionary mismatches are cause 1. The per-call trace
+for cause 2 comes from the Mac reproductions below, not from that log.
+
+Command: `gh api repos/svetzal/mojentic-sw/actions/jobs/117343759761/logs`.
 Complete macOS job log SHA-256:
-`4b88430e02f936e4c28f0a3cf71aa500b6e05afd15be58a061300c330c01b537`.
+`0c07d890991b0d783362bb28b7037adf749d12930b48e56fcd64f9bc478f752b`.
 
-The first recorded mismatch is `RecoveryStatusTestSupport.swift:113`:
-the fixture writes UTF-8 `raw-évidence`; Apple URLSession exposes the octets
-as Latin-1 `raw-Ã©vidence`. FoundationNetworking exposes `raw-évidence`.
-The correction derives the exact expected Apple representation from the
-fixture octets. It does not normalize or rewrite runtime captures. Exact
-header dictionary equality remains required. A loopback experiment with
-Latin-1 fixture encoding failed on Linux by losing first-response headers/body;
-retaining UTF-8 fixture bytes and platform-specific expectations passes the
-focused probe. Body and request byte assertions remain unchanged.
+#### Mac reproductions
 
-The same historical run also records URLSession timeout causes and missing
-header/body deliveries. Those failures are not explained by a string decoding
-mismatch. `RecoveryLoopback` already suppresses Darwin SIGPIPE; the inspected
-log does not establish SIGPIPE as the failure cause. CI bypasses
-`scripts/with-gate-environment`, but the log does not establish descriptor
-exhaustion or attribute these timeouts to that bypass. Neither is changed on
-speculation. A fresh macOS run and per-call traces of remaining failures are
-required before claiming the recovery baseline is green.
+Standalone probes ran on macOS 27.2 with Swift 6.4. Each was compiled with
+`swiftc <probe>.swift -o <probe>` and run as `./<probe>`. Probe sources are
+not committed; their SHA-256 values identify them. Log SHA-256 values cover
+stdout followed by stderr.
+
+| Probe (source SHA-256) | Result | Log SHA-256 |
+| --- | --- | --- |
+| Listener wake (`27d76b6013befa4765e9cff36b8838f8c9860db318187a08d02dd0ea30da1d3d`) | Exit 0. `shutdown(SHUT_RDWR)` on a listening socket returns -1, errno 57 (`ENOTCONN`); `accept()` is still blocked after 2 s. `close()` returns 0; `accept()` returns -1, errno 53. | `b5fa124532f4df130a0c3258f4f0585aeb71fa231c3b7b310ec2d30e404c6ab8` |
+| Response timing (`169123b985560db7e5faf7346cf02d598381c765647b248e25db9800ab7c8a85`) | Exit 0. Headers with 0 body bytes, held 2 s: response delivered only at close (2.02 s), with or without `nosniff`. Headers with 1 body byte: response and byte delivered at once (0.00 s). | `2cf0f5b79d2fe3618d8a39fb3ed989b43496021c5a61e6532853771995be2ffc` |
+
+The fixture leak was measured with one bounded sampling script (SHA-256
+`44432c3e9fc6c82c623ef692a9e1d8b606cfaf25bbfb3ef3714402646a91915f`). It runs
+`swift test --parallel --skip-build` once (default traits) and samples the
+test process every 0.5 s with `ps -M` (threads) and
+`lsof -a -p <pid> -iTCP -sTCP:LISTEN` (listeners).
+
+| Tested commit | Result | Log SHA-256 |
+| --- | --- | --- |
+| `4155430a1fe4ce1f9092b768ccdd1ee188eb4903` (before the fix) | 389 tests, 110 suites, 36 issues (`captureFailureIsTerminal`, phase `headers`). Peak 2,378 threads and 2,325 listeners; last sample 2,336 threads and 2,325 listeners. | `ff15bb7ac35ac4e0a04f3f0471a601ab27cdb589a0b2732bf431b1620193507d` |
+| `db0354d61d334cb943e5ef8cb8a78d5951131ab4` (after the fix) | 389 tests, 110 suites, 0 issues. Peak 1,391 threads and 1,295 listeners; last sample 33 threads and 1 listener. | `b4d217d356986d469e9cd7057c32376bff7d4da9301acdcbfee4754c56a3359a` |
+
+The remaining peak is the fixtures that are alive at the same time early in a
+parallel run. It is below the CI runner's 2,048-thread ceiling, but the margin
+is about 650 threads. A suite that adds many concurrent loopback fixtures can
+reach the ceiling again; the macOS job prints the runner's limits on each run.
 
 ## API comparison and migration
 
 Baseline tag `v2.1.0` resolves to source commit
 `618eb7b42ff2b74e6ff9bb6fd9f3c65373da2262` (annotated tag object
-`f105662d7f453ad6bf36b8678d412d372cb27f6d`). Comparison target is the
-uncommitted correction over `dd9bb07e85287c403466499db41f517e516f6541`.
+`f105662d7f453ad6bf36b8678d412d372cb27f6d`). The comparison target is
+`Sources/` at `db0354d61d334cb943e5ef8cb8a78d5951131ab4`; `Sources/`,
+`Package.swift` and `Package.resolved` are identical at
+`4155430a1fe4ce1f9092b768ccdd1ee188eb4903`, `baed786` and `db0354d`.
 
-Command: `./scripts/with-gate-environment swift package --build-system native --scratch-path .build/api-native --traits full diagnose-api-breaking-changes v2.1.0 --targets Mojentic`.
+Command (macOS 27.2, Swift 6.4):
+`./scripts/with-gate-environment swift package --traits full diagnose-api-breaking-changes v2.1.0 --targets Mojentic`.
 Exit 0: `No breaking changes detected in Mojentic`.
 Combined stdout-then-stderr log SHA-256:
-`4689996735ba144934c9cffb7f78d7527281bb2cfcdabf980d47652de9b14115`.
+`179134af8edf25f8da6b4764b0f3121977a2d6f7365bd983a2614e4fbb942a62`.
 
-The default Swift 6.4 build-system attempt failed before comparison because
-its ABI digester tried to write the sandbox's read-only global Clang cache.
-Setting module-cache environment variables did not resolve that failure.
-The native-build-system comparison above completed; its deprecation warning
-is recorded, not suppressed. This workaround changes no project configuration.
+On macOS the default build system completes the comparison. The Linux
+attempts in the Foundry sandbox failed before comparison on a read-only global
+Clang cache and used the native build system instead (table below); that
+workaround is not needed here and changes no project configuration.
 
 The compiler API comparison does not validate Codable vocabulary, reflection,
 error delivery or recovery behavior. The October 12 contract authorizes those
@@ -99,10 +147,11 @@ inspect raw evidence. Existing legacy entrypoints keep one-send behavior.
 The coordinated major version also covers pending work in other ports and
 parts 2 and 3; passing this Swift API comparison does not authorize publication.
 
-| Earlier API diagnostic attempt | Result | Log SHA-256 |
+| Earlier API diagnostic attempt (Linux, over `dd9bb07`) | Result | Log SHA-256 |
 | --- | --- | --- |
 | Default build system, default traits | Exit 1; read-only Clang cache, comparison not reached | `bace7d443679d9b7e99309921c4e3e8693a14a80c2277575435eb39a21b9c600` |
 | Default build system, full traits, module-cache environment overrides | Exit 1; read-only Clang cache, comparison not reached | `4b10117fc107812f40ec0b41b4390a593f2ed79138eb1e0bc7478cfed97f268b` |
+| `./scripts/with-gate-environment swift package --build-system native --scratch-path .build/api-native --traits full diagnose-api-breaking-changes v2.1.0 --targets Mojentic` | Exit 0; `No breaking changes detected in Mojentic` | `4689996735ba144934c9cffb7f78d7527281bb2cfcdabf980d47652de9b14115` |
 
 ## Part 2: native reasoning — pending
 
@@ -117,10 +166,57 @@ No metadata features are implemented by this correction. Context-window lookup,
 client first-token timing, caller-only parameters and removal of `num_predict`
 still require implementation, migration notes and executable conformance tests.
 
-## Local validation of the correction
+## Validation on main
 
-Linux Swift 6.4. Results apply to uncommitted source over
-`dd9bb07e85287c403466499db41f517e516f6541`. SHA-256 values below cover
+### Local gates (macOS)
+
+macOS 27.2, Swift 6.4. Tested commit
+`db0354d61d334cb943e5ef8cb8a78d5951131ab4`: the gates ran on the working tree
+that was committed unchanged as `db0354d`. Each command is a gate from
+`.hone-gates.json`, run directly. SHA-256 values cover stdout bytes followed
+by stderr bytes, with no inserted separator. The passing format command is
+silent.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0; no format diagnostics | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0; 210 files, 0 violations | `20f86aca7900ac958f1320390ab61b37ad3f1acf399637a08654aea4aaf5e56d` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0; release build | `9ca2385e9853e1df90a8dc7b719698c80f8d2a0d7161151b90909c5b337dbd79` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 389 tests, 110 suites, 0 issues | `f9fa21d57bc66f682a7d57ae0c3ff385d75d6e032881498c33a565fefcd75c77` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 402 tests, 115 suites, 0 issues | `cb43bae19c483eecb57f6a48b625d24939c465ee77fd3d46e51df1b4f138e4ae` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; Mojentic DocC | `4cbf4c51025b33c1f0218eebe78688bd7633850e56d2536270a4bf2ae80ee6c9` |
+
+### GitHub Actions
+
+Each job log was fetched with
+`gh api repos/svetzal/mojentic-sw/actions/jobs/<job ID>/logs`; the SHA-256
+covers the complete downloaded log.
+
+Run `39036822881`, tested commit `db0354d61d334cb943e5ef8cb8a78d5951131ab4`,
+conclusion success:
+
+| Job (job ID) | Result | Log SHA-256 |
+| --- | --- | --- |
+| macOS, Swift 6.4 (`117408256894`) | Success. Runner `hw.ncpu: 3`, `hw.memsize: 7516192768`, `kern.num_taskthreads: 2048`. Test: 389 tests, 110 suites. Test (all provider traits): 402 tests, 115 suites. Debug and release builds. | `31960e3568d5ef78b74ab4b2bc20e828cd2e8462ef7f7da3076bb2387c49eb1e` |
+| Linux, Swift 6.4.1 (`117408256900`) | Success. 389 tests, 110 suites; 402 tests, 115 suites; DocC. | `472b89c53acaaa12ca815f6a42bd3c1d3d6f828dac392b80461dd993fed26620` |
+| Linux minimum, Swift 6.1.3 (`117408257096`) | Success. 402 tests (all provider traits). | `13dec0e58ef18fc0b793d000d1a097b477ffffa860edb94613d4e51917964ab3` |
+| swift-format on Linux (`117408256967`) | Success. | `a9a456f959a4041fb43588917fde5fedcf7680ed5fabf0f326b089945a393885` |
+| SwiftLint 0.65.1 (`117408256798`) | Success. 210 files, 0 violations. | `5151d96332fdabb38bc0df6619998f5946989b754b6bcbec4225037ab68112bc` |
+
+Run `39036519235`, tested commit `baed786edd18c58bfd36c50c931ac7d8efe92fa0`,
+conclusion failure. It is the first run with the fixture fix and the one
+that found the Linux prefix-byte behavior:
+
+| Job (job ID) | Result | Log SHA-256 |
+| --- | --- | --- |
+| macOS, Swift 6.4 (`117407395763`) | Success. 389 tests, 110 suites; 402 tests, 115 suites. | `b05afecb8e874dfe35327f8abe53c0c235c2616670a3d37ed0a943ab47ddf668` |
+| Linux, Swift 6.4.1 (`117407395920`) | Failure. 389 tests, 110 suites, 6 issues: `captureFailureIsTerminal` phase `headers`, lifecycle `rawBytes` 1 where 0 is expected, one per boundary. Corrected in `db0354d`. | `e3a6398e9d5ffb4b5ac16ce6b99b74526b8a0836993a9f6bd303ee10719ce713` |
+
+## Header-encoding correction (Linux, Foundry)
+
+Linux Swift 6.4, run by Foundry before this correction landed on `main` as
+`4155430a1fe4ce1f9092b768ccdd1ee188eb4903`. Results apply to uncommitted
+source over `dd9bb07e85287c403466499db41f517e516f6541`. SHA-256 values below cover
 stdout bytes followed by stderr bytes, with no inserted separator.
 Every gate is invoked through `foundry capture --log-dir <scratch-log-dir> --`;
 the table gives its exact inner command. The passing format command is silent.
@@ -134,7 +230,7 @@ the table gives its exact inner command. The passing format command is silent.
 | `./scripts/with-gate-environment swift test --traits full` | Exit 0; 402 tests, 115 suites | `275825a86fb2a4b3d59bc6f7bb0e54594cc2217b6fea17b8347790d42d4bd09f` |
 | `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; Mojentic DocC | `19885496908bbdf75b5d5bd4901515692c596e0ef146d3e6d2e7e06c37b11d8b` |
 
-### Focused boundary proof
+### Focused header-encoding proof
 
 Command in both runs:
 `./scripts/with-gate-environment swift test --filter RecoveryHeaderEncodingTests`.
@@ -144,14 +240,16 @@ header bytes and missing captured response headers. The corrected run restores
 the UTF-8 fixture and passes. This establishes sensitivity to real HTTP input
 and correct local delivery, not reproduction or resolution of the historical
 Darwin timeouts. The original Darwin header mismatch is established by the
-inspected macOS log above; the Apple expectation still needs fresh macOS CI.
+inspected macOS log above. The Apple expectation passes on macOS CI in run
+`39036822881` (see Validation on main).
 
 | Probe | Result | Log SHA-256 (stdout then stderr) |
 | --- | --- | --- |
 | Rejecting fixture input | Exit 1; 1 test | `fdb6aacbadbf75f6262ebd302a251a938ca8fdfb53d5feb87f61734d1528d629` |
 | Corrected fixture input | Exit 0; 1 test | `ace60399d287fafb1501f908455b30a5c4497276fabdad8d32d00a0a8b3882ef` |
 
-The tested final Swift test-source SHA-256 values are:
+The Swift test-source SHA-256 values Foundry tested are below.
+`RecoveryLoopback.swift` changed afterwards in `baed786` (the listener wake).
 
 | File (under `Tests/MojenticTests/Gateways`) | SHA-256 |
 | --- | --- |
@@ -161,18 +259,24 @@ The tested final Swift test-source SHA-256 values are:
 
 ## Verification scope and coordination
 
-This correction changes the recovery test harness/expectations and documentation,
-not an application or cross-repository runtime boundary. The tests above exercise
-Swift's real HTTP transport against a scripted provider fixture. They are not a
-shared versioned executable provider/consumer contract set verified in another
+These corrections change the recovery test harness, its expectations, one
+read-only CI diagnostic step and documentation. They do not change an
+application or cross-repository runtime boundary. The tests exercise Swift's
+real HTTP transport against a scripted provider fixture. They are not a shared
+versioned executable provider/consumer contract set verified in another
 repository; no such two-sided verification is claimed. The contract document
-hash identifies the governing requirements, not an executable contract bundle.
-Any later cross-repository boundary change must coordinate the same executable
-contract version, tested commits and verification results on both sides.
+hashes identify the governing requirements, not an executable contract bundle.
 
-Foundry prohibits commits, pushes and ref changes in this worktree. Validation
-here applies to the uncommitted correction over the source SHA above. New
-macOS, Linux and minimum-Swift CI on a resulting main commit remains pending
-Foundry finalization. Do not reuse the historical run as evidence for these
-changes. No versions, dependencies, recovery semantics or release artifacts
-change in this correction.
+Two platform transport behaviors are observations for the initiative, not
+contract changes:
+
+- On Apple platforms, a recovery attempt reports `headersReceived` and the
+  `headers` wire event only when the first body byte arrives or the
+  connection ends. A provider that sends headers and then stalls stays at
+  phase `nil` until its first byte or the idle timeout.
+- On FoundationNetworking, a body byte that arrives with the headers is
+  delivered and counted as raw progress even after a headers capture failure
+  cancels the attempt. The outcome stays `captureFailed`.
+
+No versions, dependencies, recovery semantics or release artifacts change in
+these corrections.
