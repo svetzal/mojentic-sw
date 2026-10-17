@@ -53,8 +53,8 @@ The chat request carries ``CompletionConfig`` fields as follows:
 
 | Config | Request body |
 | ------ | ------------ |
-| ``CompletionConfig/temperature`` | `temperature` |
-| ``CompletionConfig/maxTokens`` | `max_tokens`, always. Never `max_completion_tokens` |
+| ``CompletionConfig/temperature`` | `temperature`, when set |
+| ``CompletionConfig/maxTokens`` | `max_tokens` only when set. Never `max_completion_tokens` |
 | ``CompletionConfig/topP`` | `top_p`, when set |
 | ``CompletionConfig/reasoning`` | `reasoning_effort` (`low`, `medium` or `high`), when set |
 | ``CompletionConfig/responseFormat`` | `response_format`, as for OpenAI |

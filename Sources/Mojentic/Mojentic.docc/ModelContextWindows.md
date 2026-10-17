@@ -38,7 +38,7 @@ and the caller's `numCtx`. Without that override it uses the model's `modelNumCt
 then advertised capacity. Unknown metadata returns `nil`, even with a configured
 limit. The helper is pure: it does not change config or send a request.
 
-`CompletionConfig()` still sets `numCtx` to 32,768. Explicitly pass `numCtx: nil`
+`CompletionConfig()` leaves `numCtx` unset by default. Pass `numCtx: nil`
 to use the model fallback in this calculation. With neither override nor model
 parameter, the advertised result is only an upper bound: the server's
 `OLLAMA_CONTEXT_LENGTH` and built-in defaults are invisible to discovery.
@@ -46,4 +46,4 @@ Applications can inspect Ollama `/api/ps` after a completion for the loaded size
 
 Discovery does not cache a limit into later requests or alter list ordering.
 Context budgets and application reactions remain caller policy. Client first-token
-timing and caller-only request parameters are separate, pending capabilities.
+timing remains pending. Caller-only parameters are described in <doc:RequestFidelity>.

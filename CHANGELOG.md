@@ -10,6 +10,31 @@ move independently.
 
 ## [Unreleased]
 
+### Breaking changes and migration — request fidelity
+
+- `CompletionConfig.temperature` and `maxTokens` are optional; both and
+  `numCtx` default to `nil`. Read numeric values with optional handling.
+  Legacy Codable records retain explicit numeric values; absent/null request
+  fields stay unset. To restore previous requests, use
+  `CompletionConfig(temperature: 1.0, maxTokens: 16384, numCtx: 32768)`.
+- Ollama now inherits model/server context, sampling and output settings.
+  With neither configured, Ollama's built-in context can be smaller and output
+  can be unlimited, so looping generations may run longer. `maxTokens` remains
+  the single output limit, mapped to `options.num_predict`.
+- OpenAI and oMLX omit unset output limits and temperature. OpenAI reasoning
+  models keep `max_completion_tokens`; other models keep `max_tokens`.
+  OpenAI may generate more tokens and cost more without an explicit output cap.
+  Caller-set temperature is rewritten to a model's only allowed value; models
+  accepting no temperature omit it. Unsupported reasoning effort warns and drops.
+- Anthropic requires `max_tokens`: use the exact registered output maximum
+  when known, otherwise 4096. The thinking budget remains
+  `max(1024, effectiveMaxTokens / 4)`, using that same resolved limit.
+- ChatSession reserves only an explicit `maxTokens` during context trimming,
+  or zero when unset. It does not synthesize provider parameters.
+- Production HTTP encoding uses sorted JSON object keys. Discovery preserves
+  complete captured body bytes across ordinary, JSON, structured and both
+  streaming APIs for Ollama, oMLX and OpenAI with unset and explicit configs.
+
 ### Added — context-window discovery
 
 - `LLMGateway.modelContextWindow(model:)` returns advertised capacity and field
@@ -20,9 +45,8 @@ move independently.
   the exact model. OpenAI uses exact registry entries without HTTP or inferred
   model profiles.
 - `effectiveContextWindow(_:config:)` computes Ollama's upper bound using caller,
-  model, then advertised limits. Pass `numCtx: nil` to consider model defaults;
-  the existing default config still sets 32,768. Discovery never applies limits
-  to later requests. First-token timing and request-fidelity migration remain pending.
+  model, then advertised limits. The default config now considers model defaults.
+  Discovery never applies limits to later requests. First-token timing remains pending.
 
 ### Breaking changes and migration (native reasoning)
 
@@ -43,7 +67,7 @@ move independently.
   failed continuations and unfinished streams never commit native history.
   oMLX requests `chat_template_kwargs.preserve_thinking`; server overrides can
   still prevent preservation. Defaults continue to discard retained reasoning.
-- Part 3 (metadata, timing and request fidelity) remains pending.
+- Part 3 first-token timing remains pending.
 
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.

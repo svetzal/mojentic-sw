@@ -367,7 +367,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
             temperature: config.temperature,
             numCtx: config.numCtx,
             topP: config.topP,
-            numPredict: config.maxTokens > 0 ? config.maxTokens : nil,
+            numPredict: config.maxTokens,
         )
         // Forward unknown extras verbatim via the rawOptions catch-all.
         options.rawOptions = config.extraOptions.isEmpty ? nil : config.extraOptions
@@ -396,7 +396,7 @@ private struct OllamaChatRequest: Encodable {
 }
 
 private struct OllamaOptions: Encodable {
-    let temperature: Double
+    let temperature: Double?
     let numCtx: Int?
     let topP: Double?
     let numPredict: Int?
@@ -411,7 +411,7 @@ private struct OllamaOptions: Encodable {
 
     func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: DynamicKey.self)
-        try container.encode(temperature, forKey: DynamicKey(stringValue: "temperature"))
+        try container.encodeIfPresent(temperature, forKey: DynamicKey(stringValue: "temperature"))
         if let numCtx {
             try container.encode(numCtx, forKey: DynamicKey(stringValue: "num_ctx"))
         }

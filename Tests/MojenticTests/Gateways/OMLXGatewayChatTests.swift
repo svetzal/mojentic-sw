@@ -46,11 +46,11 @@ struct OMLXChatRequestTests {
         #expect(body["num_predict"] == nil)
     }
 
-    @Test("unset optional fields are omitted and max_tokens is always sent")
+    @Test("unset request fields are omitted")
     func minimalBody() async throws {
         let body = try await sentBody(config: CompletionConfig())
-        #expect(body["max_tokens"] == .integer(CompletionConfig().maxTokens))
-        #expect(body["temperature"] == .number(1.0))
+        #expect(body["max_tokens"] == nil)
+        #expect(body["temperature"] == nil)
         #expect(body["top_p"] == nil)
         #expect(body["reasoning_effort"] == nil)
         #expect(body["response_format"] == nil)

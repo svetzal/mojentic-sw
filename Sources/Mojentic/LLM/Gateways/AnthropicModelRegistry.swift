@@ -81,6 +81,22 @@ public struct AnthropicModelRegistry: Sendable {
         )
     }
 
+    /// Documented maximum output for an exact registered ID or alias.
+    ///
+    /// Capability pattern matching does not establish an output limit.
+    /// Unregistered output metadata is absent so the gateway uses 4096.
+    public func maxOutputTokens(for model: String) -> Int? {
+        // https://platform.claude.com/docs/en/models/sonnet-4-5/overview
+        // https://platform.claude.com/docs/en/models/haiku-4-5/overview
+        // https://platform.claude.com/docs/en/models/opus-4-7/overview
+        let limits = [
+            "claude-opus-4-7": 128000,
+            "claude-sonnet-4-5": 64000, "claude-sonnet-4-5-20250929": 64000,
+            "claude-haiku-4-5": 64000, "claude-haiku-4-5-20251001": 64000,
+        ]
+        return limits[model]
+    }
+
     /// Sorted list of registered model identifiers.
     public func registeredModels() -> [String] {
         entries.keys.sorted()

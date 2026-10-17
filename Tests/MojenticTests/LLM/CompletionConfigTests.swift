@@ -4,16 +4,16 @@ import Testing
 
 @Suite("CompletionConfig defaults and serialisation")
 struct CompletionConfigTests {
-    @Test("default values match SWIFT.md baseline")
+    @Test("unset request fields defer to the provider")
     func defaults() {
         let config = CompletionConfig()
-        #expect(config.temperature == 1.0)
-        #expect(config.maxTokens == 16384)
+        #expect(config.temperature == nil)
+        #expect(config.maxTokens == nil)
         #expect(config.topP == nil)
         #expect(config.reasoning == nil)
         #expect(config.reasoningProfile == nil)
         #expect(!config.retainThinking)
-        #expect(config.numCtx == 32768)
+        #expect(config.numCtx == nil)
         #expect(config.extraOptions.isEmpty)
         #expect(config.maxToolIterations == 25)
     }

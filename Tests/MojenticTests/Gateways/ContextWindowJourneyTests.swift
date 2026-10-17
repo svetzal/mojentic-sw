@@ -7,6 +7,11 @@ import Testing
 struct ContextWindowJourneyTests {
     @Test(arguments: ["ollama", "omlx", "openai"], ["ordinary", "json", "structured", "stream", "events"])
     func discoveryPreservesCompletion(provider: String, route: String) async throws {
+        try await verifyDiscovery(provider: provider, route: route, explicit: false)
+        try await verifyDiscovery(provider: provider, route: route, explicit: true)
+    }
+
+    private func verifyDiscovery(provider: String, route: String, explicit: Bool) async throws {
         let contract = try ContextWindowContract()
         let row = try #require(
             contract.rows("cases").first {
@@ -31,23 +36,26 @@ struct ContextWindowJourneyTests {
         defer { server.release() }
         let gateway = ContextWindowContract.gateway(provider, server: server)
         let model = provider == "openai" ? "gpt-4o" : try #require(row["model"]?.stringValue)
-        let config = CompletionConfig()
+        let config =
+            explicit
+            ? CompletionConfig(temperature: 0, maxTokens: 512, topP: 0.8, numCtx: 8192) : CompletionConfig()
         try await complete(gateway, model: model, route: route, config: config)
         let window = try await gateway.modelContextWindow(model: model)
         #expect(window != nil)
-        #expect(config.numCtx == 32768)
+        #expect(config.numCtx == (explicit ? 8192 : nil))
         try await complete(gateway, model: model, route: route, config: config)
         let requests = server.requests.withLock { $0 }
         #expect(requests.count == (provider == "openai" ? 2 : 3))
-        // Raw byte identity is not established: the existing encoder randomizes object key order.
+        #expect(try #require(requests.first) == #require(requests.last))
         let firstValue = try JSONDecoder().decode(JSONValue.self, from: #require(requests.first))
         let lastValue = try JSONDecoder().decode(JSONValue.self, from: #require(requests.last))
         #expect(firstValue == lastValue)
         let body = try #require(firstValue.objectValue)
         let options = ollama ? try #require(body["options"]?.objectValue) : body
-        #expect(options["temperature"]?.intValue == 1)
-        #expect(options[ollama ? "num_predict" : "max_tokens"] == 16384)
-        if ollama { #expect(options["num_ctx"] == 32768) }
+        #expect(options["temperature"] == (explicit ? .integer(0) : nil))
+        #expect(options[ollama ? "num_predict" : "max_tokens"] == (explicit ? .integer(512) : nil))
+        if ollama { #expect(options["num_ctx"] == (explicit ? .integer(8192) : nil)) }
+        #expect(options["top_p"] == (explicit ? .number(0.8) : nil))
         #expect(body["stream"] == .bool(streaming))
         #expect(body["think"] == nil)
         #expect(body["reasoning_effort"] == nil)

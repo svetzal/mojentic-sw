@@ -4,7 +4,9 @@ Status: the part 1 recovery baseline passes all six local gates on macOS and
 every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
 `db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
 `v2.1.0` reported no breaking changes for that recovery baseline. Part 2 is
-implemented locally below, with external verification pending. Part 3 section 1 is implemented locally; timing and request fidelity remain pending.
+implemented locally below. Part 3 discovery and request fidelity are implemented;
+first-token timing remains pending. The owner's library self-validation rule below
+supersedes the older external-verification requirements in historical records.
 This is not release readiness; the historical API result does not cover part 2.
 
 The governing authorization is
@@ -154,7 +156,7 @@ parts 2 and 3; passing this Swift API comparison does not authorize publication.
 | Default build system, full traits, module-cache environment overrides | Exit 1; read-only Clang cache, comparison not reached | `4b10117fc107812f40ec0b41b4390a593f2ed79138eb1e0bc7478cfed97f268b` |
 | `./scripts/with-gate-environment swift package --build-system native --scratch-path .build/api-native --traits full diagnose-api-breaking-changes v2.1.0 --targets Mojentic` | Exit 0; `No breaking changes detected in Mojentic` | `4689996735ba144934c9cffb7f78d7527281bb2cfcdabf980d47652de9b14115` |
 
-## Part 2: native reasoning — local verification; external verification pending
+## Part 2: native reasoning — local library verification
 
 Tested base: `37bfac0e478b3860c284ed1c70d7b5da7fba5436` plus this uncommitted
 correction. No refs, dependencies, package versions, toolchain declaration or
@@ -213,13 +215,13 @@ manufacturing completion at EOF. Recovery semantics are unchanged.
 | Swift gateway/provider adapters | `37bfac0e478b3860c284ed1c70d7b5da7fba5436` plus this uncommitted patch; targeted command above, same native-reasoning-v1 rows | Exit 0; captured HTTP controls, native response fields, errors and rejected dispatch |
 | Swift broker/ChatSession consumers | Same base/patch, same command and artifact | Exit 0; contract-derived responses exercise completed ordinary/stream continuations and next user turn, plus exclusion cases |
 | Elixir recorded adapter/consumer verification | Read-only `CONFORMANCE-3.0.0.md` at `df29a1c36f6b4b172b3ff352d40201d6583a9890` records tested base `ddb2217c8245b041a20fd25f34f5aa6fbfaee2ce` plus its part-2 patch; `scripts/verify-native-reasoning-contract` | Recorded exit 0, 182 named cases against the same contract; not rerun or claimed as a current paired verification in this task |
-| Actual Ollama/oMLX server producers and external repository consumers | No tested server version/commit or paired verification command available | Missing; compatibility across those external boundaries remains unfinished |
+| Actual Ollama/oMLX server producers and external repository consumers | No tested server version/commit or paired verification command available | Historical external verification was not performed; it is not a library distribution gate under the owner rule below |
 
-Initiative finding `fnd_sw_native_reasoning_v1_external_verification` was recorded
-with `foundry finding add` (exit 0). It requests separately authorized paired
-verification of this exact set; no other repository was changed. Local fixture
-verification cannot certify live server behavior or benchmark efficacy. The
-publication hold remains; see the part-3 section for current context-window status.
+The earlier finding `fnd_sw_native_reasoning_v1_external_verification` is
+superseded as a library readiness requirement by the owner's self-validation
+rule. Swift validates its public API and packaged artifact locally; dependents
+verify adoption after publication. Local fixtures do not certify live server
+deployments. No other repository was changed; the publication hold remains.
 
 ### Part-2 validation
 
@@ -262,7 +264,11 @@ have no CI run yet. Local results do not claim macOS or Swift 6.1 execution for
 this patch; those remain CI validation after Foundry finalization.
 
 
-## Part 3 section 1: context-window discovery — local verification
+## Part 3 section 1: context-window discovery — historical local verification
+
+The original section-1 correction described here predates the request-fidelity
+correction recorded below. That later record supersedes the original scope and
+verification gaps.
 
 This correction starts at Swift `a4738d7c87cc7608e5f7e3ddf9638a76148c65d0`.
 The binding owner brief SHA-256 is
@@ -392,14 +398,14 @@ max_tokens/num_predict 16,384 and Ollama num_ctx 32,768. OpenAI discovery adds n
 HTTP request; Ollama/oMLX insert only their metadata request. No completion limit
 is updated from advertised capacity.
 
-**Raw byte identity is not proven.** An initial probe comparing raw request bodies
-and raw header strings failed across all three providers: JSON object key order
-and URLSession header order already vary between equivalent sends. Even OpenAI's
-registry-only discovery (no network or gateway mutation) exhibited that variance.
-The retained journeys assert semantic and header-value invariance, explicitly not
-byte equality. Stabilizing encoding would change existing wire bytes and lies
-outside the instruction to preserve request shaping. This acceptance gap requires
-owner coordination; it has not been hidden by normalizing a claimed byte proof.
+The original cycle proved only semantic equivalence. This correction closes
+that gap: `ContextWindowJourneyTests.discoveryPreservesCompletion` directly
+compares complete, unmodified captured HTTP body `Data`, with the exact same
+model identifier before and after discovery. Production HTTPClient and
+URLSession serve all three providers, five entry points and both default and
+explicit configurations (30 journeys). Only the headers' line order is ignored.
+The rejecting probe failed all 15 original journeys; sorted-key HTTP encoding
+passed the same assertions. No normalized JSON substitutes for the byte check.
 
 `configuredLookupKeepsExistingSwiftOrder` executes all three unchanged
 `lookup_cases` through configured HTTP, asserting paths, headers and empty GET
@@ -425,18 +431,16 @@ after this environment correction.
 | --- | --- | --- |
 | Swift production adapters and local metadata consumers | Base `a4738d7` plus the Swift manifest above; `scripts/verify-context-window-contract` | Runs the shared rows, registry, pure helper, legacy conformer, configured lookup and completion journeys. See current gate results below. |
 | Elixir recorded production adapter/consumer verification | Read-only conformance record at `df29a1c36f6b4b172b3ff352d40201d6583a9890`, cycle 12: base `35013e921793710e344a708fdfea209248d4fd8e` plus manifest `407e4a0e7acec1c04dfe8d22b7e55a9722dc4e59182ce56c69f0cb81db070434`; `scripts/verify-context-window-contract` | Recorded exit 0, 233 tests, same contract hash. The current checkout is clean and `sha256sum --check test/contracts/context_window_v1.manifest.sha256` was rerun read-only here: exit 0, all entries match. Elixir tests were not rerun in this Swift-only task. |
-| Actual Ollama/oMLX server producers | No tested server revision/version or shared verification command available | Missing external producer verification; fixtures do not certify the live servers. |
-| External application consumers | No tested application revision or paired command available | Missing external consumer verification. Assign separately authorized initiative work against this exact contract hash. |
+| Actual Ollama/oMLX server producers | No tested server revision/version or shared verification command available | No live-server certification claimed; not a library distribution prerequisite. |
+| External application consumers | No tested application revision or paired command available | Dependents verify when adopting the published package; not required against unreleased Swift. |
 
-The counterpart record was inspected before fixture reuse, including its latest
-manifest and double-decoding correction. Matching Elixir and Swift fixtures do
-not establish external producer/consumer compatibility. Initiative coordination
-must retain the Ollama ordering discrepancy, raw-byte acceptance gap, and missing
-external verification as unfinished work. No other repository was changed.
-
-Client first-token timing and request fidelity (caller-only parameters and
-`num_predict` removal) remain **pending**, as do their migration/conformance work.
-Part 3 and the release are not complete. The publication hold remains.
+The counterpart record is historical provenance for reused fixtures. Under
+the owner's library self-validation rule, Swift does not require Elixir's
+executable snapshot or a dependent to validate an unreleased Swift package.
+The existing Ollama list-order discrepancy remains a coordination item;
+this correction preserves that unrelated API behavior. Request fidelity and
+raw-byte discovery acceptance are complete locally; first-token timing and
+whole-release readiness remain pending. The publication hold remains.
 
 
 ### Current correction validation (Linux Swift 6.4)
@@ -468,12 +472,12 @@ passed (exit 0). Rejecting log SHA-256:
 corrected log SHA-256:
 `3ad15d257f5511a3fe1a6fadb8b38f91d68ebe38f56a09216a12ff8d7e28b893`.
 JSON field types, observed exit codes and nonempty log files were validated.
-The later failed raw-byte probe is a separate acceptance gap, not a passing proof.
+The historical raw-byte probe failed; the request-fidelity correction below closes that gap.
 
 Initiative finding `mojentic-sw-context-window-v1-final-evidence-a4738d7`
 supersedes the earlier candidate identity in
-`mojentic-sw-context-window-v1-gaps-a4738d7`, preserving all three coordination
-gaps. No external verification or release readiness is claimed. Changes remain
+`mojentic-sw-context-window-v1-gaps-a4738d7`, preserving the historical coordination findings. The correction below supersedes
+the raw-byte and external-verification requirements; no release readiness is claimed. Changes remain
 uncommitted for Foundry finalization.
 
 ## Validation on main
@@ -590,3 +594,131 @@ contract changes:
 
 No versions, dependencies, recovery semantics or release artifacts change in
 these corrections.
+
+
+## Part 3 request fidelity correction — 2026-10-17
+
+Tested revision: `aa1a7c18e69db4586b5fdac562d9421d049915d5` plus the
+uncommitted worktree correction. No refs, dependencies, toolchain declarations,
+version or publication state changed. This objective implements sections 3.2–3.6
+and closes discovery's outstanding raw-byte criterion; timing is excluded.
+
+### Characterization and migration
+
+At the base revision, public temperature/maxTokens were numeric defaults
+1.0/16384, numCtx defaulted to 32768, and legacy Codable required numeric fields.
+ChatSession passed maxTokens directly as its reservation. Gateways injected
+these defaults; OpenAI omitted fixed temperature and silently dropped unsupported
+effort, while Anthropic clamped the output limit and derived thinking from it.
+The initial real-HTTP byte probe exposed varying encoder key order before
+migration. Existing populated-field and native-reasoning tests are retained.
+
+Now unset fields stay omitted; legacy numeric records retain their values,
+absent/null request fields decode as nil, and sessions reserve explicit output
+limits or zero. Anthropic resolves an unset limit once from exact output metadata
+or 4096 and derives the existing thinking budget from that result. Its output
+registry deliberately distinguishes documented limits from coarse capability
+patterns. Sources for exact limits:
+[Sonnet 4.5](https://platform.claude.com/docs/en/models/sonnet-4-5/overview),
+[Haiku 4.5](https://platform.claude.com/docs/en/models/haiku-4-5/overview),
+[Opus 4.7](https://platform.claude.com/docs/en/models/opus-4-7/overview).
+Unregistered output metadata, including a capability pattern match, uses 4096.
+
+### Executable coverage and distribution rule
+
+The owner rule makes this library self-validating through public APIs, fixtures
+and a detached SwiftPM source archive consumed by a fresh package. It does not
+require dependents to adopt an unreleased library or another port to verify a
+Swift executable snapshot. Publication still requires a fresh registry install.
+No running application boundary in another authorized repository changed here.
+
+| Decision | Executable evidence |
+| --- | --- |
+| Default and explicit fields; exact model and relevant headers; raw bytes across ordinary/JSON/structured/stream/events | `ContextWindowJourneyTests.discoveryPreservesCompletion`: 30 production HTTP journeys, no substituted HTTPClient |
+| Optional defaults and explicit Codable round trips | `CompletionConfigTests` |
+| Legacy numeric, missing and null Codable fields | `RequestFidelityTests.legacyAndSparseCodableConfigurations` |
+| Fixed temperature, omitted temperature, dropped effort and provider-specific token-limit names | `fixedTemperatureUsesOnlyAllowedValue`, `forbiddenTemperatureIsOmitted`, `unsupportedReasoningIsDropped`; versioned request rows, captured HTTP |
+| Anthropic required default/explicit limits, exact metadata versus capability patterns and derived thinking | `anthropicRequiredLimitAndThinking`; versioned Anthropic rows |
+| ChatSession reservation and request coupling | `sessionReservesOnlyExplicitOutputLimit`: actual history trimming and subsequent HTTP payload with unset/explicit limit |
+| Packaged public API and provider verification | `scripts/verify-packaged-request-fidelity`: detached source archive, fresh SwiftPM consumer, production URLSession and a fixture-verifying HTTP provider using the same request-fidelity-v1 rows |
+
+Responses for the HTTP test doubles and packaged provider come directly from
+the versioned contract, rather than independently authored mocks.
+The scripted provider verifies declared contract cases, optional-field semantics
+and exact model identities; it does not claim verification of a live vendor
+deployment. Existing context-window-v1 and native-reasoning-v1 suites retain
+their versioned errors, legacy compatibility and request/response behavior.
+All Swift tests, including contract tests, execute in the required test gates.
+The packaged probe is an additional distribution check, without publication.
+
+### Contract and implementation identities
+
+Coordinating document read at `mojentic-unify@ef9339c6a9682ed5f060bd690b738f6b8eea1d2d`.
+Executable sets are retained inside this repository; request-fidelity-v1 adds Swift
+wire examples without changing the governing contract. Hashes cover exact file bytes.
+
+| Identity | SHA-256 |
+| --- | --- |
+| MODEL-METADATA-2026-10.md | `d9945dca45ce09e2163843263a75b5e93028b00ee1baf191fc3ff13396830e9c` |
+| context-window-v1 | `9327502962112a020bafb46c6a677366df732f5a29cd44c92f17e8f632281395` |
+| native-reasoning-v1 | `be212ff011125f1d0927e3a65a0d7cd87eedbf9f5ff69e803b4112a80ae6b1f6` |
+| request-fidelity-v1 | `39166b8c852d66f496ff63794b72b8a8bc111e80b1f73cdd620c3c0c036c93f5` |
+| Swift source/test/verification manifest | `4727fef7d5ff53585c888f5ca2c7665b64f51a49189739b9f00b61d59d934b53` |
+
+The source manifest at `Tests/MojenticTests/Fixtures/Contracts/request_fidelity_v1.swift.sha256`
+identifies the uncommitted Swift implementation and verification programs.
+
+### Final correction verification
+
+All commands below ran on Linux Swift 6.4 through Foundry capture, against the
+base revision plus the source manifest above. Every exit code is zero. Log
+digests cover complete stdout followed by stderr; logs are execution evidence,
+not package files. No current macOS CI or live vendor deployment is claimed.
+
+The first complete pass passed all six gates, then the context verifier rejected
+nine stale source checksums in its provenance manifest. Only those checksums
+were refreshed; the context-window-v1 executable fixture and its hash are
+unchanged. A complete gate and contract rerun then passed. The refreshed context
+source manifest SHA-256 is
+`8307f3fe645183e6709c3c979cd26228f10f6bf75b57132c5c7992760c9f1dd7`.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0 | `58c7b6a6dd8c3f703cb3f29f2b9ad70d74fcacb35fa4cc763a4e8550e5d40601` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0 | `341eddfb003252fb09e471a5a1ceff9e40bd52924e1009382ba5afb143b81bcc` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 415 tests in 117 suites | `633a7b7ea6dd3907ce274eeaee2c012ada87b688548eebab908a5d3a6f706e31` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 429 tests in 122 suites | `d2370437a1196b3e859b7bc68ca0bbc7ab6cda9e960225f70977a281ae2f272c` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; DocC, warnings as errors | `1de4ddf25cd22f11049ea7d8ea701d9b1dac10bca0e4f3dde2bb3c9ba29afe0c` |
+| `scripts/verify-context-window-contract --traits full` | Exit 0; 12 tests in 4 suites | `cc7dff4e3391fa0fc298a3efbe238bb823caa263404f11765d5fb174ec1f6157` |
+| `scripts/verify-request-fidelity-contract` | Exit 0; 12 tests in 3 suites | `d7394e8e005be2121c8bd9b839550e0835b5b5549ab5f6cc5f2e4e2283343857` |
+| `./scripts/with-gate-environment swift test --traits full --filter 'NativeReasoning\|ReasoningHistory'` | Exit 0; 19 tests in 6 suites | `871d9648872f80707e3ae11bf68605a6efdc339844200f874118af5aeee949a6` |
+| `scripts/verify-packaged-request-fidelity` | Exit 0; fresh consumer and scripted provider, same 6 request-fidelity-v1 rows | `f1934d8034264619221ebcaf625e2eea4a2953e11f8ef9a37c16656b8a58f486` |
+| `osv-scanner scan source --lockfile=Package.resolved` | Exit 0; no issues found | `ab6a34c64255a37fac7c6d9bb4349803a48b64f8802efc24d8b1105dcab85b72` |
+
+The packaged consumer and its fixture-verifying HTTP provider execute the same
+request-fidelity-v1 rows from the tested worktree. Both sides pass in the same
+command above; these are library self-validation, not another repository's
+running application. Published-registry installation remains a release-stage
+check under the existing publication hold.
+
+### Retained behavioral byte proof
+
+The same command ran in both probes:
+`./scripts/with-gate-environment swift test --filter ContextWindowJourneyTests.discoveryPreservesCompletion`.
+The rejecting run exercised production HTTP with the unsorted encoder and failed
+all 15 same-model raw-body comparisons. Sorted-key production encoding passed
+the unchanged test. The final suite additionally runs both default and explicit
+configs for all routes (30 journeys). Body bytes are never normalized or masked.
+
+| Probe | Observed exit | Complete log SHA-256 |
+| --- | --- | --- |
+| rejecting | 1 | `69a77a10d8556bb5b3dc8202bbaceec76b8f37b4a53d78bdddba478efc86d27a` |
+| corrected | 0 | `6d8d39477837af8a80fdfecd246d42c7387b6079dec17594deeca3b214011a76` |
+
+The behavioral proof JSON's required field types, observed exit codes and
+nonempty log files were checked. Source and fixture manifests match the final
+worktree. The existing Ollama lookup-order discrepancy remains recorded for
+coordination; no ordering or contract changes were made locally. First-token
+timing remains pending. Changes are uncommitted for Foundry; publication remains
+on hold.

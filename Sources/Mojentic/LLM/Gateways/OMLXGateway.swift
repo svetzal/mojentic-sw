@@ -357,9 +357,10 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         var dict: [String: JSONValue] = [
             "model": .string(model),
             "messages": .array(OpenAIMessageAdapter.adapt(messages, nativeReasoning: true)),
-            "stream": .bool(stream), "temperature": .number(config.temperature),
-            "max_tokens": .integer(config.maxTokens),
+            "stream": .bool(stream),
         ]
+        if let temperature = config.temperature { dict["temperature"] = .number(temperature) }
+        if let maxTokens = config.maxTokens { dict["max_tokens"] = .integer(maxTokens) }
         if let topP = config.topP {
             dict["top_p"] = .number(topP)
         }

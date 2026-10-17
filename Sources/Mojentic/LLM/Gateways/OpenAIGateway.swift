@@ -396,14 +396,23 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
             "model": .string(model), "messages": .array(OpenAIMessageAdapter.adapt(messages)),
             "stream": .bool(stream),
         ]
-        if capabilities.supportsTemperatureControl {
-            dict["temperature"] = .number(config.temperature)
+        if let temperature = config.temperature {
+            if let allowed = capabilities.supportedTemperatures {
+                if let value = allowed.first {
+                    dict["temperature"] = .number(allowed.count == 1 ? value : temperature)
+                }
+            } else {
+                dict["temperature"] = .number(temperature)
+            }
         }
         if let topP = config.topP {
             dict["top_p"] = .number(topP)
         }
-        if config.maxTokens > 0 {
-            dict[capabilities.tokenLimitParameter] = .integer(config.maxTokens)
+        if let maxTokens = config.maxTokens {
+            dict[capabilities.tokenLimitParameter] = .integer(maxTokens)
+        }
+        if config.reasoning != nil, !capabilities.supportsReasoningEffort {
+            logger.warning("Dropping reasoning effort unsupported by model \(model)")
         }
         if capabilities.supportsReasoningEffort, let effort = config.reasoning {
             dict["reasoning_effort"] = .string(effort.rawValue)

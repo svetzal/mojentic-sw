@@ -89,6 +89,13 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
         requestTimeout ?? session.configuration.timeoutIntervalForRequest
     }
 
+    // Stable object ordering makes identical public requests byte-identical.
+    private static func requestEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+
     /// Issue a JSON POST and return the decoded response body.
     public func postJSON<Response: Decodable>(
         url: URL,
@@ -112,7 +119,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     {
         var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        do { request.httpBody = try JSONEncoder().encode(body) } catch {
+        do { request.httpBody = try Self.requestEncoder().encode(body) } catch {
             throw MojenticError.transport(
                 message: "Failed to encode request body: \(error.localizedDescription)"
             )
@@ -150,7 +157,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
     ) async throws -> AsyncThrowingStream<String, any Error> {
         var request = makeRequest(url: url, method: "POST", headers: headers)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        do { request.httpBody = try JSONEncoder().encode(body) } catch {
+        do { request.httpBody = try Self.requestEncoder().encode(body) } catch {
             throw MojenticError.transport(
                 message: "Failed to encode streaming body: \(error.localizedDescription)"
             )
@@ -217,7 +224,7 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
         }
         if let body = request.body {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            do { urlRequest.httpBody = try JSONEncoder().encode(body) } catch {
+            do { urlRequest.httpBody = try Self.requestEncoder().encode(body) } catch {
                 throw MojenticError.transport(
                     message: "Failed to encode request body: \(error.localizedDescription)"
                 )

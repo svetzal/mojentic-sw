@@ -345,11 +345,12 @@ import Logging
         ) -> JSONValue {
             let capabilities = registry.capabilities(for: model)
             let adapted = AnthropicMessageAdapter.adapt(messages)
+            let maxTokens = config.maxTokens ?? registry.maxOutputTokens(for: model) ?? 4096
             var dict: [String: JSONValue] = [
                 "model": .string(model), "messages": .array(adapted.messages),
-                "max_tokens": .integer(max(1, config.maxTokens)), "stream": .bool(stream),
-                "temperature": .number(config.temperature),
+                "max_tokens": .integer(maxTokens), "stream": .bool(stream),
             ]
+            if let temperature = config.temperature { dict["temperature"] = .number(temperature) }
             if let topP = config.topP {
                 dict["top_p"] = .number(topP)
             }
@@ -365,7 +366,7 @@ import Logging
             }
             if capabilities.supportsExtendedThinking, config.reasoning != nil {
                 dict["thinking"] = [
-                    "type": "enabled", "budget_tokens": .integer(max(1024, config.maxTokens / 4)),
+                    "type": "enabled", "budget_tokens": .integer(max(1024, maxTokens / 4)),
                 ]
             }
             for (key, value) in config.extraOptions {

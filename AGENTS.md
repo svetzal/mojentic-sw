@@ -17,9 +17,10 @@ when release work is explicitly assigned.
 The authorized release includes native reasoning (part 2), following
 `REASONING-PROTOTYPE-2026-10.md` and the Rust reference, and model metadata
 and request fidelity (part 3), following `MODEL-METADATA-2026-10.md`.
-The current correction implements only part 3 section 1, context-window discovery.
-Timing and request fidelity remain pending. Preserve recovery, native reasoning,
-request defaults and shaping, dependencies, swift-tools-version, versions,
+The current correction completes part 3 sections 3.2–3.6 request fidelity and
+section 1 raw-byte discovery invariance. First-token timing remains pending.
+Preserve recovery, native reasoning outside the specified shape alignment,
+dependencies, swift-tools-version, versions,
 tags and publication state. Foundry owns Git finalization for its isolated task
 worktrees: leave changes uncommitted and do not push or modify refs there.
 

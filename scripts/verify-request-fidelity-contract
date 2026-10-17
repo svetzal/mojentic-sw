@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo request-fidelity-v1
+git rev-parse HEAD
+sha256sum --check Tests/MojenticTests/Fixtures/Contracts/request_fidelity_v1.manifest.sha256
+exec ./scripts/with-gate-environment swift test --traits full --filter 'RequestFidelityTests|ContextWindowJourneyTests|CompletionConfigTests' "$@"

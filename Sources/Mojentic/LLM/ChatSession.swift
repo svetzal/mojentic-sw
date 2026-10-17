@@ -27,7 +27,7 @@ public actor ChatSession {
     ///   - tools: Tools exposed to the model on every send.
     ///   - config: Completion configuration applied to every send.
     ///   - contextWindowManager: Optional manager invoked before each send to
-    ///     trim the history.
+    ///     trim the history, reserving the explicit output limit or zero when unset.
     public init(
         broker: LLMBroker,
         model: String,
@@ -187,6 +187,6 @@ public actor ChatSession {
 
     private func prepared(_ messages: [LLMMessage]) async throws -> [LLMMessage] {
         guard let contextManager else { return messages }
-        return try await contextManager.trim(messages, reserving: config.maxTokens)
+        return try await contextManager.trim(messages, reserving: config.maxTokens ?? 0)
     }
 }
