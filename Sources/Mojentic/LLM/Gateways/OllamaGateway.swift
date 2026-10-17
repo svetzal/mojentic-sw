@@ -77,6 +77,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
+        try config.validateReasoning(provider: "ollama", messages: messages)
         let body = buildChatRequest(
             model: model,
             messages: messages,
@@ -114,7 +115,9 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> JSONValue {
-        try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
+        try config.validateReasoning(provider: "ollama", messages: messages)
+        return try await completeStructured(model: model, messages: messages, schema: schema, config: config)
+            .value
     }
 
     /// Run a structured-output completion by forwarding `schema` as `format`,
@@ -125,6 +128,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
+        try config.validateReasoning(provider: "ollama", messages: messages)
         let body = buildChatRequest(
             model: model,
             messages: messages,
@@ -186,6 +190,9 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "ollama", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         let body = buildChatRequest(
             model: model,
             messages: messages,
@@ -236,7 +243,13 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
-        CompletionEventStreaming.events(
+        do { try config.validateReasoning(provider: "ollama", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
+        return CompletionEventStreaming.events(
             transport: lineTransport,
             url: baseURL.appendingPathComponent("api/chat"),
             body: buildChatRequest(
@@ -259,6 +272,9 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "ollama", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         let body = buildChatRequest(
             model: model,
             messages: messages,
@@ -289,6 +305,12 @@ public struct OllamaGateway: RecoveryStreamingGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        do { try config.validateReasoning(provider: "ollama", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
         if let recovery {
             return StreamingRecovery.completionEvents(
                 policy: recovery,
@@ -345,7 +367,7 @@ public struct OllamaGateway: RecoveryStreamingGateway {
             messages: messages.map(OllamaMessage.init(from:)),
             options: options,
             stream: stream,
-            think: config.reasoning != nil ? true : nil,
+            think: config.reasoning?.ollamaValue,
             format: format,
             tools: tools?.map(OllamaToolDescriptor.init(tool:)),
         )
@@ -359,7 +381,7 @@ private struct OllamaChatRequest: Encodable {
     let messages: [OllamaMessage]
     let options: OllamaOptions
     let stream: Bool
-    let think: Bool?
+    let think: JSONValue?
     let format: JSONValue?
     let tools: [OllamaToolDescriptor]?
 }
@@ -506,83 +528,6 @@ private struct OllamaToolFunction: Encodable {
     let parameters: JSONValue
 }
 
-/// Buffered Ollama chat envelope and provider evidence.
-struct OllamaChatResponse: Decodable {
-    let message: OllamaResponseMessage
-    let done: Bool?
-    let doneReason: String?
-    let evidence: OllamaResponseEvidence
-
-    enum CodingKeys: String, CodingKey {
-        case message
-        case done
-        case doneReason = "done_reason"
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        message = try container.decode(OllamaResponseMessage.self, forKey: .message)
-        done = try container.decodeIfPresent(Bool.self, forKey: .done)
-        doneReason = try container.decodeIfPresent(String.self, forKey: .doneReason)
-        evidence = try OllamaResponseEvidence(from: decoder)
-    }
-
-    func toGatewayResponse() -> LLMGatewayResponse {
-        let calls = (message.toolCalls ?? []).map { envelope -> LLMToolCall in
-            LLMToolCall(
-                id: envelope.id,
-                name: envelope.function.name,
-                arguments: envelope.function.arguments ?? .object([:]),
-            )
-        }
-        return LLMGatewayResponse(
-            content: message.content ?? "",
-            toolCalls: calls,
-            thinking: message.thinking,
-            finishReason: mapFinishReason(doneReason, hasToolCalls: !calls.isEmpty),
-            usage: evidence.usage,
-            providerFinishReason: doneReason,
-            providerModel: evidence.model,
-            metadata: evidence.metadata,
-        )
-    }
-}
-
-struct OllamaResponseMessage: Decodable {
-    let role: String?
-    let content: String?
-    let thinking: String?
-    let toolCalls: [OllamaResponseToolCall]?
-
-    enum CodingKeys: String, CodingKey {
-        case role
-        case content
-        case thinking
-        case toolCalls = "tool_calls"
-    }
-}
-
-struct OllamaResponseToolCall: Decodable {
-    let id: String?
-    let function: OllamaResponseToolFunction
-}
-
-struct OllamaResponseToolFunction: Decodable {
-    let name: String
-    let arguments: JSONValue?
-}
-
 private struct OllamaTagsResponse: Decodable { let models: [OllamaTagEntry] }
 
 private struct OllamaTagEntry: Decodable { let name: String }
-
-func mapFinishReason(_ raw: String?, hasToolCalls: Bool) -> FinishReason? {
-    if hasToolCalls {
-        return .toolCalls
-    }
-    switch raw {
-    case "stop", nil: return raw == nil ? nil : .stop
-    case "length": return .length
-    default: return .other
-    }
-}

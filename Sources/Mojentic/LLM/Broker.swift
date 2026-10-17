@@ -14,7 +14,9 @@ public enum StreamEvent: Sendable {
     case toolCallRequested(LLMToolCall)
 
     /// The result of a previously-requested tool call.
-    case toolCallResult(callId: String, result: JSONValue)
+    case toolCallResult(
+        callId: String,
+        result: JSONValue)
 
     /// Final assistant response. Always the last event in a successful stream.
     case done(LLMResponse)
@@ -137,6 +139,7 @@ public actor LLMBroker {
         config: CompletionConfig,
         remaining: Int?,
         context: TracerContext,
+        retained: [LLMMessage] = [],
     ) async throws -> LLMResponse {
         if let remaining, remaining <= 0 {
             throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
@@ -149,13 +152,21 @@ public actor LLMBroker {
             context: context,
         )
 
+        if config.retainThinking { try Task.checkCancellation() }
+
         if !response.toolCalls.isEmpty {
             let dispatched = try await dispatch(
                 toolCalls: response.toolCalls,
                 tools: tools,
                 context: toolContext,
             )
-            let nextMessages = appendToolExchange(to: messages, pairs: dispatched)
+            let nextMessages = appendToolExchange(
+                to: messages,
+                pairs: dispatched,
+                content: response.content,
+                thinking: response.thinking,
+                retain: config.retainThinking
+            )
             return try await completeRecursive(
                 model: model,
                 messages: nextMessages,
@@ -163,6 +174,7 @@ public actor LLMBroker {
                 config: config,
                 remaining: remaining.map { $0 - 1 },
                 context: context,
+                retained: retained + Array(nextMessages.dropFirst(messages.count)),
             )
         }
         return LLMResponse(
@@ -170,6 +182,12 @@ public actor LLMBroker {
             thinking: response.thinking,
             finishReason: response.finishReason,
             usage: response.usage,
+            retainedMessages: config.retainThinking
+                ? retained + [
+                    .assistant(
+                        response.content,
+                        thinking: response.thinking)
+                ] : [],
         )
     }
 
@@ -277,121 +295,9 @@ public actor LLMBroker {
         }
     }
 
-    private func streamRecursive(
-        model: String,
-        messages: [LLMMessage],
-        tools: [any LLMTool],
-        config: CompletionConfig,
-        remaining: Int?,
-        context: TracerContext,
-        deliver: @escaping @Sendable (StreamEvent) async throws -> Void,
-    ) async throws {
-        if let remaining, remaining <= 0 {
-            throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
-        }
-        try Task.checkCancellation()
-        let callPayload = LLMCallPayload(
-            correlationId: context.correlationId,
-            parentId: context.parentId,
-            model: model,
-            messages: messages,
-            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name),
-        )
-        await tracer.recordLLMCall(callPayload)
-        var accumulatedContent = ""
-        var accumulatedThinking = ""
-        var accumulatedCalls: [LLMToolCall] = []
-        var finishReason: FinishReason?
-        var usage: Usage?
-
-        let clock = ContinuousClock()
-        let start = clock.now
-        let upstream = gateway.streamRecovering(
-            model: model,
-            messages: messages,
-            tools: tools.isEmpty ? nil : tools,
-            config: config,
-        )
-        for try await event in upstream {
-            try Task.checkCancellation()
-            switch event {
-            case .textDelta(let delta):
-                accumulatedContent += delta
-                try await deliver(.textDelta(delta))
-            case .progress, .metrics: break
-            case .thinkingDelta(let delta):
-                accumulatedThinking += delta
-                try await deliver(.thinkingDelta(delta))
-            case .toolCallRequest(let call):
-                accumulatedCalls.append(call)
-                try await deliver(.toolCallRequested(call))
-            case .done(let reason, let reportedUsage):
-                finishReason = reason
-                usage = reportedUsage
-            }
-        }
-        if !accumulatedCalls.isEmpty {
-            // This turn completed; tool execution and subsequent requests are separate attempts.
-            RecoveryTerminalAccounting.current?.settle()
-        }
-        let duration = start.duration(to: clock.now)
-        let responsePayload = LLMResponsePayload(
-            correlationId: context.correlationId,
-            parentId: callPayload.id,
-            duration: duration,
-            model: model,
-            response: LLMGatewayResponse(
-                content: accumulatedContent,
-                toolCalls: accumulatedCalls,
-                thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
-                finishReason: finishReason,
-                usage: usage,
-            ),
-        )
-        await tracer.recordLLMResponse(responsePayload)
-
-        if !accumulatedCalls.isEmpty {
-            let toolContext = context.child(parent: responsePayload.id)
-            let dispatched = try await RecoveryTerminalAccounting.$current.withValue(nil) {
-                try await dispatch(
-                    toolCalls: accumulatedCalls,
-                    tools: tools,
-                    context: toolContext,
-                )
-            }
-            for (call, outcome) in dispatched {
-                let result: JSONValue =
-                    switch outcome.kind {
-                    case .success(let value): value
-                    case .failure(let message): ["error": .string(message)]
-                    }
-                try await deliver(.toolCallResult(callId: call.id ?? outcome.id, result: result))
-            }
-            let nextMessages = appendToolExchange(to: messages, pairs: dispatched)
-            try await streamRecursive(
-                model: model,
-                messages: nextMessages,
-                tools: tools,
-                config: config,
-                remaining: remaining.map { $0 - 1 },
-                context: context,
-                deliver: deliver,
-            )
-            return
-        }
-
-        let response = LLMResponse(
-            content: accumulatedContent,
-            thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
-            finishReason: finishReason,
-            usage: usage,
-        )
-        try await deliver(.done(response))
-    }
-
     // MARK: - Tool dispatch
 
-    private func dispatch(
+    func dispatch(
         toolCalls: [LLMToolCall],
         tools: [any LLMTool],
         context: TracerContext,
@@ -413,15 +319,28 @@ public actor LLMBroker {
         return Array(zip(dispatched, outcomes))
     }
 
-    private func appendToolExchange(
+    func appendToolExchange(
         to messages: [LLMMessage],
         pairs: [(LLMToolCall, ToolCallOutcome)],
+        content: String,
+        thinking: String?,
+        retain: Bool,
     ) -> [LLMMessage] {
         var next = messages
+        if retain {
+            next.append(
+                .assistant(
+                    content,
+                    toolCalls: pairs.map { $0.0 },
+                    thinking: thinking))
+        }
         for (call, outcome) in pairs {
-            next.append(LLMMessage.assistant(toolCalls: [call]))
+            if !retain { next.append(LLMMessage.assistant(toolCalls: [call])) }
             let payload = serialise(outcome: outcome)
-            next.append(LLMMessage.tool(callId: call.id ?? outcome.id, content: payload))
+            next.append(
+                LLMMessage.tool(
+                    callId: call.id ?? outcome.id,
+                    content: payload))
         }
         return next
     }

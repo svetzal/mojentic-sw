@@ -1,13 +1,44 @@
-/// Reasoning-effort hint for models that support extended thinking.
-///
-/// Maps to provider-specific knobs in each gateway implementation:
-/// - Ollama: any non-nil value enables `think: true`.
-/// - OpenAI (Phase 2): maps to the `reasoning_effort` request parameter on
-///   reasoning-capable models.
+/// Native reasoning control; an omitted value leaves provider behavior unknown.
 public enum ReasoningEffort: String, Sendable, Codable, Hashable, CaseIterable {
+    /// Disable native reasoning.
+    case disabled
+    /// Enable native reasoning without selecting an effort level.
+    case enabled
+    /// Low reasoning effort.
     case low
+    /// Medium reasoning effort.
     case medium
+    /// High reasoning effort.
     case high
+    /// Extra-high reasoning effort.
+    case xhigh
+
+    var ollamaValue: JSONValue {
+        switch self {
+        case .disabled: .bool(false)
+        case .enabled: .bool(true)
+        default: .string(rawValue)
+        }
+    }
+}
+
+/// Caller-selected capabilities; model names never select a profile implicitly.
+public struct ReasoningProfile: Sendable, Codable, Hashable {
+    /// Efforts accepted by this model profile.
+    public let supportedEfforts: Set<ReasoningEffort>
+    /// Whether native assistant reasoning may be replayed.
+    public let supportsHistory: Bool
+
+    /// Define explicit model capabilities.
+    public init(supportedEfforts: Set<ReasoningEffort>, supportsHistory: Bool) {
+        self.supportedEfforts = supportedEfforts
+        self.supportsHistory = supportsHistory
+    }
+
+    /// Qwen3.8 accepts disabled, low, medium and extra-high with native history.
+    public static let qwen38 = ReasoningProfile(
+        supportedEfforts: [.disabled, .low, .medium, .xhigh], supportsHistory: true
+    )
 }
 
 /// Output format requested from the provider.
@@ -53,6 +84,12 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
     /// Reasoning-effort hint for models that support extended thinking.
     public var reasoning: ReasoningEffort?
 
+    /// Explicit model capabilities, selected by the caller.
+    public var reasoningProfile: ReasoningProfile?
+
+    /// Retain native reasoning in completed broker and session exchanges.
+    public var retainThinking: Bool
+
     /// Context window size (Ollama-specific; other providers ignore it).
     public var numCtx: Int?
 
@@ -76,6 +113,8 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
         maxTokens: Int = 16384,
         topP: Double? = nil,
         reasoning: ReasoningEffort? = nil,
+        reasoningProfile: ReasoningProfile? = nil,
+        retainThinking: Bool = false,
         numCtx: Int? = 32768,
         extraOptions: [String: JSONValue] = [:],
         maxToolIterations: Int? = 25,
@@ -85,9 +124,51 @@ public struct CompletionConfig: Sendable, Codable, Hashable {
         self.maxTokens = maxTokens
         self.topP = topP
         self.reasoning = reasoning
+        self.reasoningProfile = reasoningProfile
+        self.retainThinking = retainThinking
         self.numCtx = numCtx
         self.extraOptions = extraOptions
         self.maxToolIterations = maxToolIterations
         self.responseFormat = responseFormat
+    }
+}
+
+extension CompletionConfig {
+    /// Decode legacy configurations with retention disabled when its field is absent.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        temperature = try values.decode(Double.self, forKey: .temperature)
+        maxTokens = try values.decode(Int.self, forKey: .maxTokens)
+        topP = try values.decodeIfPresent(Double.self, forKey: .topP)
+        reasoning = try values.decodeIfPresent(ReasoningEffort.self, forKey: .reasoning)
+        reasoningProfile = try values.decodeIfPresent(ReasoningProfile.self, forKey: .reasoningProfile)
+        retainThinking = try values.decodeIfPresent(Bool.self, forKey: .retainThinking) ?? false
+        numCtx = try values.decodeIfPresent(Int.self, forKey: .numCtx)
+        extraOptions = try values.decode([String: JSONValue].self, forKey: .extraOptions)
+        maxToolIterations = try values.decodeIfPresent(Int.self, forKey: .maxToolIterations)
+        responseFormat = try values.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
+    }
+
+    func validateReasoning(provider: String, messages: [LLMMessage]) throws {
+        if provider != "ollama", provider != "omlx" {
+            if reasoningProfile != nil || retainThinking || reasoning == .disabled
+                || reasoning == .enabled || reasoning == .xhigh
+            {
+                throw MojenticError.invalidArgument(
+                    message: "Native reasoning controls unsupported by \(provider)")
+            }
+            return
+        }
+        if let profile = reasoningProfile {
+            if let reasoning, !profile.supportedEfforts.contains(reasoning) {
+                throw MojenticError.invalidArgument(
+                    message: "Reasoning effort unsupported by selected profile")
+            }
+            if !profile.supportsHistory,
+                retainThinking || messages.contains(where: { $0.thinking != nil })
+            {
+                throw MojenticError.invalidArgument(message: "Native history unsupported by selected profile")
+            }
+        }
     }
 }

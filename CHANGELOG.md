@@ -10,6 +10,27 @@ move independently.
 
 ## [Unreleased]
 
+### Breaking changes and migration (native reasoning)
+
+- `ReasoningEffort` adds `.disabled`, `.enabled` and `.xhigh`. Update exhaustive
+  switches. Ollama now sends exact booleans for disabled/enabled and exact
+  strings for low/medium/high/xhigh; named effort no longer means `think: true`.
+  To preserve the old boolean enable behavior, select `.enabled` explicitly.
+- oMLX sends boolean controls through `chat_template_kwargs.enable_thinking`
+  and named levels through `reasoning_effort`. Omitted effort remains unknown.
+- Select `CompletionConfig.reasoningProfile` explicitly for model validation;
+  `.qwen38` supports disabled/low/medium/xhigh and native history. Model names
+  never select a profile. Unsupported controls fail before HTTP or tool dispatch.
+  OpenAI and Anthropic retain legacy low/medium/high behavior and reject the new
+  controls, model profiles and retention requests explicitly.
+- Set `CompletionConfig.retainThinking = true` to retain completed native
+  assistant/tool exchanges in broker continuations and ChatSession history.
+  Reasoning stays separate from visible content and tool results. Cancellation,
+  failed continuations and unfinished streams never commit native history.
+  oMLX requests `chat_template_kwargs.preserve_thinking`; server overrides can
+  still prevent preservation. Defaults continue to discard retained reasoning.
+- Part 3 (metadata, timing and request fidelity) remains pending.
+
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.
 

@@ -1,0 +1,18 @@
+{
+  "version": "native-reasoning-v1",
+  "source_sha256": "0a40f3ad45c593bc779411021e45db569e73d3ecce86c99b201e7f8ebb656809",
+  "controls": [
+    {"effort": null, "ollama": {}, "omlx": {}},
+    {"effort": "disabled", "ollama": {"think": false}, "omlx": {"enable_thinking": false}},
+    {"effort": "enabled", "ollama": {"think": true}, "omlx": {"enable_thinking": true}},
+    {"effort": "low", "ollama": {"think": "low"}, "omlx": {"reasoning_effort": "low"}},
+    {"effort": "medium", "ollama": {"think": "medium"}, "omlx": {"reasoning_effort": "medium"}},
+    {"effort": "high", "ollama": {"think": "high"}, "omlx": {"reasoning_effort": "high"}},
+    {"effort": "xhigh", "ollama": {"think": "xhigh"}, "omlx": {"reasoning_effort": "xhigh"}}
+  ],
+  "tool_call": {"id": "call-native", "type": "function", "function": {"name": "count", "arguments": "{\"value\":7}"}},
+  "tool_result": "tool-result-secret",
+  "reasoning": "private deliberation",
+  "visible": "checking",
+  "answer": "answer"
+}

@@ -60,7 +60,7 @@ struct RecoveryConformanceTests {
                 #expect(fields?["response_format"] != nil)
             }
         } else {
-            #expect(fields?["think"] == true)
+            #expect(fields?["think"] == "high")
             #expect(fields?["options"]?.objectValue?["temperature"] == 0.25)
             #expect(fields?["options"]?.objectValue?["num_predict"] == 123)
             if boundary.structured {

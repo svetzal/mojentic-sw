@@ -37,9 +37,13 @@ import Logging
 ///
 /// ## Thinking and truncation
 ///
-/// ``CompletionConfig/reasoning`` is sent as `reasoning_effort` and goes to
-/// the model's chat template. Its effect depends on the model. `nil` leaves
-/// the model's default, and Qwen 3 models think by default.
+/// ``CompletionConfig/reasoning`` sends boolean controls through
+/// `chat_template_kwargs.enable_thinking` and named levels through
+/// `reasoning_effort` to the model's chat template.
+///
+/// An omitted effort leaves the model default unknown. Select capabilities with
+/// ``CompletionConfig/reasoningProfile`` and opt into completed native history
+/// with ``CompletionConfig/retainThinking``.
 ///
 /// When `max_tokens` ends generation during thinking, a non-streaming
 /// response carries the partial reasoning in `content`, with `nil` thinking
@@ -125,6 +129,7 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
+        try config.validateReasoning(provider: "omlx", messages: messages)
         let body = Self.chatBody(
             model: model,
             messages: messages,
@@ -143,7 +148,9 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> JSONValue {
-        try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
+        try config.validateReasoning(provider: "omlx", messages: messages)
+        return try await completeStructured(model: model, messages: messages, schema: schema, config: config)
+            .value
     }
 
     /// Run a structured-output completion with a `json_schema` response
@@ -158,6 +165,7 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
+        try config.validateReasoning(provider: "omlx", messages: messages)
         let body = Self.chatBody(
             model: model,
             messages: messages,
@@ -202,6 +210,9 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "omlx", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         let body = Self.chatBody(
             model: model,
             messages: messages,
@@ -216,7 +227,8 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
             url: url("chat/completions"),
             body: body,
             headers: authHeaders(),
-            parser: OpenAILegacyStreamParser(surfacesReasoning: true),
+            parser: OpenAILegacyStreamParser(
+                surfacesReasoning: true, requiresCompletion: config.retainThinking),
         )
     }
 
@@ -231,6 +243,12 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
+        do { try config.validateReasoning(provider: "omlx", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
         var body = Self.chatBody(
             model: model,
             messages: messages,
@@ -340,7 +358,10 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
             dict["top_p"] = .number(topP)
         }
         if let effort = config.reasoning {
-            dict["reasoning_effort"] = .string(effort.rawValue)
+            switch effort {
+            case .disabled, .enabled: break
+            default: dict["reasoning_effort"] = .string(effort.rawValue)
+            }
         }
         if let responseFormat {
             dict["response_format"] = responseFormat
@@ -350,6 +371,14 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         }
         for (key, value) in config.extraOptions {
             dict[key] = value
+        }
+        if config.retainThinking || config.reasoning == .disabled || config.reasoning == .enabled {
+            var template = dict["chat_template_kwargs"]?.objectValue ?? [:]
+            if let effort = config.reasoning, effort == .disabled || effort == .enabled {
+                template["enable_thinking"] = effort.ollamaValue
+            }
+            if config.retainThinking { template["preserve_thinking"] = true }
+            dict["chat_template_kwargs"] = .object(template)
         }
         return .object(dict)
     }
@@ -464,69 +493,6 @@ public struct OMLXGateway: RecoveryStreamingGateway, EmbeddingsGateway {
         do { return try JSONDecoder().decode(type, from: data) } catch {
             throw MojenticError.decoding(message: "Failed to decode \(type): \(error.localizedDescription)")
         }
-    }
-}
-
-// MARK: - Configuration
-
-/// Resolved oMLX gateway settings: explicit value, then environment, then default.
-struct OMLXConfiguration: Sendable, Equatable {
-    /// `http://localhost:8000`.
-    static let defaultHost: URL = {
-        guard let url = URL(string: "http://localhost:8000") else {
-            preconditionFailure("Built-in oMLX host must be valid")
-        }
-        return url
-    }()
-
-    /// Ten minutes, in seconds.
-    static let defaultTimeout: TimeInterval = 600
-
-    /// Server address without `/v1`.
-    let host: URL
-    /// Bearer token; `nil` sends no `Authorization` header.
-    let apiKey: String?
-    /// Idle timeout in seconds for every request.
-    let timeout: TimeInterval
-
-    /// The API root: the host plus `/v1`.
-    var baseURL: URL {
-        host.appendingPathComponent("v1")
-    }
-
-    init(host: URL = Self.defaultHost, apiKey: String? = nil, timeout: TimeInterval = Self.defaultTimeout) {
-        self.host = host
-        self.apiKey = apiKey
-        self.timeout = timeout
-    }
-
-    /// Resolve each setting from its explicit value, then `environment`,
-    /// then the default.
-    ///
-    /// Empty environment values count as unset. `OMLX_TIMEOUT` is in
-    /// milliseconds; a value that is not a positive number falls back to
-    /// the default, as does an `OMLX_HOST` that is not a URL.
-    static func resolve(
-        host: URL?,
-        apiKey: String?,
-        timeout: TimeInterval?,
-        environment: [String: String],
-    ) -> OMLXConfiguration {
-        func value(_ name: String) -> String? {
-            guard let value = environment[name]?.trimmingCharacters(in: .whitespaces), !value.isEmpty else {
-                return nil
-            }
-            return value
-        }
-        let environmentHost = value("OMLX_HOST").flatMap { URL(string: $0) }
-        let environmentTimeout = value("OMLX_TIMEOUT").flatMap(Double.init).flatMap {
-            $0 > 0 ? $0 / 1000 : nil
-        }
-        return OMLXConfiguration(
-            host: host ?? environmentHost ?? defaultHost,
-            apiKey: apiKey.map { $0.isEmpty ? nil : $0 } ?? value("OMLX_API_KEY"),
-            timeout: timeout ?? environmentTimeout ?? defaultTimeout,
-        )
     }
 }
 

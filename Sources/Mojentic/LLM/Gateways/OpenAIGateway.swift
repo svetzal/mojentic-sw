@@ -87,6 +87,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) async throws -> LLMGatewayResponse {
+        try config.validateReasoning(provider: "openai", messages: messages)
         let body = buildRequest(
             model: model,
             messages: messages,
@@ -124,7 +125,9 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> JSONValue {
-        try await completeStructured(model: model, messages: messages, schema: schema, config: config).value
+        try config.validateReasoning(provider: "openai", messages: messages)
+        return try await completeStructured(model: model, messages: messages, schema: schema, config: config)
+            .value
     }
 
     /// Run a structured-output completion using `response_format`, keeping
@@ -135,6 +138,7 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         schema: JSONValue,
         config: CompletionConfig,
     ) async throws -> StructuredGatewayResponse {
+        try config.validateReasoning(provider: "openai", messages: messages)
         let capabilities = registry.capabilities(for: model)
         let responseFormat: JSONValue =
             if capabilities.supportsJSONSchema {
@@ -209,6 +213,9 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "openai", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         let body = buildRequest(
             model: model,
             messages: messages,
@@ -236,6 +243,12 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<CompletionStreamEvent> {
+        do { try config.validateReasoning(provider: "openai", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
         var body = buildRequest(
             model: model,
             messages: messages,
@@ -264,6 +277,9 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "openai", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         guard let recovery else {
             return RecoveryStreamBridge.lift(
                 stream(model: model, messages: messages, tools: tools, config: config)
@@ -293,6 +309,12 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        do { try config.validateReasoning(provider: "openai", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
         guard let recovery else {
             return RecoveryStreamBridge.lift(
                 completeStreamEvents(model: model, messages: messages, config: config)

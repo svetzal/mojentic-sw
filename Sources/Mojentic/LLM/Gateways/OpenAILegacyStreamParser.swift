@@ -8,6 +8,7 @@ import Foundation
 /// The `data: [DONE]` marker sets ``isDone``.
 struct OpenAILegacyStreamParser {
     private let surfacesReasoning: Bool
+    private let requiresCompletion: Bool
     private var accumulator = OpenAIToolCallAccumulator()
     private var finishReason: FinishReason?
     private var usage: Usage?
@@ -17,11 +18,12 @@ struct OpenAILegacyStreamParser {
 
     /// Create a parser.
     ///
-    /// - Parameter surfacesReasoning: when `true`, `delta.reasoning_content`
-    ///   becomes ``GatewayStreamEvent/thinkingDelta(_:)``. OpenAI leaves it
-    ///   off; OpenAI-compatible servers that stream reasoning turn it on.
-    init(surfacesReasoning: Bool = false) {
+    /// - Parameters:
+    ///   - surfacesReasoning: Whether native reasoning is surfaced separately.
+    ///   - requiresCompletion: Whether native history requires terminal evidence.
+    init(surfacesReasoning: Bool = false, requiresCompletion: Bool = false) {
         self.surfacesReasoning = surfacesReasoning
+        self.requiresCompletion = requiresCompletion
     }
 
     /// Consume one line of the response and return the events it produces.
@@ -54,6 +56,13 @@ struct OpenAILegacyStreamParser {
             finishReason = FinishReason(rawValue: reason) ?? .other
         }
         return events
+    }
+
+    /// Native history requires a terminal marker and a reported finish reason.
+    func validateCompletion() throws {
+        if requiresCompletion, !isDone || finishReason == nil {
+            throw MojenticError.incompleteStream(nil)
+        }
     }
 
     /// The events that close the stream: assembled tool calls, then `done`.
@@ -96,6 +105,7 @@ enum OpenAILegacyStreaming {
                             break
                         }
                     }
+                    try parser.validateCompletion()
                     for event in parser.finish() {
                         continuation.yield(event)
                     }

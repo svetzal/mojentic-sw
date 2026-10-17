@@ -78,7 +78,12 @@ public actor ChatSession {
                 tools: tools,
                 config: config,
             )
-            history.append(LLMMessage.assistant(response.content))
+            try Task.checkCancellation()
+            if config.retainThinking {
+                history += response.retainedMessages
+            } else {
+                history.append(LLMMessage.assistant(response.content))
+            }
             return response
         } catch {
             // Roll the user turn back so the conversation state stays consistent.
@@ -101,7 +106,12 @@ public actor ChatSession {
                 tools: tools,
                 config: config,
             )
-            history.append(LLMMessage.assistant(response.content))
+            try Task.checkCancellation()
+            if config.retainThinking {
+                history += response.retainedMessages
+            } else {
+                history.append(LLMMessage.assistant(response.content))
+            }
             return response
         } catch {
             if history.last == userMessage {
@@ -159,18 +169,20 @@ public actor ChatSession {
                 }
                 try await deliver(event)
             }
-            if RecoveryCancellationScope.current != nil {
-                // A cancelled iterator can end normally; that is not session success.
-                try Task.checkCancellation()
-            }
+            try Task.checkCancellation()
         } catch {
             if history.last == userMessage {
                 history.removeLast()
             }
             throw error
         }
-        let content = finalResponse?.content ?? accumulated
-        history.append(LLMMessage.assistant(content))
+        if config.retainThinking {
+            guard let finalResponse else { throw MojenticError.incompleteStream(nil) }
+            history += finalResponse.retainedMessages
+        } else {
+            let content = finalResponse?.content ?? accumulated
+            history.append(LLMMessage.assistant(content))
+        }
     }
 
     private func prepared(_ messages: [LLMMessage]) async throws -> [LLMMessage] {

@@ -126,16 +126,33 @@ public struct LLMResponse: Sendable, Codable, Hashable {
     /// Token usage as reported by the provider for the final turn.
     public let usage: Usage?
 
+    /// Completed exchanges retained when native history is enabled.
+    public let retainedMessages: [LLMMessage]
+
     /// Create a broker-level response payload.
     public init(
         content: String,
         thinking: String? = nil,
         finishReason: FinishReason? = nil,
         usage: Usage? = nil,
+        retainedMessages: [LLMMessage] = [],
     ) {
         self.content = content
         self.thinking = thinking
         self.finishReason = finishReason
         self.usage = usage
+        self.retainedMessages = retainedMessages
+    }
+}
+
+extension LLMResponse {
+    /// Decode older response records without manufacturing retained exchanges.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        content = try values.decode(String.self, forKey: .content)
+        thinking = try values.decodeIfPresent(String.self, forKey: .thinking)
+        finishReason = try values.decodeIfPresent(FinishReason.self, forKey: .finishReason)
+        usage = try values.decodeIfPresent(Usage.self, forKey: .usage)
+        retainedMessages = try values.decodeIfPresent([LLMMessage].self, forKey: .retainedMessages) ?? []
     }
 }

@@ -164,3 +164,33 @@ status, and with the body where the platform's streaming transport exposes it.
 
 Passing an explicit empty `apiKey` disables authentication, even when
 `OMLX_API_KEY` is set in the environment.
+
+## Native reasoning and completed history
+
+Choose controls explicitly; an omitted effort does not imply a known default.
+Use `.disabled` or `.enabled` for boolean controls, or `.low`, `.medium`, `.high`
+and `.xhigh` for exact named levels. Ollama sends booleans or strings in `think`;
+oMLX sends boolean controls in `chat_template_kwargs.enable_thinking` and named
+levels in `reasoning_effort`. Structured output and recovery use the same controls.
+
+```swift
+let config = CompletionConfig(
+    reasoning: .xhigh,
+    reasoningProfile: .qwen38,
+    retainThinking: true
+)
+```
+
+Profiles are caller-selected capabilities, never inferred from model names.
+Qwen3.8 accepts disabled, low, medium and xhigh, with native history. Unsupported
+efforts or history fail before dispatch. OpenAI and Anthropic reject these new
+controls and retention options; their legacy low/medium/high behavior is unchanged.
+
+Retention is opt-in. Completed broker tool continuations keep one assistant turn
+with its native reasoning, visible content and all tool calls, followed by ordered
+tool results. ChatSession retains those exchanges and the final assistant turn.
+Reasoning uses `reasoning_content` on oMLX and `thinking` on Ollama; it is never
+inserted into visible content or tool results. Cancelled, failed or unfinished
+streams do not create retained turns. With retention enabled, oMLX requests
+`chat_template_kwargs.preserve_thinking = true`; forced server settings can override
+that request, so captured request bytes establish only what the client requested.

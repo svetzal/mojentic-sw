@@ -8,6 +8,9 @@ extension OMLXGateway {
         tools: [any LLMTool]?,
         config: CompletionConfig,
     ) -> AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error> {
+        do { try config.validateReasoning(provider: "omlx", messages: messages) } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
         let body = Self.chatBody(
             model: model,
             messages: messages,
@@ -38,6 +41,12 @@ extension OMLXGateway {
         messages: [LLMMessage],
         config: CompletionConfig,
     ) -> AsyncStream<RecoveryCompletionStreamEvent> {
+        do { try config.validateReasoning(provider: "omlx", messages: messages) } catch {
+            return AsyncStream {
+                $0.yield(.error(error as? MojenticError ?? .invalidArgument(message: "Invalid reasoning")))
+                $0.finish()
+            }
+        }
         var body = Self.chatBody(
             model: model,
             messages: messages,

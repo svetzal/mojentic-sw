@@ -3,6 +3,40 @@ import Mojentic
 import Testing
 
 struct ReasoningHistoryConformanceTests {
+    @Test(arguments: [false, true])
+    func explicitProfileRejectsUnsupportedNativeHistoryBeforeHTTP(omlx: Bool) async throws {
+        let server = try RecoveryLoopback(replies: [])
+        let gateway = RecoveryBoundary(
+            omlx: omlx,
+            structured: false
+        ).gateway(
+            server,
+            policy: .init())
+        let config = CompletionConfig(
+            reasoningProfile: .init(
+                supportedEfforts: [.enabled],
+                supportsHistory: false))
+        await #expect(throws: MojenticError.self) {
+            _ = try await gateway.complete(
+                model: "fixture",
+                messages: reasoningHistory(populated: true),
+                tools: nil,
+                config: config)
+        }
+        #expect(server.requests.withLock { $0.isEmpty })
+    }
+
+    @Test func legacyCodableRecordsLeaveReasoningUnknown() throws {
+        let old = Data(#"{"temperature":1,"maxTokens":123,"extraOptions":{}}"#.utf8)
+        let config = try JSONDecoder().decode(CompletionConfig.self, from: old)
+        #expect(config.reasoning == nil)
+        #expect(config.reasoningProfile == nil)
+        #expect(!config.retainThinking)
+        let response = try JSONDecoder().decode(LLMResponse.self, from: Data(#"{"content":"answer"}"#.utf8))
+        #expect(response.thinking == nil)
+        #expect(response.retainedMessages.isEmpty)
+    }
+
     @Test(arguments: RecoveryStatusBoundary.all)
     func populatedHistoryAcrossPublicRetryBoundaries(_ boundary: RecoveryStatusBoundary) async throws {
         let failed = RecoveryReply(status: 503, body: "original failure é猫")
@@ -22,7 +56,9 @@ struct ReasoningHistoryConformanceTests {
         }
         try await invokeReasoningHistory(
             boundary,
-            gateway: boundary.provider.gateway(server, policy: policy),
+            gateway: boundary.provider.gateway(
+                server,
+                policy: policy),
             messages: reasoningHistory(populated: true),
         )
         let identities = try assertStatusWires(recorder, server: server, replies: [failed, success])
@@ -58,7 +94,9 @@ struct ReasoningHistoryConformanceTests {
         let server = try RecoveryLoopback(replies: [reasoningReply(boundary)])
         try await invokeReasoningHistory(
             boundary,
-            gateway: boundary.provider.gateway(server, policy: nil),
+            gateway: boundary.provider.gateway(
+                server,
+                policy: nil),
             messages: reasoningHistory(populated: populated),
             legacy: true,
         )
@@ -83,7 +121,9 @@ struct ReasoningHistoryConformanceTests {
         let failure = try await recoveryFailure {
             try await invokeReasoningHistory(
                 boundary,
-                gateway: boundary.provider.gateway(server, policy: policy),
+                gateway: boundary.provider.gateway(
+                    server,
+                    policy: policy),
                 messages: reasoningHistory(populated: false),
             )
         }
@@ -100,12 +140,19 @@ struct ReasoningHistoryConformanceTests {
     #if anthropic
         @Test(arguments: [false, true])
         func anthropicLegacySingleTurnRemainsUnsupported(_ populated: Bool) throws {
-            let provider = RecoveryBoundary(omlx: true, structured: false, anthropic: true)
+            let provider = RecoveryBoundary(
+                omlx: true,
+                structured: false,
+                anthropic: true)
             let server = try RecoveryLoopback(replies: [provider.success()])
-            let gateway = provider.gateway(server, policy: nil)
+            let gateway = provider.gateway(
+                server,
+                policy: nil)
             #expect(throws: MojenticError.self) {
                 _ = try gateway.completeStreamEvents(
-                    model: "fixture", messages: reasoningHistory(populated: populated), config: .init(),
+                    model: "fixture",
+                    messages: reasoningHistory(populated: populated),
+                    config: .init(),
                 )
             }
             #expect(server.requests.withLock { $0 }.isEmpty)
@@ -116,10 +163,16 @@ struct ReasoningHistoryConformanceTests {
     func additiveMessageAPIsAndCodableCompatibility() throws {
         let oldFactory: (String?, [LLMToolCall]?) -> LLMMessage = LLMMessage.assistant
         #expect(oldFactory("legacy", nil).thinking == nil)
-        #expect(LLMMessage(role: .assistant, content: "legacy").thinking == nil)
+        #expect(
+            LLMMessage(
+                role: .assistant,
+                content: "legacy"
+            ).thinking == nil)
         let oldJSON = Data(#"{"role":"assistant","content":"legacy"}"#.utf8)
         #expect(try JSONDecoder().decode(LLMMessage.self, from: oldJSON).thinking == nil)
-        let populated = LLMMessage.assistant("content", thinking: historyThinking)
+        let populated = LLMMessage.assistant(
+            "content",
+            thinking: historyThinking)
         #expect(try JSONDecoder().decode(LLMMessage.self, from: JSONEncoder().encode(populated)) == populated)
         #expect(populated != .assistant("content"))
         let nilJSON = try JSONDecoder().decode(

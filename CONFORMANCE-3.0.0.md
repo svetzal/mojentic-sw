@@ -3,8 +3,9 @@
 Status: the part 1 recovery baseline passes all six local gates on macOS and
 every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
 `db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
-`v2.1.0` reports no breaking changes. Parts 2 and 3 are pending. This is not
-release readiness.
+`v2.1.0` reported no breaking changes for that recovery baseline. Part 2 is
+implemented locally below, with external verification pending. Part 3 is pending.
+This is not release readiness; the historical API result does not cover part 2.
 
 The governing authorization is
 [`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md),
@@ -153,12 +154,113 @@ parts 2 and 3; passing this Swift API comparison does not authorize publication.
 | Default build system, full traits, module-cache environment overrides | Exit 1; read-only Clang cache, comparison not reached | `4b10117fc107812f40ec0b41b4390a593f2ed79138eb1e0bc7478cfed97f268b` |
 | `./scripts/with-gate-environment swift package --build-system native --scratch-path .build/api-native --traits full diagnose-api-breaking-changes v2.1.0 --targets Mojentic` | Exit 0; `No breaking changes detected in Mojentic` | `4689996735ba144934c9cffb7f78d7527281bb2cfcdabf980d47652de9b14115` |
 
-## Part 2: native reasoning — pending
+## Part 2: native reasoning — local verification; external verification pending
 
-No reasoning features are implemented by this correction. Disabled, Enabled,
-Low, Medium, High and XHigh parity, explicit model profiles and opt-in reasoning
-retention still require implementation and executable mapping against the
-coordinator's reasoning contract and Rust reference.
+Tested base: `37bfac0e478b3860c284ed1c70d7b5da7fba5436` plus this uncommitted
+correction. No refs, dependencies, package versions, toolchain declaration or
+publication state changed. The completed Darwin/API baseline was not repeated.
+Rust's explicit profile validation and broker retention were inspected read-only
+at `8ac38ea134af7816c6fdd02e07a420ed3be1a2f4`; the prototype is `67791b7`.
+The authoritative reasoning source SHA-256 is
+`0a40f3ad45c593bc779411021e45db569e73d3ecce86c99b201e7f8ebb656809`.
+The initiative brief matches the recorded authorization hash above.
+
+### Shared executable contract
+
+[Native reasoning v1](Tests/MojenticTests/Fixtures/Contracts/native_reasoning_v1.json)
+is an unchanged copy of `mojentic-ex/test/contracts/native_reasoning_v1.json`,
+version **native-reasoning-v1**, SHA-256
+`be212ff011125f1d0927e3a65a0d7cd87eedbf9f5ff69e803b4112a80ae6b1f6`.
+Its control rows, reasoning, visible content, answer, call identity/arguments and
+result drive `NativeReasoningContract` and the captured loopback HTTP responses.
+The second simultaneous call derives from the contract call with a distinct ID.
+No independent mock is used as provider compatibility evidence. Existing
+`ReasoningHistory` and `LLMMessage` coverage is extended, not replaced.
+
+Execute `./scripts/with-gate-environment swift test --traits full --skip-build --filter 'NativeReasoning|ReasoningHistory'` after the full-trait build. The same tests run in both
+required test gates, including all provider traits. Tests inspect captured request
+bodies, returned reasoning/content, tool results and session history, not counts
+or schemas alone. The initial `NativeReasoningTests` HTTP probe failed because
+the continuation lost reasoning and visible content (exit 1); with opt-in
+retention and the broker correction it passed (exit 0). Expanded tests followed. A second real-HTTP probe, `cancelledBufferedResponseCannotReturnRetainedHistory`, failed on both providers (exit 1) when cancellation arrived during response tracing; the opt-in cancellation check corrected it (exit 0).
+
+### Named-test map
+
+| Binding behavior | Executable evidence |
+| --- | --- |
+| Six distinct controls; exact boolean/string types; omitted effort stays unknown; ordinary, structured, JSON, streamed tools and single-turn events, including retry | `NativeReasoningControlTests.exactContractControlsAcrossPublicBoundaries`: every shared control row across both local providers; actual first/retry HTTP bodies and separated response fields |
+| Explicit caller-selected profiles and exact Qwen3.8 capabilities; no model-name inference | `explicitProfileAcceptsUnknownDefaultAndExactQwenEfforts`, `rejectsUnsupportedControlsBeforeDispatch`: arbitrary names accept selected supported controls; Qwen-like names cannot bypass rejection |
+| Unsupported effort, retention and provider extensions fail before dispatch; shared-enum regression audit | `rejectsUnsupportedControlsBeforeDispatch`: ordinary, structured and both recovery stream APIs leave HTTP request capture empty for rejected controls; full-trait Anthropic cases; existing OpenAI/Anthropic legacy high/medium/low tests remain in full suite |
+| Native history capability validation | `ReasoningHistoryConformanceTests.explicitProfileRejectsUnsupportedNativeHistoryBeforeHTTP`: existing populated reasoning history is rejected without HTTP |
+| Completed ordinary and streamed multiple-tool continuity; outer-turn session retention; identities, order and separated results | `NativeReasoningContinuityTests.completedMultipleToolCallsAndSessionHistory`: both providers, ordinary and streams; entire role order, two calls and results, native fields in second and third HTTP requests; oMLX original call IDs and result linkage |
+| Opt-in retention and oMLX preserve request | `retentionIsOptIn`, `completedMultipleToolCallsAndSessionHistory`, `NativeReasoningTests.completedToolHistoryCrossesHTTPBoundary`, `booleanControlAndRetentionPreserveOtherTemplateOptions`; exact `chat_template_kwargs.preserve_thinking`; forced server settings are outside this client guarantee |
+| Cancellation after native delta excludes history and dispatch | `NativeReasoningExclusionTests.cancellationAfterNativeDeltaDoesNotRetainOrDispatch`: held real HTTP stream, observed native delta, cancellation, empty session history and unexecuted tool; `cancelledBufferedResponseCannotReturnRetainedHistory` pauses the I/O tracer after a real buffered response and excludes cancellation races before retained history returns |
+| Errors and incomplete streams cannot manufacture native history | `incompleteStreamCannotBecomeRetainedHistory`, `failedContinuationNeverCommitsNativeHistory`: both providers; no final retained turn after EOF without completion or failed next request |
+| Optional native history and legacy Codable records | Existing `legacyAndNilHistoryStayCompatible`, `defaultPolicyKeepsOneAttemptWithNilHistory`, `ReasoningHistoryTests`; added `legacyCodableRecordsLeaveReasoningUnknown` defaults absent retention to false without inventing effort or exchanges |
+| Recovery accounting and existing iteration limits | Existing recovery/broker tests remain mandatory in both test gates; reasoning controls are validated before recovery creates a wire attempt and frozen bodies preserve controls/history across retry |
+
+Retention adds one completed assistant turn with all tool calls and its native
+reasoning, followed by ordered tool results; default legacy exchange construction
+is preserved. `LLMResponse.retainedMessages` carries the completed exchanges to
+ChatSession, which commits them only after success. With retention enabled,
+oMLX's legacy parser requires a terminal marker and finish reason instead of
+manufacturing completion at EOF. Recovery semantics are unchanged.
+
+### Boundary sides and coordination finding
+
+| Side | Tested revision and command | Verification result |
+| --- | --- | --- |
+| Swift gateway/provider adapters | `37bfac0e478b3860c284ed1c70d7b5da7fba5436` plus this uncommitted patch; targeted command above, same native-reasoning-v1 rows | Exit 0; captured HTTP controls, native response fields, errors and rejected dispatch |
+| Swift broker/ChatSession consumers | Same base/patch, same command and artifact | Exit 0; contract-derived responses exercise completed ordinary/stream continuations and next user turn, plus exclusion cases |
+| Elixir recorded adapter/consumer verification | Read-only `CONFORMANCE-3.0.0.md` at `df29a1c36f6b4b172b3ff352d40201d6583a9890` records tested base `ddb2217c8245b041a20fd25f34f5aa6fbfaee2ce` plus its part-2 patch; `scripts/verify-native-reasoning-contract` | Recorded exit 0, 182 named cases against the same contract; not rerun or claimed as a current paired verification in this task |
+| Actual Ollama/oMLX server producers and external repository consumers | No tested server version/commit or paired verification command available | Missing; compatibility across those external boundaries remains unfinished |
+
+Initiative finding `fnd_sw_native_reasoning_v1_external_verification` was recorded
+with `foundry finding add` (exit 0). It requests separately authorized paired
+verification of this exact set; no other repository was changed. Local fixture
+verification cannot certify live server behavior or benchmark efficacy. The
+publication hold remains and part 3 remains explicitly pending.
+
+### Part-2 validation
+
+Linux Swift 6.4, base `37bfac0e478b3860c284ed1c70d7b5da7fba5436` plus this
+uncommitted patch. Every discovered `.hone-gates.json` gate ran through
+`foundry capture --log-dir <scratch logs> -- <gate command>`. Hashes below cover
+stdout bytes followed by stderr bytes. No evidence files or archives are added
+to the repository; this record makes no evidence-retention claim.
+
+The final process environment used `ulimit -S -n 65536`. The first full-trait
+attempt at the wrapper's 8,192-descriptor minimum failed with `errno 24` opening
+concurrent loopback sockets/pipes (415 tests, 182 issues). Raising the process
+limit corrected the environment; no test was skipped and no recovery or fixture
+semantics were changed. The earlier default-trait assertion expecting three
+effort cases was updated to the authorized six values.
+
+| Required command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0; no violations | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0; zero violations in 218 files | `95ed5764d065b89ca116640282876dd99d16d10eb726ab8f9aa7300895d7d460` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0; release build | `5590d7a6b8a974856b1e2f200c3c5e45a1034ad1dd58e0301e03f4f2e7f59468` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 402 tests in 114 suites | `a54d22b4073a3e103bbcdeddbc315f325ebabfc150fac9eb77b1532c51edf60c` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 415 tests in 119 suites | `52f1042279c6ea93b0ea0fbc6bc514e0cf3e5b82fe14447d386c842f4a3528f0` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; DocC archive generated with warnings as errors | `db4917625d89fc13473a8f44c4fffa31e89afd7aa525cc5889e1548c97204745` |
+
+Final targeted contract verification: the command above passed (exit 0),
+19 tests in 6 suites; log SHA-256
+`7f70018d8c3cd76cbe521126aaf86c5a28165d9d71212bbd4fd61f90c52bddbc`.
+The original rejecting/passing HTTP proof log SHA-256 values are respectively
+`87ae8782c2f2cd14b58b3f2237c47c03970decbf3e6be1608fe206428dcd2994`
+and `be0fd661cb7cc5a989a8037e6ccc1001233a00fb77df92e4f74a86069ef93bc1`.
+
+CI on the tested base is green: [Validate, Test, and Publish run 39037846218](https://github.com/svetzal/mojentic-sw/actions/runs/39037846218)
+and [Supply Chain run 39037846153](https://github.com/svetzal/mojentic-sw/actions/runs/39037846153).
+Checked with `gh run list --repo svetzal/mojentic-sw --commit
+37bfac0e478b3860c284ed1c70d7b5da7fba5436 --json
+databaseId,name,conclusion,status,headSha --limit 10`. Both completed successfully;
+the existing OSV CI scan covers the unchanged lockfile. These uncommitted changes
+have no CI run yet. Local results do not claim macOS or Swift 6.1 execution for
+this patch; those remain CI validation after Foundry finalization.
+
 
 ## Part 3: model metadata and request fidelity — pending
 
