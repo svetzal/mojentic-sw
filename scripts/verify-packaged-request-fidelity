@@ -62,6 +62,8 @@ with tempfile.TemporaryDirectory(prefix="mojentic-package-") as temporary:
     with tarfile.open(archive, "w:gz") as output:
         for name in ["Package.swift", "Package.resolved", "Sources", "Examples"]:
             output.add(root / name, arcname="Mojentic/" + name)
+    print("tested source artifact sha256", hashlib.sha256(archive.read_bytes()).hexdigest(), flush=True)
+    subprocess.run(["git", "rev-parse", "HEAD"], check=True, cwd=root)
     with tarfile.open(archive) as source:
         source.extractall(stage, filter="data")
     consumer = stage / "Consumer"

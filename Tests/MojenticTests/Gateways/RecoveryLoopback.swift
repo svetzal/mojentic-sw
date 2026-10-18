@@ -16,6 +16,7 @@ struct RecoveryReply: Sendable {
     var hold = false
     var splitAt: Int?
     var holdSuffix = false
+    var prefixDelay: TimeInterval = 0
 }
 
 /// A real loopback HTTP server with deterministic request/active-send signals.
@@ -247,6 +248,7 @@ final class RecoveryLoopback: @unchecked Sendable {
         let sentHeaders = write(headerBytes, to: client)
         responseHeaders.withLock { $0.append(sentHeaders) }
         let split = reply.splitAt ?? (reply.hold && !reply.truncated ? data.count / 2 : data.count)
+        if reply.prefixDelay > 0 { Thread.sleep(forTimeInterval: reply.prefixDelay) }
         write(Data(data.prefix(split)), to: client)
         arrival.yield(index + 1)
         var sent = split

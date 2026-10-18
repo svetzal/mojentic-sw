@@ -164,5 +164,66 @@
     "done_reason": "stop",
     "total_duration": 900,
     "prompt_eval_duration": 200
+  },
+  "revision": "swift-stream-first-token-v2-owner-anthropic-input",
+  "anthropic": {
+    "start": [
+      {
+        "type": "message_start",
+        "message": {
+          "id": "m",
+          "role": "assistant",
+          "model": "fixture",
+          "usage": {
+            "input_tokens": 3,
+            "output_tokens": 0
+          }
+        }
+      },
+      {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "owner-tool",
+          "name": "lookup",
+          "input": {}
+        }
+      }
+    ],
+    "fragment": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "input_json_delta",
+        "partial_json": "{\"city\":\"Paris\"}"
+      }
+    },
+    "end": [
+      {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use"
+        },
+        "usage": {
+          "output_tokens": 12
+        }
+      },
+      {
+        "type": "message_stop"
+      }
+    ],
+    "expected": {
+      "id": "owner-tool",
+      "name": "lookup",
+      "arguments": {
+        "city": "Paris"
+      }
+    },
+    "rule": "Initial input {} does not start timing; first nonempty input_json_delta does; zero-argument tools without fragments have duration only."
   }
 }

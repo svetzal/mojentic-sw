@@ -172,6 +172,13 @@ final class StreamMeasurement: @unchecked Sendable {
                 ?? reported.providerModel,
             metadata: metadata.isEmpty ? nil : metadata)
         guard first == nil else { return }
+        // Anthropic starts tools with a placeholder input object, including for
+        // zero-argument calls. Only a nonempty input_json_delta starts timing.
+        if object["type"]?.stringValue == "content_block_start",
+            object["content_block"]?.objectValue?["type"]?.stringValue == "tool_use"
+        {
+            return
+        }
         let delta =
             object["message"]?.objectValue
             ?? choices.first?.objectValue?["delta"]?.objectValue

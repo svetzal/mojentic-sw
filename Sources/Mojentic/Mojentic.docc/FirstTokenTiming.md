@@ -80,7 +80,7 @@ switches must handle `.metrics`, and exhaustive `MojenticError` switches must
 handle `.streamFailure`. Inspect its original cause when matching preexisting
 error cases. Older Codable `LLMResponse` records decode with absent metadata.
 
-The coordinator must still define whether Anthropic's initial `tool_use.input`
-object counts before argument fragments, including the ambiguous empty object
-used for both a placeholder and a zero-argument tool. Fragment timing is verified;
-full section-2 readiness remains held for that decision.
+Anthropic's initial `tool_use.input: {}` does not start timing. The first
+nonempty `input_json_delta.partial_json` fragment starts `tool_call` timing.
+A successful zero-argument call without fragments retains `request_duration_ms`
+with both `time_to_first_token_ms` and `first_token_kind` absent.

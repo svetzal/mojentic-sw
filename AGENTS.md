@@ -20,8 +20,9 @@ and request fidelity (part 3), following `MODEL-METADATA-2026-10.md`.
 Part 3 sections 3.2–3.6 request fidelity and section 1 raw-byte discovery
 invariance are implemented. The current correction implements section 2
 client-measured first-token timing, including the October 17 decisions.
-Anthropic initial tool-input classification awaits coordinator clarification;
-see the final timing record in `CONFORMANCE-3.0.0.md`.
+The owner decision excludes Anthropic initial empty tool input from timing;
+only nonempty input fragments start tool timing. Zero-argument calls without
+fragments retain duration only; see `CONFORMANCE-3.0.0.md`.
 Preserve recovery, native reasoning outside the specified shape alignment,
 dependencies, swift-tools-version, versions,
 tags and publication state. Foundry owns Git finalization for its isolated task

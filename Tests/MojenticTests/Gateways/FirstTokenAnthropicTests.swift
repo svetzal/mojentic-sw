@@ -27,6 +27,63 @@ import Testing
             }
         }
 
+        @Test(arguments: [false, true], [false, true])
+        func initialObjectWaitsForFragment(_ recovery: Bool, _ fragment: Bool) async throws {
+            let url = try #require(
+                Bundle.module.url(
+                    forResource: "stream_first_token_v1",
+                    withExtension: "json",
+                    subdirectory: "Fixtures/Contracts"))
+            let contract = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+            let row = try #require(contract.objectValue?["anthropic"]?.objectValue)
+            let start = try JSONDecoder().decode([JSONValue].self, from: JSONEncoder().encode(row["start"]))
+            let end = try JSONDecoder().decode([JSONValue].self, from: JSONEncoder().encode(row["end"]))
+            let delta = try #require(row["fragment"])
+            func frames(_ values: [JSONValue]) throws -> String {
+                let lines = try values.map {
+                    let json = try #require(String(data: JSONEncoder().encode($0), encoding: .utf8))
+                    return "data: " + json + "\n\n"
+                }
+                return lines.joined()
+            }
+            let prefix = try frames(start)
+            let suffix = try frames((fragment ? [delta] : []) + end)
+            let server = try RecoveryLoopback(replies: [
+                RecoveryReply(
+                    body: prefix + suffix,
+                    splitAt: prefix.utf8.count,
+                    holdSuffix: true,
+                    prefixDelay: 0.1)
+            ])
+            defer { server.release() }
+            let boundary = StreamingBoundary(omlx: true, single: false, anthropic: true)
+            let task = Task {
+                try await firstTokenOutcome(
+                    boundary,
+                    gateway: boundary.gateway(server, recovery ? recoveryPolicy(RecoveryRecorder()) : nil),
+                    recovering: recovery)
+            }
+            var arrivals = server.arrivals.makeAsyncIterator()
+            _ = await arrivals.next()
+            try await Task.sleep(for: .milliseconds(250))
+            server.releaseSuffix()
+            let result = try await task.value
+            try assertFirstToken(result, kind: fragment ? "tool_call" : nil, terminal: "done")
+            #expect(result.failure == nil)
+            #expect(result.tools.count == 1)
+            let call = try #require(result.tools.first)
+            let expected = try #require(row["expected"]?.objectValue)
+            #expect(call.id == expected["id"]?.stringValue)
+            #expect(call.name == expected["name"]?.stringValue)
+            #expect(call.arguments == (fragment ? expected["arguments"] : .object([:])))
+            let duration = try #require(timingNumber(result.evidence?.metadata?["request_duration_ms"]))
+            #expect(duration >= 300)
+            if fragment {
+                let first = try #require(timingNumber(result.evidence?.metadata?["time_to_first_token_ms"]))
+                #expect(first >= 300)
+            }
+        }
+
         @Test(arguments: [false, true])
         func firstPartialJSONCountsBeforeToolAssembly(_ recovery: Bool) async throws {
             let prefix = """
@@ -52,7 +109,10 @@ import Testing
 
                 """ + "\n"
             let server = try RecoveryLoopback(replies: [
-                RecoveryReply(body: prefix + suffix, splitAt: prefix.utf8.count, holdSuffix: true)
+                RecoveryReply(
+                    body: prefix + suffix,
+                    splitAt: prefix.utf8.count,
+                    holdSuffix: true)
             ])
             defer { server.release() }
             let boundary = StreamingBoundary(omlx: true, single: false, anthropic: true)

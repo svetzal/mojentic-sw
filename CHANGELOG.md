@@ -23,9 +23,9 @@ move independently.
   Darwin before parsing and tool assembly. They retain the configured URLSession,
   its authentication and pool, and the original request payloads. Encoding errors
   before dispatch retain their original typed error without client timing.
-- Anthropic initial empty tool-input classification remains an owner-held contract
-  question. Fragment timing is verified; this correction does not establish full
-  section-2 readiness until that decision is coordinated.
+- Anthropic initial `tool_use.input: {}` does not start timing. The first
+  nonempty `input_json_delta` starts `tool_call` timing. Successful zero-argument
+  calls without fragments retain duration with both first-token fields absent.
 
 ### Breaking changes and migration — streaming evidence
 

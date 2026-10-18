@@ -8,11 +8,15 @@ import subprocess
 import tarfile
 import tempfile
 import threading
+import time
 
 root = pathlib.Path(__file__).resolve().parent.parent
 contract = root / "Tests/MojenticTests/Fixtures/Contracts/stream_first_token_v1.json"
 subprocess.run(["sha256sum", "--check", str(contract.with_name("stream_first_token_v1.manifest.sha256"))], check=True, cwd=root)
-cases = {row["name"]: row["delta"] for row in json.loads(contract.read_text())["cases"]}
+catalog = json.loads(contract.read_text())
+cases = {row["name"]: row["delta"] for row in catalog["cases"]}
+anthropic = catalog["anthropic"]
+print(catalog["revision"], flush=True)
 print("contract sha256", hashlib.sha256(contract.read_bytes()).hexdigest(), flush=True)
 subprocess.run(["git", "rev-parse", "HEAD"], check=True, cwd=root)
 
@@ -21,8 +25,21 @@ class Provider(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         assert body["stream"] is True
+        if body["model"].startswith("anthropic-"):
+            def frames(rows):
+                return "".join("data: " + json.dumps(row) + "\n\n" for row in rows).encode()
+            prefix = frames(anthropic["start"])
+            suffix = frames(([anthropic["fragment"]] if body["model"] == "anthropic-fragment" else []) + anthropic["end"])
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(prefix) + len(suffix)))
+            self.end_headers()
+            time.sleep(0.1)
+            self.wfile.write(prefix)
+            self.wfile.flush()
+            time.sleep(0.25)
+            self.wfile.write(suffix)
+            return
         if body["model"] == "slow":
-            import time
             time.sleep(0.2)
         if body["model"] == "failure":
             payload = b'data: {"error":{"message":"fixture failure"}}\n\n'
@@ -75,7 +92,7 @@ func verify(_ evidence: CompletionEvidence) {
 }
 let gateway = OpenAIGateway(apiKey: "fixture", baseURL: URL(string: CommandLine.arguments[1])!)
 var completed = false
-for await event in try gateway.completeStreamEvents(model: "fixture", messages: [], config: .init()) {
+for await event in gateway.completeStreamEvents(model: "fixture", messages: [], config: .init()) {
     if case .completed(let evidence) = event { verify(evidence); completed = true }
 }
 precondition(completed)
@@ -102,7 +119,7 @@ do {
 precondition(rejected)
 print("PASS packaged throwing failure retains MojenticError, original HTTP status and terminal timing")
 var failed = false
-for await event in try gateway.completeStreamEvents(model: "failure", messages: [], config: .init()) {
+for await event in gateway.completeStreamEvents(model: "failure", messages: [], config: .init()) {
     if case .error(.streamFailure(let failure)) = event {
         precondition(failure.evidence.metadata?["request_duration_ms"] != nil)
         precondition(failure.evidence.metadata?["first_token_kind"] == nil)
@@ -121,7 +138,7 @@ for try await event in LLMBroker(gateway: gateway).stream(model: "fixture", mess
 precondition(final)
 print("PASS packaged broker response metadata")
 func completion(_ gateway: OpenAIGateway, model: String) async throws -> CompletionEvidence {
-    for await event in try gateway.completeStreamEvents(model: model, messages: [], config: .init()) {
+    for await event in gateway.completeStreamEvents(model: model, messages: [], config: .init()) {
         if case .completed(let evidence) = event { return evidence }
     }
     fatalError("Expected completed evidence")
@@ -137,12 +154,59 @@ guard case .number(let slowFirst) = slowEvidence.metadata?["time_to_first_token_
 }
 precondition(slowFirst >= 150 && slowFirst - fastDuration >= 100)
 print("PASS packaged same-gateway concurrent thinking/content completions have independent clocks")
+let expected = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2])))
+for recovery in [false, true] {
+    let anthropicGateway = AnthropicGateway(apiKey: "fixture", baseURL: URL(string: CommandLine.arguments[1])!, recovery: recovery ? CompletionRecoveryPolicy() : nil)
+    for fragment in [false, true] {
+        let model = fragment ? "anthropic-fragment" : "anthropic-empty"
+        var calls: [LLMToolCall] = []
+        var terminal: CompletionEvidence?
+        if recovery {
+            for try await event in anthropicGateway.streamRecovering(model: model, messages: [], tools: nil, config: .init()) {
+                switch event {
+                case .toolCallRequest(let call): calls.append(call)
+                case .done(_, _, let evidence): terminal = evidence
+                default: break
+                }
+            }
+        } else {
+            for try await event in anthropicGateway.stream(model: model, messages: [], tools: nil, config: .init()) {
+                switch event {
+                case .toolCallRequest(let call): calls.append(call)
+                case .done(_, _, let evidence): terminal = evidence
+                default: break
+                }
+            }
+        }
+        precondition(calls.count == 1)
+        precondition(calls[0].id == expected.objectValue?["id"]?.stringValue)
+        precondition(calls[0].name == expected.objectValue?["name"]?.stringValue)
+        precondition(calls[0].arguments == (fragment ? expected.objectValue?["arguments"] : .object([:])))
+        guard let terminal, case .number(let duration) = terminal.metadata?["request_duration_ms"] else {
+            fatalError("Missing successful terminal duration")
+        }
+        precondition(duration >= 300)
+        if fragment {
+            precondition(terminal.metadata?["first_token_kind"] == .string("tool_call"))
+            guard case .number(let first) = terminal.metadata?["time_to_first_token_ms"] else {
+                fatalError("Missing fragment timing")
+            }
+            precondition(first >= 300 && duration >= first)
+        } else {
+            precondition(terminal.metadata?["first_token_kind"] == nil)
+            precondition(terminal.metadata?["time_to_first_token_ms"] == nil)
+        }
+        print("PASS packaged Anthropic recovery=\\(recovery) fragment=\\(fragment) exact tool and terminal timing")
+    }
+}
+
 
 ''')
+    (stage / "expected.json").write_text(json.dumps(anthropic["expected"]))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        subprocess.run(["swift", "run", "--package-path", str(consumer), "Probe", f"http://127.0.0.1:{server.server_port}/v1"], check=True)
+        subprocess.run(["swift", "run", "--package-path", str(consumer), "Probe", f"http://127.0.0.1:{server.server_port}/v1", str(stage / "expected.json")], check=True)
     finally:
         server.shutdown()
         server.server_close()

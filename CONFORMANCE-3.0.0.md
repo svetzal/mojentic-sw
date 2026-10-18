@@ -1,14 +1,11 @@
 # Swift 3.0.0 conformance baseline
 
-Status: the part 1 recovery baseline passes all six local gates on macOS and
-every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
-`db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
-`v2.1.0` reported no breaking changes for that recovery baseline. Part 2 is
-implemented locally below. Part 3 discovery, request fidelity, and client
-first-token timing have local implementations; Anthropic initial tool-input
-classification remains a coordinator question in the final timing record.
-The owner's library self-validation rule below supersedes the older external-verification requirements in historical records.
-This is not release readiness; the historical API result does not cover part 2.
+Status: the preserved cycle-8 implementation at `0895693a826e07c69a85e4d9543f6a0f8b5f7ee3`
+is retained. The owner has resolved Anthropic initial-input classification.
+The final readiness assessment below supersedes earlier open-decision and
+external-counterpart requirements. Historical gate and CI results remain scoped
+to their recorded source; the API comparison against `v2.1.0` covered only the
+recovery baseline. Final landed-source CI remains a separate release condition.
 
 The governing authorization is
 [`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md),
@@ -902,11 +899,12 @@ October 17 decisions, has SHA-256
 
 ### Contract and source identity
 
-The local executable set is **`swift-stream-first-token-v1`**, comprising the
+The local executable set is **`swift-stream-first-token-v2-owner-anthropic-input`**, comprising the
 `FirstToken*Tests.swift` public-API HTTP cases and
-`scripts/verify-packaged-stream-timing`. The static fixture catalog reuses
+`scripts/verify-packaged-stream-timing`. The original generic delta catalog was copied from
 `ex-stream-first-token-v1` at `mojentic-ex@f42c5c8d7e9fa9070fe7d86d6d4874dff07ff3b4`,
-SHA-256 `fddd71c8e0062c489588b2e15df749e934cf9d9412d05b4ee08eb52673425a6c`.
+original SHA-256 `fddd71c8e0062c489588b2e15df749e934cf9d9412d05b4ee08eb52673425a6c`.
+The current owner extension and catalog hash are recorded in the final assessment.
 The binding **`ts-stream-first-token-v1`** reference was inspected at
 `mojentic-ts@b8db5d59c02297e39335ba1deed83fa04e1b8f11`, source SHA-256
 `e94d4f53928b3ea519eceedcb0f7e7a41ae2eb5da52076369d92374108b3d2a8`.
@@ -950,7 +948,7 @@ additions. Older Codable responses decode without metadata.
 | Monotonic origin at dispatch, excluding delayed capture | `FirstTokenLifecycleTests.delayedCaptureIsOutsideFirstDispatch`: real HTTP for every recovery boundary; a 200 ms pre-send capture delay stays outside duration, with wall time minus duration at least 180 ms. Native legacy SDK dispatch follows serialization and cancellation checks. |
 | Content, thinking and absent-token cases on supported legacy/recovery routes | `FirstTokenRouteTests.contentThinkingEmptyAndProviderMetrics`, `FirstTokenAnthropicTests.nativeLegacyAndRecoveryKinds`: exact kind, visible content, success terminal, provider usage, duration at least first-token time, and absent first-token fields for empty output. |
 | Same-frame precedence and irrelevant/empty fields | `FirstTokenRouteTests.executableContractThroughHTTP`: named catalog cases include thinking/content/tool precedence, content/tool precedence, empty content, tool name only, empty arguments, and legacy function-call arguments. Each asserts the exact kind or absence and the declared completed/error outcome. |
-| Tool arguments on every established wire shape and terminal route | `FirstTokenToolRouteTests.argumentsCountAcrossToolCapableAndRejectingSingleTurnRoutes` covers Ollama/OpenAI/oMLX with and without recovery, both tools and strict single-turn APIs. It asserts `tool_call` timing, exact done/error/interrupted outcomes, original `unexpectedToolCalls` causes on rejection, and exact normalized tool name/arguments/available ID on success. Anthropic initial input objects remain the coordinator gap below. |
+| Tool arguments on every established wire shape and terminal route | `FirstTokenToolRouteTests.argumentsCountAcrossToolCapableAndRejectingSingleTurnRoutes` covers Ollama/OpenAI/oMLX with and without recovery, both tools and strict single-turn APIs. It asserts `tool_call` timing, exact done/error/interrupted outcomes, original `unexpectedToolCalls` causes on rejection, and exact normalized tool name/arguments/available ID on success. Anthropic initial inputs and zero-argument calls are covered by `FirstTokenAnthropicTests.initialObjectWaitsForFragment`, using the owner rule below. |
 | Partial arguments before assembly and before failure | `FirstTokenLifecycleTests.firstArgumentFragmentPrecedesTerminalAssembly`, `FirstTokenCancellationTests.argumentFragmentSurvivesFailureBeforeToolAssembly`: held HTTP suffix/close, `tool_call` first, exact `done` versus `interrupted`/throw outcome, duration minus first-token time at least 150 ms. `FirstTokenAnthropicTests.firstPartialJSONCountsBeforeToolAssembly` covers native `input_json_delta` on both legacy and recovering tool-capable routes. |
 | Keepalives and empty frames are not tokens | `FirstTokenRouteTests.omlxKeepaliveNeverCounts`: a keepalive containing apparent content still yields no visible content or first-token fields, completes normally, and never becomes the provider model. Catalog empty/name-only cases verify absence on errors too. |
 | One clock through admitted retries | `FirstTokenRetryTests.allRecoveryRoutesKeepOneClockAcrossAdmittedRetry` and `FirstTokenHTTPTests.retryMixedFrameUsesFirstDispatchAndThinkingPrecedence`: actual HTTP 503 then success, exact thinking kind and visible content, first-token time includes the real 150/80 ms retry delay, and duration is at least first-token time. |
@@ -962,18 +960,25 @@ additions. Older Codable responses decode without metadata.
 | Broker public APIs and supported older records | `FirstTokenBrokerTests.brokerSingleTurnPreservesTimingAndProviderMetrics` checks exact thinking precedence, final content, completed terminal and usage through both broker APIs. `olderResponseRecordsDecodeWithoutTiming` and exhaustive baseline consumers verify absent older metadata and the new enum shapes. |
 | Independent concurrent completions | `FirstTokenLifecycleTests.concurrentCompletionsNeverShareOriginsOrKinds` checks concurrent held thinking and fast content completions with distinct elapsed relationships. The fresh packaged consumer additionally runs concurrent calls through the **same gateway**, asserting thinking versus content, slow first-token time at least 150 ms and at least 100 ms beyond fast duration. |
 
-### Outstanding coordinator decision
+### Binding owner decision — Anthropic initial input
 
-Section 2 and the inspected reference do not define the translation of
-Anthropic `content_block_start` with `type: "tool_use", input: {}`. That object
-can be an initial placeholder before later `input_json_delta` fragments or the
-complete input of a zero-argument tool. Counting the initial object and waiting
-for an argument fragment yield different first-token timestamps and absence
-semantics. The fragment behavior above is verified; initial input-object
-classification is not asserted as conformance and must not be decided locally.
-The owner was asked which rule to coordinate. Until that answer is incorporated,
-this correction and whole-release readiness remain incomplete, irrespective of
-green local gates. No dependent repository verification is being requested.
+The owner decision supplied for this correction is binding: `content_block_start`
+with `tool_use.input: {}` does not start timing. The first nonempty
+`input_json_delta.partial_json` starts `tool_call` timing. Successful zero-argument
+calls without fragments retain duration with both first-token fields absent.
+This replaces the former coordinator blocker; no external counterpart verification
+is required for this library readiness assessment.
+
+`FirstTokenAnthropicTests.initialObjectWaitsForFragment` exercises all four
+legacy/recovery × fragment/no-fragment combinations over production HTTP. It delays
+the initial object by 100 ms, then independently holds the fragment/terminal suffix
+for 250 ms. It asserts successful done, no failure, exact tool ID/name/arguments,
+duration at least 300 ms, fragment first-token time at least 300 ms, and absence
+of both token fields without fragments. The fresh packaged consumer exercises the
+same contract records and four outcomes. The existing partial-fragment test
+separately proves timing precedes terminal tool assembly.
+
+### Preserved cycle-8 evidence (historical source and artifact)
 
 ### Final working-source and artifact fingerprints
 
@@ -1042,6 +1047,138 @@ The starting commit `63cf0645930dadd7731a240f8a1029e8d51f1007` has successful
 [Supply Chain run 39078182172](https://github.com/svetzal/mojentic-sw/actions/runs/39078182172).
 Those are baseline CI evidence, not CI for this uncommitted tree. New CI must
 follow Foundry finalization. No Darwin recovery investigation was repeated.
-The initial Anthropic input decision above and whole-release readiness remain
-open; no tag, publication, released-registry install or dependent adoption is
-claimed. The publication hold remains.
+The former Anthropic decision blocker is resolved by the binding owner decision
+above. These prior results alone do not establish final-source readiness. No tag,
+publication, released-registry install or dependent adoption is claimed; the
+publication hold remains until coordinated approval and final-source CI.
+
+## Final local release-readiness assessment
+
+This assessment retains the complete cycle-8 implementation at
+`0895693a826e07c69a85e4d9543f6a0f8b5f7ee3` and adds the owner-directed Anthropic
+acceptance correction. It does not redo the Darwin investigation, change native
+reasoning for 3.1, or require unreleased dependents to adopt Swift. The October 15
+3.0.0 authorization remains in force. Dependencies, tools minimum 6.1, versions,
+git refs and publication state are unchanged.
+
+| Release part | Swift assessment and executable mapping |
+| --- | --- |
+| 1 — transient recovery and October 12 amendment | Retained. The part-1 decision map above and `RECOVERY-CONFORMANCE.md` cover admission, frozen requests, status/transport classification, Retry-After, observed/delivered output, cancellation, tool interruption and safe evidence. Full default/full-trait gates execute the public HTTP broker/session and provider route cases. No recovery policy or replay semantics changed. |
+| 2 — native reasoning | Retained with the existing authorized Swift divergence. `NativeReasoningControlTests.exactContractControlsAcrossPublicBoundaries`, `rejectsUnsupportedControlsBeforeDispatch`, `ReasoningHistoryConformanceTests.populatedHistoryAcrossPublicRetryBoundaries`, `legacyAndNilHistoryStayCompatible`, `defaultPolicyKeepsOneAttemptWithNilHistory`, and broker/session retention tests map controls, validation, separate reasoning/content and opt-in history. Existing conformance mappings above remain binding; no 3.1 shape alignment is attempted. |
+| 3 — metadata, request fidelity and client timing | Retained discovery and request-fidelity contracts; refreshed stale cycle-8 source-manifest entries without changing their behavioral rows. `FirstToken*` covers dispatch origins, retries, continuations, failures, provider metadata, old response decoding and concurrent calls. `FirstTokenAnthropicTests.initialObjectWaitsForFragment` closes the owner acceptance gap. The fresh source-artifact consumers verify public API requests, responses, errors, optional fields and terminal evidence. |
+| 4 — Kotlin drops iOS | Kotlin-specific; no Swift implementation change. Swift retains its authorized ecosystem platforms. |
+| 5 — October 15 audit bugs | No demonstrated Swift gap. Anthropic's common request builder uses `AnthropicMessageAdapter.adapt` for legacy and recovery and retains assistant text/tool turns (`AnthropicMessageAdapterTests.assistantToolCalls`, existing broker/tool continuation coverage). Swift has no removed Rust `num_predict` cast API; `maxTokens` is the sole caller output limit and request contracts verify provider mapping. `ChatSession` stores and forwards `CompletionConfig` directly on send/stream; Swift optional binding preserves explicit zero (request-fidelity explicit-zero cases). `RequestFidelityTests.sessionReservesOnlyExplicitOutputLimit` verifies public session history and omitted provider defaults. |
+
+The CHANGELOG retains the breaking enum/event/config changes and migration
+instructions introduced since 2.1.0. Its obsolete Anthropic question is replaced
+with the owner rule. DocC documents the same successful zero-argument behavior.
+Source tests use `import Mojentic` for the new regression and reach real production
+HTTP. The packaged consumer extracts a source archive into a temporary directory,
+resolves/builds a fresh SwiftPM consumer with full provider traits, and exercises
+all four Anthropic combinations plus the prior six timing/error/broker/concurrency
+checks. No registry publication or registry installation is claimed.
+
+### Current contract identities and verification scope
+
+The executable timing set is `swift-stream-first-token-v2-owner-anthropic-input`.
+Its catalog keeps the prior generic v1 delta rows and provenance and adds the
+owner's Anthropic start/fragment/end/expected records. Both the public source test
+and packaged consumer derive their HTTP fixtures and exact tool expectations
+from those records. Neither an independent mock nor a schema check is used as
+behavioral verification. Provider simulation and public library consumption run
+locally; there is no running cross-repository application boundary in this task.
+
+### Acceptance proof
+
+The same public-HTTP command,
+`./scripts/with-gate-environment swift test --traits full --filter FirstTokenAnthropicTests.initialObjectWaitsForFragment`,
+rejected a deliberate source mutation that counted initial input objects (actual
+exit 1). Fragment first-token timestamps were about 105 ms rather than at least
+300 ms, and both zero-argument routes wrongly acquired first-token fields.
+After explicitly excluding tool-start objects in `StreamMeasurement`, the command
+passed (actual exit 0): correct successful tools and fragment-based timing on both
+routes, with duration-only zero-argument calls. This validates the preserved
+cycle-8 behavior against the resolved owner rule; it does not claim cycle 8
+originally counted empty objects. Foundry archives the complete proof logs.
+
+### Tested working source and contract hashes
+
+The final tests consume the uncommitted correction on base
+`0895693a826e07c69a85e4d9543f6a0f8b5f7ee3`; the source/contract tree SHA-256 is
+`94838427a737c6372757098c28bb16010969185e2cf18238e19f17cf2e707478` (326 files).
+The reproducible tree algorithm is the path-plus-NUL-plus-binary-file-hash
+algorithm specified above, over the same roots. Root prose and Foundry scratch
+are excluded. The source artifact hashes below identify the actual detached
+archives extracted and built by the fresh consumers, rather than a baseline
+archive or an assumed future release.
+
+| Contract catalog | SHA-256 |
+| --- | --- |
+| `native_reasoning_v1.json` | `be212ff011125f1d0927e3a65a0d7cd87eedbf9f5ff69e803b4112a80ae6b1f6` |
+| `context_window_v1.json` | `9327502962112a020bafb46c6a677366df732f5a29cd44c92f17e8f632281395` |
+| `request_fidelity_v1.json` | `369a944ecbd8426a69dd8b299d9cf3718393b38b129ac854f2424dcf0d72e3d5` |
+| `stream_first_token_v1.json` | `949fb9dcb237d362d6ca539ccd90d054578e0ff220090a6544e53962a22f0cc4` |
+
+Acceptance rejecting transcript SHA-256: `bf3aab07e2b26a60e7446c086af36fa4b49e07863b858934f4530d51ae3053b6` (exit 1).
+Acceptance corrected transcript SHA-256: `b599a1c0ea01e6dca0782f73f377a7347e20332bdde7dd66b4f0f2993d6068c0` (exit 0).
+
+### Current commands and actual results
+
+Host: Linux x86-64, Swift 6.4, SwiftLint 0.65.1. One `.hone-gates.json` was
+discovered; all six required gates passed. Full-trait tests also execute the
+reasoning history and recovery conformance cases beyond the targeted subsets.
+Transcript digests hash captured stdout followed by stderr; complete logs and
+behavioral proof are archived by Foundry, not added as repository evidence.
+
+| Command | Actual result | Transcript SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0 | `4cef862f7f39b2165a51002043387699370bb65dbaec377362703f9f9048bc52` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0 | `f37f8701193c12dd4346aed768d0451770dbbf06c1548ac384421d7f545d1e18` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 437 tests, 126 suites | `a5c18f5886a04b19170862f58e09812d4fcc2f87eb21d115eb141a76291a625f` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 456 tests, 132 suites | `a0a07201f83e567ea640904d2db387451ee4435727c90067e7f1a72d12fe94d9` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0 | `f077ebfa075891f4d48facedf1d1c5ced42e785f8a536e5617c39fc4e09e369e` |
+| `./scripts/with-gate-environment swift test --traits full --filter FirstToken` | Exit 0; 25 tests, 10 suites | `928551bcbb9cdda3a10d4c8bf03158bea94e958930ea040be0de5fb2db2e15a7` |
+| `./scripts/with-gate-environment swift test --traits full --filter NativeReasoning` | Exit 0; 11 tests, 4 suites | `57277877fc8b915e03132593c95b4b351a296a7e11e9bdf8319188a514f83b31` |
+| `scripts/verify-context-window-contract --traits full` | Exit 0; 12 tests, 4 suites | `6bf5c6a035e1333845283e2857d3d7281eab81d168621f17ae1c3caac022ea1e` |
+| `scripts/verify-request-fidelity-contract` | Exit 0; 14 tests, 3 suites | `0053435ffc7795f273202af9bcf741f4685d19ccb5850015f50cc2b02cca6314` |
+| `./scripts/with-gate-environment scripts/verify-packaged-stream-timing` | Exit 0; 10 named public consumer checks; four exact Anthropic outcomes | `2f2c1bd560c28eb0ac2f2dabfd665564a724ed4242951686b5dc192f06f92088` |
+| `./scripts/with-gate-environment scripts/verify-packaged-request-fidelity` | Exit 0; 42 provider/consumer request pairs and two expected warning assertions | `a189800b4349505e399a2362ccb0b5dc3fcf7feb201759c59da0e99e30e6ca87` |
+| `osv-scanner scan source --lockfile=Package.resolved` | Exit 0; 3 resolved packages; no issues | `bc9fc77392e1888d7e04470dcd2a52cfe200255b09e45673dd926612076b5c28` |
+
+Freshly extracted source artifact identities:
+
+- `packaged-timing`: SHA-256 `ff804d213ccfe3fe5294f5d6d5c0b840bee146176149fe47a3f5b113e082a753`; fresh SwiftPM resolve/build and public HTTP consumer exit 0.
+- `packaged-request`: SHA-256 `9264d9122c1d03cb042d53dc47a21eb1b36fb6f288334a783d76cdebf872421e`; fresh SwiftPM resolve/build and public HTTP consumer exit 0.
+
+The timing consumer's preserved redundant `try` markers were removed after log
+review; the fresh consumer was rebuilt and rerun successfully with no Swift
+compiler diagnostics. SwiftPM emitted host configuration/security-cache access
+warnings and the execution host emitted `safeExec` signal warnings; these are
+recorded tool-environment diagnostics, not suppressed source diagnostics.
+Expected provider warnings remain asserted by the request-fidelity consumer.
+Dependencies and the lockfile were not changed; OSV reports no issues and no
+advisory suppression was added. Both contract manifests and refreshed Swift
+source manifests verify against the tested tree.
+
+### Readiness and final-source CI
+
+Swift local implementation and distribution self-validation for release parts
+1–5 are complete under the binding owner decision. The correction is ready for
+Foundry finalization and coordinated release review. The final working source
+above has no landed commit or CI run yet: all changes are intentionally
+uncommitted. CI for the eventual finalized source must pass before release
+approval; it cannot be inferred from local checks or prior green runs.
+
+The recorded `63cf0645930dadd7731a240f8a1029e8d51f1007` baseline
+[Validate, Test, and Publish run 39078182114](https://github.com/svetzal/mojentic-sw/actions/runs/39078182114)
+and [Supply Chain run 39078182172](https://github.com/svetzal/mojentic-sw/actions/runs/39078182172)
+remain baseline evidence only. They do not verify cycle-8 base `0895693` plus this
+correction. The existing Darwin investigation and its historical platform/API
+results are retained without rerunning them or claiming new Darwin verification.
+
+Coordinated publication stays held for final landed-source CI and the
+coordinator's all-six-port readiness/approval condition. No refs, versions,
+tags or publication state were modified. No released registry artifact or
+dependent adoption is claimed. Foundry owns finalization; proof logs and scratch
+are execution evidence and must not be included in the landed source change.
