@@ -2,6 +2,8 @@
 
 ## Coordinated 3.0.0 release authorization
 
+**Release authorized (Stacey, 2026-10-18).** All six ports passed their 3.0.0 readiness self-assessments and CI on `main`. Publish 3.0.0 now through `foundry release <port> --bump major`, following this file's normal release process. For this release, this lifts the coordinated release hold and any instruction in this section not to bump the version, tag or publish. The CHANGELOG `Unreleased` section becomes the 3.0.0 entry.
+
 Stacey authorized the coordinated major release on October 15, 2026 in
 [`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md).
 That authorization supersedes the September 30 coordinated 2.1.0 instructions.
