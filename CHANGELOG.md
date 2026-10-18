@@ -10,6 +10,8 @@ move independently.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-18
+
 ### Added — client streaming timing
 
 - Built-in streams report first-token kind, milliseconds from actual first
