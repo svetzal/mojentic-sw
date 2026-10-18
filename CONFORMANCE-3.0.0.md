@@ -5,7 +5,9 @@ is retained. The owner has resolved Anthropic initial-input classification.
 The final readiness assessment below supersedes earlier open-decision and
 external-counterpart requirements. Historical gate and CI results remain scoped
 to their recorded source; the API comparison against `v2.1.0` covered only the
-recovery baseline. Final landed-source CI remains a separate release condition.
+recovery baseline. Final landed-source CI remains a separate release condition. Run
+`39093466257` on `c64c0162bb9c276bc28535b7bccf3b06af118a58` passed every job,
+including macOS (see the macOS first-token correction at the end).
 
 The governing authorization is
 [`mojentic-unify/RELEASE-3.0.0.md`](https://github.com/svetzal/mojentic-unify/blob/main/RELEASE-3.0.0.md),
@@ -1182,3 +1184,116 @@ coordinator's all-six-port readiness/approval condition. No refs, versions,
 tags or publication state were modified. No released registry artifact or
 dependent adoption is claimed. Foundry owns finalization; proof logs and scratch
 are execution evidence and must not be included in the landed source change.
+
+## macOS first-token failure-after-content correction — October 17, 2026
+
+GitHub Actions run `39089582455` on `01a4c81812d3f54007545ac6d840ddff46f8f310`
+failed only its macOS job (`117563259672`): 437 tests in 126 suites, 12 issues,
+all in `FirstTokenRouteTests.failuresBeforeAndAfterContent` with
+`recovery → false` on every route. `first_token_kind` and
+`time_to_first_token_ms` were absent. Linux Swift 6.4, Linux Swift 6.1
+minimum, format and lint passed. Command:
+`gh api repos/svetzal/mojentic-sw/actions/jobs/117563259672/logs`; complete log
+SHA-256 `b4be0d74155c24e8254911343444d1ae25581d2278332066d068d65d28480ea4`.
+
+### Cause
+
+This was a test-fixture ordering defect, not a first-token timer defect. The
+case uses a truncated reply. `RecoveryLoopback` holds the close until the
+client reports delivered bytes, but only a recovery policy installs that
+delivery report. A legacy stream has none, so the fixture closed the
+connection as soon as it wrote the partial body. Apple URLSession can discard
+a partial body that arrives with EOF (a documented limit in
+[RECOVERY-CONFORMANCE.md](RECOVERY-CONFORMANCE.md)). The token then never
+reached the client, so no first-token evidence could exist. A real server
+that drops a stream mid-body does so after the client has its tokens; the
+fixture did not preserve that order.
+
+The fix holds the content-bearing truncated reply open until the caller has
+received the content, then closes it. `firstTokenOutcome` reports content to
+the test on every legacy and recovery path it drives. Assertions are
+unchanged. Landed as `c64c0162bb9c276bc28535b7bccf3b06af118a58`; library
+sources are unchanged.
+
+### Evidence (macOS 27.2, Swift 6.4)
+
+SHA-256 values cover stdout followed by stderr.
+
+| Command | Tested source | Result | Log SHA-256 |
+| --- | --- | --- | --- |
+| `swift test --skip-build --filter "FirstTokenRouteTests/failuresBeforeAndAfterContent"` | `01a4c81` | Exit 1; 1 test, 4 issues (oMLX and OpenAI tool routes, `recovery → false`) | `1bb6d34d08f4a007553d8d43976406cad36ccffa09f34607df468284747aa98f` |
+| The same filter with temporary stderr tracing in `HTTPClient` and `StreamMeasurement` (not committed) and `RECOVERY_TRACE_DIRECTORY` set | `01a4c81` plus tracing | Exit 1; 4 issues. Each legacy call without a partial line: server wrote the 74–107-byte body and closed 0.00–0.01 ms later; client threw `NSURLErrorDomain -1005` with no line. Recovery calls closed 0.5–0.9 s later, after their delivery report. | `916a9723acff80d0ccff20856931c8a41e702792bba4a09ab06b4b2cd0e3f1da` |
+| The same filter, 20 sequential runs | `c64c016` | 20 of 20 runs passed; 0 issues | `ff3eba46ed0750397d182ab53abdb6d9b0928181d65be446ea4a4951fb6e19d7` |
+
+A standalone probe (source SHA-256
+`d4241c91f520ae5e2a0ebfc19c7802232f987720bdd9ab3f7d63a8caebee7ea1`, compiled
+with `swiftc` and run once) sends headers advertising 20 more bytes than it
+writes, writes the partial body and closes at once, 1,000 sequential requests.
+Delegate delivery lost the body in 1 of 500 requests;
+`URLSession.AsyncBytes` lost it in 7 of 250 (bytes) and 4 of 250 (lines).
+Log SHA-256 `fe62d71f5a429afbf604abcb5d4e755d9ec264563f11846156e9930e24b43bfc`.
+
+### Local gates on the landed source
+
+Tested source: the working tree committed unchanged as `c64c016`. Each command
+is a gate from `.hone-gates.json`.
+
+| Command | Result | Log SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0; no format diagnostics | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0; 239 files, 0 violations | `77e9c4924d70e6910876c04aae00c1f0dba3cbc897fe2b817f10876634465141` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0; release build | `2f1de69c287e52431d66ad729edeb5fc3cf4bbacf854b2bcb2bfc72e2f7feaa7` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 1; 437 tests, 126 suites, 2 issues (the pre-existing timing tests below) | `b5f19915a59d29d3e5225acd2f43c71e3c1e71ffb560409608b68fe97a37a359` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 456 tests, 132 suites, 0 issues | `f730b1f2f7cc1b1f7a2ccf7c2428f5fae0c59a31449a7ea1e8fcbce1a3309b7e` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0; Mojentic DocC | `64416fe2091930ba43fc80b9cbb4543046b7c2b29f5d5b27b3d0c679706599af` |
+
+The `test` gate failed on this Mac because of the pre-existing timing failure
+below, which the correction neither causes nor changes. Offered landing the
+correction with that failure documented (and the Apple legacy transport
+redesign deferred) or the redesign first, Stacey said to proceed with the fix.
+
+### Known pre-existing macOS timing failure
+
+`FirstTokenLifecycleTests.firstArgumentFragmentPrecedesTerminalAssembly` and
+`FirstTokenCancellationTests.argumentFragmentSurvivesFailureBeforeToolAssembly`
+with `recovery → false` fail intermittently in full default-traits parallel runs
+on a 16-core Mac. They expect at least 150 ms between first-token and request
+duration; observed values were 90–131 ms. The recovery cases never failed.
+They also fail on `01a4c81` without this correction:
+
+| Command | Tested source | Result | Log SHA-256 |
+| --- | --- | --- | --- |
+| `swift test --parallel --skip-build` | `01a4c81` | Exit 1; 437 tests, 126 suites, 14 issues (12 in `failuresBeforeAndAfterContent`, both timing tests once) | `771705916b5d7f656ec5aa4e0a2d606a144a36e814598f16ecbe9885ba442e7d` |
+| `swift test --parallel --skip-build` | `01a4c81` | Exit 1; 437 tests, 126 suites, 12 issues (all in `failuresBeforeAndAfterContent`) | `7c774e37e94403cc6462062afa8eefbc227d8f601984b10b400ceba3e62eb810` |
+| `./scripts/with-gate-environment swift test --parallel` (first gate run) | `c64c016` | Exit 1; 437 tests, 126 suites, 2 issues (both timing tests) | `f52d1c8a70df516a18866a91f88b4ebe45a6e79c42deceb2f9cb3177ec9465b1` |
+
+Cause: on Apple platforms the timed legacy `HTTPClient.streamLines` reads
+`URLSession.AsyncBytes.lines` in a cooperative-pool task. It observes the first
+token when that task runs, not when the bytes arrive; under full-suite load
+that is 70–100 ms late. Recovery streams and Linux legacy streams observe in
+URLSession delegate callbacks at byte receipt. Skipping the only test that
+blocks a pool thread (`delayedCaptureIsOutsideFirstDispatch`) did not remove
+the failures. `URLSession.data(for:delegate:)` cannot replace `AsyncBytes` on
+Apple platforms: it delivers no `didReceive data` callbacks to a task delegate
+there. A `dataTask` with a task delegate delivers bytes progressively but
+changes where HTTP errors surface and may be affected by content sniffing.
+That transport redesign is deferred until after the release.
+
+### GitHub Actions on the landed source
+
+Run `39093466257`, tested commit `c64c0162bb9c276bc28535b7bccf3b06af118a58`,
+conclusion success. Each job log was fetched with
+`gh api repos/svetzal/mojentic-sw/actions/jobs/<job ID>/logs`; the SHA-256
+covers the complete downloaded log.
+
+| Job (job ID) | Result | Log SHA-256 |
+| --- | --- | --- |
+| macOS, Swift 6.4 (`117574902642`) | Success. `kern.num_taskthreads: 2048`. Test: 437 tests, 126 suites. Test (all provider traits): 456 tests, 132 suites. | `e5b4fc0a5a9028901ec043660683e2681d056f881c3f192e1d856ac28436e121` |
+| Linux, Swift 6.4.1 (`117574902660`) | Success. 437 tests, 126 suites; 456 tests, 132 suites; DocC. | `4e9f101cea0e9a9f29c57850ba93358ab4ae88b5016b0479f2d5f47fa9aba993` |
+| Linux minimum, Swift 6.1.3 (`117574902636`) | Success. 456 tests (all provider traits). | `5742b4bed1bb7c79e1d6e2e9631796472a55823658fd8d29df6dd0902d2a9042` |
+| swift-format on Linux (`117574902506`) | Success. | `127b22b461ac26d38676c4b5d935571d68bed0a4bdced5abf00f5556642e6fa7` |
+| SwiftLint 0.65.1 (`117574902654`) | Success. 239 files, 0 violations. | `3803363648f29a18da3b18b2f01fcec48a621c7f301a67766539c9c1f150e6a5` |
+
+The two timing tests passed on both CI platforms in this run. Their local
+failure above remains a known Apple-platform limit until the transport
+redesign.
