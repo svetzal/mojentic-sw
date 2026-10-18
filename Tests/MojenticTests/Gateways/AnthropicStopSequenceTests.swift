@@ -51,7 +51,7 @@ import Testing
                     case .metrics(let value):
                         evidence = value
                         order.append("metrics")
-                    case .done(let reason, let usage):
+                    case .done(let reason, let usage, _):
                         #expect(reason == .stop)
                         #expect(usage == evidence?.usage)
                         order.append("done")
@@ -143,7 +143,7 @@ import Testing
                 ) {
                     switch event {
                     case .textDelta(let text): content += text
-                    case .done(let reason, _): finishes.append(reason)
+                    case .done(let reason, _, _): finishes.append(reason)
                     default: Issue.record("Unexpected legacy event")
                     }
                 }

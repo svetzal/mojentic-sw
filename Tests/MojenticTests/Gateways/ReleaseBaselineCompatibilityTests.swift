@@ -6,6 +6,7 @@ import Testing
 struct ReleaseBaselineCompatibilityTests {
     private func legacyError(_ error: MojenticError) -> String {
         switch error {
+        case .streamFailure: "timed"
         case .http, .transport, .decoding, .schema, .toolNotFound, .toolExecution: "legacy"
         case .toolDepthExceeded, .recursionDepthExceeded, .structuredDecoding, .cancelled: "legacy"
         case .invalidArgument, .incompleteCompletion, .incompleteStream, .unexpectedToolCalls: "legacy"
@@ -76,7 +77,15 @@ struct ReleaseBaselineCompatibilityTests {
                 }
                 Issue.record("Expected original HTTP failure")
             } catch let error as MojenticError {
-                guard case .http(let status, let body) = error else {
+                let failure: StreamFailure
+                guard case .streamFailure(let evidence) = error else {
+                    Issue.record("Expected timed HTTP failure")
+                    return
+                }
+                failure = evidence
+                #expect(failure.evidence.metadata?["request_duration_ms"] != nil)
+                #expect(failure.evidence.metadata?["first_token_kind"] == nil)
+                guard case .http(let status, let body) = failure.cause as? MojenticError else {
                     Issue.record("Expected original HTTP error")
                     return
                 }
@@ -93,7 +102,9 @@ struct ReleaseBaselineCompatibilityTests {
             var seen = 0
             for await event in stream {
                 seen += 1
-                guard case .error(.providerError(let status, let detail)) = event else {
+                guard case .error(.streamFailure(let failure)) = event,
+                    case .providerError(let status, let detail) = failure.cause as? MojenticError
+                else {
                     Issue.record("Expected original provider failure: \(legacyCompletion(event))")
                     continue
                 }

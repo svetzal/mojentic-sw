@@ -244,7 +244,7 @@ func assertTerminalProviderEvidence(_ terminal: CompletionEvidence, reported: Co
     #expect(terminal.finishReason == reported.finishReason)
     #expect(terminal.usage == reported.usage)
     #expect(terminal.providerModel == reported.providerModel)
-    #expect(terminal.metadata == reported.metadata)
+    #expect(providerEvidence(terminal).metadata == reported.metadata)
     #expect(terminal.identity == nil)
     #expect(terminal.frameIndex == nil)
 }

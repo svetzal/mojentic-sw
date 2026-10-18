@@ -373,3 +373,12 @@ Observed progress includes rejected terminal content. Delivered progress counts
 only content actually surfaced before the failure; it can differ from observed
 progress. A length failure never delivers successful completion, resends the
 request or executes tools. A failing session stream restores its prior history.
+
+## Client timing
+
+Terminal completion evidence and typed recovery failures also expose client
+first-token and request-duration measurements. ``CompletionRecoveryReport/evidence``
+retains these measurements when cancellation ends iteration before terminal
+delivery. Legacy failures are retained inside `MojenticError.streamFailure`.
+See <doc:FirstTokenTiming> for units, frame precedence, retry origins, tool
+continuations, and the outstanding Anthropic initial-input contract question.

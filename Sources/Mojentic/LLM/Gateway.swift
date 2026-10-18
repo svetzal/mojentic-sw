@@ -14,9 +14,11 @@ public enum GatewayStreamEvent: Sendable {
     /// One fully-assembled tool-call request the model wants to invoke.
     case toolCallRequest(LLMToolCall)
 
-    /// The provider declared the stream complete. May carry finish reason
-    /// and usage when reported.
-    case done(finishReason: FinishReason?, usage: Usage?)
+    /// Terminal success with provider finish reason, usage and completion evidence.
+    ///
+    /// Built-in gateways include client timing in `evidence.metadata`; custom
+    /// gateways can leave evidence absent. Each tool continuation has its own evidence.
+    case done(finishReason: FinishReason?, usage: Usage?, evidence: CompletionEvidence? = nil)
 }
 
 /// Abstraction over an LLM provider.

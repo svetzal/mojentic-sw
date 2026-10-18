@@ -188,6 +188,9 @@ public struct RecoveryEvidence: Sendable, CustomStringConvertible, CustomDebugSt
 
 /// A terminal report retains every completed failure within the attempt limit.
 public struct RecoveryError: Error, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    /// Terminal provider evidence and client timing for a streaming completion.
+    public internal(set) var evidence: CompletionEvidence?
+
     /// Correlation identity exists even when cancellation precedes dispatch.
     public let logicalID: UUID
     /// Terminal decision for this logical completion.
@@ -378,6 +381,11 @@ public struct CompletionRecoveryCapabilities: Sendable {
 
 /// Final safe counters and explicitly inspectable failed attempts for one call.
 public struct CompletionRecoveryReport: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    /// Terminal streaming evidence, also available when cancellation ends iteration.
+    ///
+    /// Absent for buffered calls; provider fields require explicit inspection.
+    public internal(set) var evidence: CompletionEvidence?
+
     /// Correlation identity exists even when cancellation precedes dispatch.
     public let logicalID: UUID
     /// Actual wire identity, absent when dispatch did not occur.

@@ -19,12 +19,16 @@ enum SeenEvent: Equatable {
     init(_ event: CompletionStreamEvent) {
         switch event {
         case .content(let text): self = .content(text)
-        case .completed(let evidence): self = .completed(evidence)
+        case .completed(let evidence): self = .completed(providerEvidence(evidence))
         case .error(let error): self = SeenEvent(error)
         }
     }
 
     private init(_ error: MojenticError) {
+        if case .streamFailure(let failure) = error, let original = failure.cause as? MojenticError {
+            self = SeenEvent(original)
+            return
+        }
         switch error {
         case .incompleteCompletion(let evidence): self = .incompleteCompletion(evidence)
         case .incompleteStream(let evidence): self = .incompleteStream(evidence)
@@ -61,4 +65,20 @@ func parse(_ lines: [String], with initial: some CompletionEventParser) -> [Seen
         }
     }
     return seen
+}
+
+/// Preserve provider-only baseline assertions while timing has its own HTTP contract suite.
+func providerEvidence(_ value: CompletionEvidence) -> CompletionEvidence {
+    var metadata = value.metadata ?? [:]
+    for key in ["request_duration_ms", "time_to_first_token_ms", "first_token_kind"] {
+        metadata.removeValue(forKey: key)
+    }
+    var result = CompletionEvidence(
+        finishReason: value.finishReason,
+        usage: value.usage,
+        providerModel: value.providerModel,
+        metadata: metadata.isEmpty ? nil : metadata)
+    result.identity = value.identity
+    result.frameIndex = value.frameIndex
+    return result
 }

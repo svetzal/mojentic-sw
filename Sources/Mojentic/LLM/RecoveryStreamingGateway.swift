@@ -46,7 +46,8 @@ enum RecoveryStreamBridge {
         case .textDelta(let text): .textDelta(text)
         case .thinkingDelta(let text): .thinkingDelta(text)
         case .toolCallRequest(let call): .toolCallRequest(call)
-        case .done(let reason, let usage): .done(finishReason: reason, usage: usage)
+        case .done(let reason, let usage, let evidence):
+            .done(finishReason: reason, usage: usage, evidence: evidence)
         }
     }
 

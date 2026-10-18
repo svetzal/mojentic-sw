@@ -15,20 +15,15 @@ extension LLMBroker {
             throw MojenticError.toolDepthExceeded(limit: config.maxToolIterations ?? remaining)
         }
         try Task.checkCancellation()
-        let callPayload = LLMCallPayload(
-            correlationId: context.correlationId,
-            parentId: context.parentId,
-            model: model,
-            messages: messages,
-            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name),
-        )
-        await tracer.recordLLMCall(callPayload)
+        let callPayload = await recordStreamCall(
+            model: model, messages: messages, tools: tools, context: context)
         var accumulatedContent = ""
         var accumulatedThinking = ""
         var accumulatedCalls: [LLMToolCall] = []
         var completed = false
         var finishReason: FinishReason?
         var usage: Usage?
+        var metadata: [String: JSONValue]?
 
         let clock = ContinuousClock()
         let start = clock.now
@@ -44,14 +39,17 @@ extension LLMBroker {
             case .textDelta(let delta):
                 accumulatedContent += delta
                 try await deliver(.textDelta(delta))
-            case .progress, .metrics: break
+            case .progress: break
+            case .metrics: break
             case .thinkingDelta(let delta):
                 accumulatedThinking += delta
                 try await deliver(.thinkingDelta(delta))
             case .toolCallRequest(let call):
                 accumulatedCalls.append(call)
                 try await deliver(.toolCallRequested(call))
-            case .done(let reason, let reportedUsage):
+            case .done(let reason, let reportedUsage, let evidence):
+                metadata = evidence?.metadata
+                if let evidence { try await deliver(.metrics(evidence)) }
                 completed = true
                 finishReason = reason
                 usage = reportedUsage
@@ -75,7 +73,8 @@ extension LLMBroker {
                 toolCalls: accumulatedCalls,
                 thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
                 finishReason: finishReason,
-                usage: usage
+                usage: usage,
+                metadata: metadata
             )
         )
 
@@ -111,10 +110,24 @@ extension LLMBroker {
             thinking: accumulatedThinking.isEmpty ? nil : accumulatedThinking,
             finishReason: finishReason,
             usage: usage,
+            metadata: metadata,
             retained: config.retainThinking ? retained : nil
         )
         try Task.checkCancellation()
         try await deliver(.done(response))
+    }
+
+    private func recordStreamCall(
+        model: String, messages: [LLMMessage], tools: [any LLMTool], context: TracerContext
+    ) async -> LLMCallPayload {
+        let payload = LLMCallPayload(
+            correlationId: context.correlationId,
+            parentId: context.parentId,
+            model: model,
+            messages: messages,
+            tools: tools.isEmpty ? nil : tools.map(\.descriptor.name))
+        await tracer.recordLLMCall(payload)
+        return payload
     }
 
     private func recordStreamResponse(
@@ -167,6 +180,7 @@ extension LLMBroker {
         thinking: String?,
         finishReason: FinishReason?,
         usage: Usage?,
+        metadata: [String: JSONValue]?,
         retained: [LLMMessage]?
     ) -> LLMResponse {
         LLMResponse(
@@ -174,6 +188,7 @@ extension LLMBroker {
             thinking: thinking,
             finishReason: finishReason,
             usage: usage,
+            metadata: metadata,
             retainedMessages: retained.map {
                 $0 + [
                     .assistant(

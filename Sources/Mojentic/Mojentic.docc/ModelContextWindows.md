@@ -46,4 +46,4 @@ Applications can inspect Ollama `/api/ps` after a completion for the loaded size
 
 Discovery does not cache a limit into later requests or alter list ordering.
 Context budgets and application reactions remain caller policy. Client first-token
-timing remains pending. Caller-only parameters are described in <doc:RequestFidelity>.
+timing is described in <doc:FirstTokenTiming>. Caller-only parameters are described in <doc:RequestFidelity>.

@@ -31,7 +31,7 @@ struct TerminalRecoveryToolTests {
                     $0 += 1
                     return $0
                 }
-                if count == (useSession ? 8 : 4) {
+                if count == (useSession ? 12 : 6) {
                     terminalReady.continuation.yield(())
                 }
             }
@@ -42,9 +42,9 @@ struct TerminalRecoveryToolTests {
                     let stream = toolStream(broker, session, tools: tools, useSession: useSession)
                     let consumer = TerminalRecoveryConsumer(stream)
                     let seen = try await [
-                        consumer.next(), consumer.next(), consumer.next(),
+                        consumer.next(), consumer.next(), consumer.next(), consumer.next(), consumer.next(),
                     ]
-                    #expect(seen == ["tool", "tool-result", "content:é"])
+                    #expect(seen == ["tool", "metrics", "tool-result", "content:é", "metrics"])
                     var terminal = terminalReady.stream.makeAsyncIterator()
                     _ = await terminal.next()
                     ready.continuation.yield(())

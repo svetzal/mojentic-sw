@@ -105,7 +105,7 @@ struct TerminalRecoveryDeliveryTests {
         if expected.contains("metrics") {
             #expect(telemetry.last?.usage?.promptTokens == 3)
             #expect(telemetry.last?.usage?.completionTokens == 12)
-            if boundary.anthropic {
+            if boundary.anthropic, path == "gateway" || boundary.single {
                 #expect(telemetry.first?.usage?.completionTokens == 0)
             }
         } else {

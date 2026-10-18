@@ -1,9 +1,10 @@
 import Foundation
 
-/// The provider's own evidence about how a single-turn stream ended.
+/// Provider evidence and client measurements for a single streaming completion.
 ///
-/// Provider fields are exactly what the provider reported, or `nil` when it
-/// reported nothing. The library never estimates any of them.
+/// Provider fields are exactly what the provider reported, or `nil` when absent.
+/// Metadata also carries monotonic client timing in milliseconds, with names
+/// distinct from the provider's own metrics.
 public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, CustomDebugStringConvertible {
     /// Full local wire identity for recovery metrics, absent for legacy evidence.
     public var identity: RecoveryIdentity?
@@ -31,7 +32,11 @@ public struct CompletionEvidence: Sendable, Hashable, CustomStringConvertible, C
     /// Model name the provider reported serving the request.
     public let providerModel: String?
 
-    /// Provider response metadata as reported (ids, timestamps, durations).
+    /// Provider metadata plus client streaming timing.
+    ///
+    /// `request_duration_ms` measures first dispatch to terminal success or failure.
+    /// `time_to_first_token_ms` and `first_token_kind` are absent without tokens;
+    /// kinds are `thinking`, `content`, and `tool_call` in frame precedence order.
     public let metadata: [String: JSONValue]?
 
     /// Create completion evidence.
@@ -63,8 +68,9 @@ public enum CompletionStreamEvent: Sendable {
     /// Terminal success: the provider proved the turn finished normally.
     case completed(CompletionEvidence)
 
-    /// Terminal failure. ``MojenticError/incompleteCompletion(_:)`` carries
-    /// the provider's evidence; other cases describe what went wrong.
+    /// Terminal failure with timing and the original cause in ``MojenticError/streamFailure(_:)``.
+    ///
+    /// Validation errors before dispatch retain their original case.
     case error(MojenticError)
 
     /// Whether this event ends the stream.
@@ -134,20 +140,21 @@ enum CompletionEventStreaming {
         continuation: AsyncStream<CompletionStreamEvent>.Continuation,
     ) async -> CompletionStreamEvent {
         var parser = initial
+        let timing = StreamMeasurement()
         do {
-            let lines = try await transport.streamLines(url: url, body: body, headers: headers)
+            let lines = try await transport.streamLines(
+                url: url, body: body, headers: headers, timing: timing)
             for try await line in lines {
                 try Task.checkCancellation()
                 for event in parser.consume(line: line) {
-                    if event.isTerminal {
-                        return event
-                    }
+                    if case .completed(let evidence) = event { return .completed(timing.evidence(evidence)) }
+                    if case .error(let error) = event { return .error(timing.error(error)) }
                     continuation.yield(event)
                 }
             }
             try Task.checkCancellation()
-            return .error(.incompleteStream(parser.partialEvidence))
-        } catch { return .error(Task.isCancelled ? .cancelled : requestError(error)) }
+            return .error(timing.error(.incompleteStream(parser.partialEvidence)))
+        } catch { return .error(timing.error(Task.isCancelled ? .cancelled : requestError(error))) }
     }
 
     /// Map a transport failure onto the single-turn event error vocabulary.

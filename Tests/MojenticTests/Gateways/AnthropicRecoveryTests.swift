@@ -90,7 +90,7 @@ import Testing
                                     )
                             )
                             seen.withLock { $0.append("tool") }
-                        case .done(let finish, let usage):
+                        case .done(let finish, let usage, _):
                             #expect(finish == .toolCalls)
                             #expect(usage == Usage(promptTokens: 3, completionTokens: 12, totalTokens: 15))
                             seen.withLock { $0.append("completed") }

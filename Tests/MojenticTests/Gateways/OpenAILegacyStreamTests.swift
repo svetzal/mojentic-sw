@@ -14,7 +14,7 @@ enum SeenGatewayEvent: Equatable {
         case .textDelta(let text): self = .text(text)
         case .thinkingDelta(let text): self = .thinking(text)
         case .toolCallRequest(let call): self = .toolCall(call)
-        case .done(let reason, let usage): self = .done(reason, usage)
+        case .done(let reason, let usage, _): self = .done(reason, usage)
         }
     }
 }

@@ -45,6 +45,7 @@ See <doc:BuildingChatbots> for the multi-turn `ChatSession` form and
 - <doc:BuildingAgents>
 - <doc:ImageAnalysis>
 - <doc:StreamingAndEvidence>
+- <doc:FirstTokenTiming>
 - <doc:LocalModelsWithOMLX>
 - <doc:ModelContextWindows>
 - <doc:RequestFidelity>
@@ -81,6 +82,7 @@ for building your own.
 - ``StreamEvent``
 - ``CompletionStreamEvent``
 - ``CompletionEvidence``
+- ``StreamFailure``
 - ``GatewayStreamEvent``
 - ``TokenizerGateway``
 - ``ApproximateTokenizerGateway``

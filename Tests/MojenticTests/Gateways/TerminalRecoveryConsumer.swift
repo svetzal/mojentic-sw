@@ -51,9 +51,13 @@ final class TerminalRecoveryConsumer: @unchecked Sendable {
     init(_ stream: AsyncThrowingStream<StreamEvent, any Error>) {
         retained = stream
         var iterator = stream.makeAsyncIterator()
+        let metrics = metrics
         read = {
             guard let event = try await iterator.next() else { return nil }
             switch event {
+            case .metrics(let value):
+                metrics.withLock { $0.append(value) }
+                return "metrics"
             case .textDelta(let value): return "content:\(value)"
             case .thinkingDelta(let value): return "reasoning:\(value)"
             case .done: return "terminal"
@@ -85,7 +89,7 @@ extension StreamingBoundary {
             semantic = omlx ? ["reasoning:ré", "content:é"] : ["content:é", "reasoning:ré"]
         }
         if path != "gateway", !single {
-            return semantic
+            return semantic + ["metrics"]
         }
         if anthropic {
             return ["metrics"] + semantic + ["metrics"]

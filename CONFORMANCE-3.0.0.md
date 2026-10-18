@@ -4,9 +4,10 @@ Status: the part 1 recovery baseline passes all six local gates on macOS and
 every GitHub Actions job (macOS, Linux Swift 6.4, Linux Swift 6.1 minimum) at
 `db0354d61d334cb943e5ef8cb8a78d5951131ab4`. The API comparison against
 `v2.1.0` reported no breaking changes for that recovery baseline. Part 2 is
-implemented locally below. Part 3 discovery and request fidelity are implemented;
-first-token timing remains pending. The owner's library self-validation rule below
-supersedes the older external-verification requirements in historical records.
+implemented locally below. Part 3 discovery, request fidelity, and client
+first-token timing have local implementations; Anthropic initial tool-input
+classification remains a coordinator question in the final timing record.
+The owner's library self-validation rule below supersedes the older external-verification requirements in historical records.
 This is not release readiness; the historical API result does not cover part 2.
 
 The governing authorization is
@@ -881,3 +882,166 @@ nonempty logs. No marker toggle substitutes for the HTTP behavior.
 
 The final worktree is uncommitted for Foundry. No refs, versions, dependencies,
 publication state or first-token timing implementation were changed.
+
+## Part 3 section 2: client first-token timing correction — October 17–18, 2026
+
+Status: defined timing cases are implemented and locally verified. **Full section-2
+conformance is held for a coordinator decision on Anthropic initial tool input.**
+This section supersedes earlier current-status statements that first-token timing
+is wholly pending; historical runs above retain their original scope. Publication
+remains on hold. Changes remain uncommitted for Foundry. No dependencies, tools
+minimum, versions, tags, project refs or publication state were changed, and no
+sibling repository was edited.
+
+The starting Swift commit is `63cf0645930dadd7731a240f8a1029e8d51f1007`.
+The initiative brief matched the required SHA-256
+`ea6a0efa56bfb3cd74b5ce728f80cc33c6fbd853114bec94b8aabe79f5d28e6e`.
+The inspected and rechecked governing `MODEL-METADATA-2026-10.md`, including its
+October 17 decisions, has SHA-256
+`d9945dca45ce09e2163843263a75b5e93028b00ee1baf191fc3ff13396830e9c`.
+
+### Contract and source identity
+
+The local executable set is **`swift-stream-first-token-v1`**, comprising the
+`FirstToken*Tests.swift` public-API HTTP cases and
+`scripts/verify-packaged-stream-timing`. The static fixture catalog reuses
+`ex-stream-first-token-v1` at `mojentic-ex@f42c5c8d7e9fa9070fe7d86d6d4874dff07ff3b4`,
+SHA-256 `fddd71c8e0062c489588b2e15df749e934cf9d9412d05b4ee08eb52673425a6c`.
+The binding **`ts-stream-first-token-v1`** reference was inspected at
+`mojentic-ts@b8db5d59c02297e39335ba1deed83fa04e1b8f11`, source SHA-256
+`e94d4f53928b3ea519eceedcb0f7e7a41ae2eb5da52076369d92374108b3d2a8`.
+Provenance is retained in
+`Tests/MojenticTests/Fixtures/Contracts/stream_first_token_v1.provenance.md`;
+the adjacent manifest checks the catalog bytes. Named content/thinking responses
+in the packaged consumer derive from that same catalog.
+
+Swift self-validates the distributed library using its public API and a fresh
+source-package consumer. This does not require an unreleased dependent adoption,
+another port's executable runner, or vendor live-service certification. The
+loopback peer supplies declared provider responses, and tests verify actual Swift
+HTTP requests, semantic events, typed errors and measurements. Contract tests run
+inside both required Swift test gates. The artifact consumer imports `Mojentic`
+without `@testable` and builds in a new temporary SwiftPM package from an extracted
+source archive, with fresh build products and dependency resolution.
+
+### Public streaming-route characterization
+
+| Public route | Supported providers | Terminal evidence and behavior |
+| --- | --- | --- |
+| `LLMGateway.stream` | Ollama, OpenAI, oMLX, Anthropic trait | `done(..., evidence:)`; failures are `MojenticError.streamFailure`, retaining the original cause and evidence. Legacy finish conventions stay intact; timing does not strengthen their completion proof. |
+| `completeStreamEvents` | Ollama, OpenAI, oMLX | `completed(evidence)` or a timed `error`; existing strict stop/marker/no-tool rules remain. Anthropic/custom unsupported defaults send no request. |
+| `streamRecovering` with a policy | All four providers | `done(..., evidence:)` or typed `RecoveryError.evidence`; admission, progress, identity, attempt history and cancellation ownership remain intact. |
+| `completeStreamEventsRecovering` with a policy | All four providers | `completed(evidence)`, `recoveryFailure(error)` with evidence, or original setup errors before dispatch. |
+| Recovery entrypoints without a policy | Legacy-supported routes above | Existing bridges retain the same evidence and one-send behavior. Anthropic single-turn remains unsupported without a policy. |
+| Broker `generateStreamEvents` / `generateRecoveryStreamEvents` | Respective single-turn gateway routes | Terminal evidence passes through to callers and response tracing; no tool recursion. |
+| Broker `stream` and `ChatSession.stream` | Respective tool-capable gateway routes | `metrics(evidence)` for each accepted provider turn; final `done(LLMResponse)` exposes final-turn metadata. Each tool-result continuation starts a fresh measurement; failure retains that continuation's evidence. |
+| Recovery report observer | Policy-enabled gateway/broker/session routes | `CompletionRecoveryReport.evidence` retains terminal timing even when cancellation ends an `AsyncStream` iterator before terminal delivery. No terminal delivery is promised to an iterator that has stopped. |
+
+`HTTPClient.streamLines` alone is a raw transport utility, and realtime audio
+sessions are outside this completion contract. Custom gateways may omit the new
+optional `done` evidence. Old event constructors still compile with that default;
+exhaustive patterns/switches must account for the documented major-version API
+additions. Older Codable responses decode without metadata.
+
+### Named executable assertions
+
+| Contract decision / acceptance case | Actual boundary assertions |
+| --- | --- |
+| Monotonic origin at dispatch, excluding delayed capture | `FirstTokenLifecycleTests.delayedCaptureIsOutsideFirstDispatch`: real HTTP for every recovery boundary; a 200 ms pre-send capture delay stays outside duration, with wall time minus duration at least 180 ms. Native legacy SDK dispatch follows serialization and cancellation checks. |
+| Content, thinking and absent-token cases on supported legacy/recovery routes | `FirstTokenRouteTests.contentThinkingEmptyAndProviderMetrics`, `FirstTokenAnthropicTests.nativeLegacyAndRecoveryKinds`: exact kind, visible content, success terminal, provider usage, duration at least first-token time, and absent first-token fields for empty output. |
+| Same-frame precedence and irrelevant/empty fields | `FirstTokenRouteTests.executableContractThroughHTTP`: named catalog cases include thinking/content/tool precedence, content/tool precedence, empty content, tool name only, empty arguments, and legacy function-call arguments. Each asserts the exact kind or absence and the declared completed/error outcome. |
+| Tool arguments on every established wire shape and terminal route | `FirstTokenToolRouteTests.argumentsCountAcrossToolCapableAndRejectingSingleTurnRoutes` covers Ollama/OpenAI/oMLX with and without recovery, both tools and strict single-turn APIs. It asserts `tool_call` timing, exact done/error/interrupted outcomes, original `unexpectedToolCalls` causes on rejection, and exact normalized tool name/arguments/available ID on success. Anthropic initial input objects remain the coordinator gap below. |
+| Partial arguments before assembly and before failure | `FirstTokenLifecycleTests.firstArgumentFragmentPrecedesTerminalAssembly`, `FirstTokenCancellationTests.argumentFragmentSurvivesFailureBeforeToolAssembly`: held HTTP suffix/close, `tool_call` first, exact `done` versus `interrupted`/throw outcome, duration minus first-token time at least 150 ms. `FirstTokenAnthropicTests.firstPartialJSONCountsBeforeToolAssembly` covers native `input_json_delta` on both legacy and recovering tool-capable routes. |
+| Keepalives and empty frames are not tokens | `FirstTokenRouteTests.omlxKeepaliveNeverCounts`: a keepalive containing apparent content still yields no visible content or first-token fields, completes normally, and never becomes the provider model. Catalog empty/name-only cases verify absence on errors too. |
+| One clock through admitted retries | `FirstTokenRetryTests.allRecoveryRoutesKeepOneClockAcrossAdmittedRetry` and `FirstTokenHTTPTests.retryMixedFrameUsesFirstDispatchAndThinkingPrecedence`: actual HTTP 503 then success, exact thinking kind and visible content, first-token time includes the real 150/80 ms retry delay, and duration is at least first-token time. |
+| New clocks for completed and failed tool continuations | `FirstTokenLifecycleTests.brokerAndSessionToolContinuationsUseFreshClocks`, `failedToolContinuationHasFreshTimingAndNoReplay`: first turn `tool_call`, next turn `content`, exact success or typed `interrupted` outcome, one tool result, two real requests, no false final answer, and total elapsed minus both request durations at least 150 ms of tool time. Session success history and failed-history rollback remain asserted. |
+| Failure before/after content and HTTP rejection | `FirstTokenProviderErrorTests.providerErrorEndsObservationBeforeTrailingFrames` sends a real provider-error frame followed by stray content in the same HTTP body: exact provider cause/detail, exact error/interrupted/malformed terminal, retained earlier content when present, and absent first-token fields when no token preceded the provider terminal.  `FirstTokenRouteTests.failuresBeforeAndAfterContent`: exact `exhausted`/`interrupted` versus legacy error/throw terminals, exact partial content, kind or absence, and duration relationships. `FirstTokenBrokerTests.httpRejectionRetainsStatusAndNoFirstToken` asserts original HTTP/provider status 503, original body/detail/cause, bounded attempt history and no first-token fields. |
+| Cancellation with/without observed content | `FirstTokenCancellationTests.cancellationRetainsObservedTimingAndTypedRecovery`: actual scoped cancellation, exact typed `cancelled` outcome, observed kind or absence, terminal duration and one actual send. `cancellationReportRetainsTimingAfterIterationStops` verifies the cancellation failure category and retained report evidence across tool-capable and single-turn routes. |
+| Provider metrics and existing recovery evidence | `FirstTokenBrokerTests.providerDurationsKeepOriginalUnits` tests both policy states: oMLX provider seconds remain 0.25/1.5/2/3.5 while client keys use milliseconds. `OMLXStreamEventsTests.completes` retains captured 0.73/0.73/1.97/2.7 provider values. Existing provider-frame identity, index, order, progress, raw-body, history and reflection suites remain in the full gates; provider-only projections exclude only the three new client keys. |
+| Configured session and setup errors | `FirstTokenSessionTests.measuredStreamingPreservesConfiguredSessionAuthentication`: real HTTP 401 Basic challenge then success, the original session identity, actual Basic authorization, unchanged body bytes and content timing. `encodingFailureRetainsOriginalErrorBeforeDispatch`: invalid JSON number yields the original typed encoding transport error, no stream events and no HTTP dispatch. |
+| Broker public APIs and supported older records | `FirstTokenBrokerTests.brokerSingleTurnPreservesTimingAndProviderMetrics` checks exact thinking precedence, final content, completed terminal and usage through both broker APIs. `olderResponseRecordsDecodeWithoutTiming` and exhaustive baseline consumers verify absent older metadata and the new enum shapes. |
+| Independent concurrent completions | `FirstTokenLifecycleTests.concurrentCompletionsNeverShareOriginsOrKinds` checks concurrent held thinking and fast content completions with distinct elapsed relationships. The fresh packaged consumer additionally runs concurrent calls through the **same gateway**, asserting thinking versus content, slow first-token time at least 150 ms and at least 100 ms beyond fast duration. |
+
+### Outstanding coordinator decision
+
+Section 2 and the inspected reference do not define the translation of
+Anthropic `content_block_start` with `type: "tool_use", input: {}`. That object
+can be an initial placeholder before later `input_json_delta` fragments or the
+complete input of a zero-argument tool. Counting the initial object and waiting
+for an argument fragment yield different first-token timestamps and absence
+semantics. The fragment behavior above is verified; initial input-object
+classification is not asserted as conformance and must not be decided locally.
+The owner was asked which rule to coordinate. Until that answer is incorporated,
+this correction and whole-release readiness remain incomplete, irrespective of
+green local gates. No dependent repository verification is being requested.
+
+### Final working-source and artifact fingerprints
+
+All commands below tested the uncommitted source based on `63cf0645930dadd7731a240f8a1029e8d51f1007`,
+source/contract tree SHA-256 **`2418b995d133c3bf65da23a8cd65d94b06f7823d4e0e3ce5d52c7fba775fb1ef`** (326 files).
+The tree comprises tracked and nonignored new files under `Sources`, `Tests`,
+`Examples`, and `scripts`, plus `Package.swift`, `Package.resolved`, `.swift-format`,
+`.swiftlint.yml`, and `.hone-gates.json`. Root status/changelog/conformance prose
+is excluded to avoid a self-referential digest. Reproduce the fingerprint by
+sorting relative paths, then hashing each UTF-8 path plus NUL followed by the
+binary SHA-256 of that file, concatenated in path order. The tree was rechecked
+after the final gates and remained unchanged.
+
+The fresh consumer extracted and built source artifact SHA-256
+`5fb6d9413d8dd13209fb6e3561c36ce9628856863a51962c9e0d2095a8fa6686`. It passed six named public-API checks: single-turn timing and
+provider usage; throwing terminal evidence; typed throwing HTTP rejection with
+original status and duration; event failure duration with absent token fields;
+broker response metadata; and independent same-gateway concurrent thinking/content
+completions. This is a pre-publication source artifact, not a registry release.
+
+### Commands and final results
+
+Host: Linux x86-64, Swift 6.4, SwiftLint 0.65.1; package tools minimum remains 6.1.
+All six required commands are exactly those in `.hone-gates.json`. Transcript
+digests below hash stdout followed by stderr; complete logs are archived by Foundry.
+
+| Gate / executable command | Result | Transcript SHA-256 |
+| --- | --- | --- |
+| `./scripts/with-gate-environment swift format lint --strict --recursive Sources Tests` | Exit 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `./scripts/with-gate-environment swiftlint --strict` | Exit 0 | `02a3a472e115e7eeb95b64865d954780af6565c99359360d9e8666a5edb92a03` |
+| `./scripts/with-gate-environment swift build -c release` | Exit 0 | `55fc17c0d47496add55c42a22c3ca1785607524c820f0bb261fa299089f8e181` |
+| `./scripts/with-gate-environment swift test --parallel` | Exit 0; 437 tests, 126 suites | `81662ccfd50b9d2507d60c7ae71a3afa84ff153f1e5c635b3c46dc8cb29b4c7f` |
+| `./scripts/with-gate-environment swift test --traits full` | Exit 0; 455 tests, 132 suites | `20d07e1fbd3dd685df0ac4d72a7e91ec939bd963dd6b91a6d542e35254e3a95c` |
+| `./scripts/with-gate-environment swift package --disable-sandbox generate-documentation --target Mojentic --output-path .build/docs --warnings-as-errors` | Exit 0 | `6df08431acb1eb4c65073f2035b17086cde45a0f303465c95720e2b731ffb7be` |
+| `./scripts/with-gate-environment scripts/verify-packaged-stream-timing` | Exit 0; six named consumer checks | `8ee0958b644483a1646870ab3fb11fc1186f1b6620f5b441b273e445c4561c7c` |
+| `osv-scanner scan source --lockfile=Package.resolved` | Exit 0; three packages, no issues | `b0a3c78cc2a437fdee078734133a35e5bc15376e3478627e8bee96f196e5a25a` |
+
+### Behavioral rejection/correction evidence
+
+Before expanding the fixtures or documentation, the public production-HTTP
+probe `./scripts/with-gate-environment swift test --filter FirstTokenHTTPTests`
+rejected the starting implementation: terminal timing metadata was absent, exit 1.
+After wiring dispatch and receipt measurement, that same command passed, exit 0: 'thinking'
+won in the mixed frame and elapsed first-token time included the admitted retry
+delay from the first dispatch. The final full gates reran that named assertion.
+
+- Rejecting transcript SHA-256: `8af1437271cd114f7c96704080dd90b1a9361514dd514921f1bb9d2274b57398`; actual exit 1.
+- Corrected transcript SHA-256: `c68b59a1ebfcb7a8b7f2c7288fb17c7a2dfdb36d8707fc5c76f4b9f7b7b12ba0`; actual exit 0.
+
+Additional real-boundary red/green checks caught and corrected configured-session
+authentication loss and raw encoding-error replacement, and then verified that
+provider-terminal errors cannot acquire first-token fields from trailing frames.
+For the last case, `./scripts/with-gate-environment swift test --filter
+FirstTokenProviderErrorTests` rejected the missing terminal fence with exit 1;
+the final full-trait `FirstToken` run and both complete gates passed its exact
+provider-error/content/absence assertions after correction.
+
+Provider-terminal rejection transcript SHA-256: `50856fc463493ac3290d79eac5659137c8e72ca27bec3236e85a6517e533be19`.
+Corrected full-trait timing subset transcript SHA-256: `8b7fb67485f794d1721607668a62f6dfe26828014d147b40d21d3ca4b671a10f` (exit 0; 24 tests, 10 suites).
+
+### Available CI evidence and publication limits
+
+The starting commit `63cf0645930dadd7731a240f8a1029e8d51f1007` has successful
+[Validate, Test, and Publish run 39078182114](https://github.com/svetzal/mojentic-sw/actions/runs/39078182114)
+(macOS, Linux Swift 6.4, Linux Swift 6.1 minimum, lint and format) and successful
+[Supply Chain run 39078182172](https://github.com/svetzal/mojentic-sw/actions/runs/39078182172).
+Those are baseline CI evidence, not CI for this uncommitted tree. New CI must
+follow Foundry finalization. No Darwin recovery investigation was repeated.
+The initial Anthropic input decision above and whole-release readiness remain
+open; no tag, publication, released-registry install or dependent adoption is
+claimed. The publication hold remains.

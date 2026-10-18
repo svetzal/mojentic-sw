@@ -534,6 +534,21 @@ struct OMLXKeepAliveFilter: LineStreamingTransport {
         }
     }
 
+    func streamLines(
+        url: URL, body: some Encodable, headers: [String: String], timing: StreamMeasurement
+    ) async throws -> AsyncThrowingStream<String, any Error> {
+        let lines = try await base.streamLines(url: url, body: body, headers: headers, timing: timing)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await line in lines where !Self.isKeepAlive(line) { continuation.yield(line) }
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     /// Whether `line` is a `data:` line whose JSON `model` is exactly `keepalive`.
     static func isKeepAlive(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)

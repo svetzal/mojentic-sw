@@ -17,8 +17,11 @@ when release work is explicitly assigned.
 The authorized release includes native reasoning (part 2), following
 `REASONING-PROTOTYPE-2026-10.md` and the Rust reference, and model metadata
 and request fidelity (part 3), following `MODEL-METADATA-2026-10.md`.
-The current correction completes part 3 sections 3.2–3.6 request fidelity and
-section 1 raw-byte discovery invariance. First-token timing remains pending.
+Part 3 sections 3.2–3.6 request fidelity and section 1 raw-byte discovery
+invariance are implemented. The current correction implements section 2
+client-measured first-token timing, including the October 17 decisions.
+Anthropic initial tool-input classification awaits coordinator clarification;
+see the final timing record in `CONFORMANCE-3.0.0.md`.
 Preserve recovery, native reasoning outside the specified shape alignment,
 dependencies, swift-tools-version, versions,
 tags and publication state. Foundry owns Git finalization for its isolated task

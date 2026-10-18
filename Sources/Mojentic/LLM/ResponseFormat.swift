@@ -126,6 +126,9 @@ public struct LLMResponse: Sendable, Codable, Hashable {
     /// Token usage as reported by the provider for the final turn.
     public let usage: Usage?
 
+    /// Final completion provider metadata and client streaming timing.
+    public let metadata: [String: JSONValue]?
+
     /// Completed exchanges retained when native history is enabled.
     public let retainedMessages: [LLMMessage]
 
@@ -135,12 +138,14 @@ public struct LLMResponse: Sendable, Codable, Hashable {
         thinking: String? = nil,
         finishReason: FinishReason? = nil,
         usage: Usage? = nil,
+        metadata: [String: JSONValue]? = nil,
         retainedMessages: [LLMMessage] = [],
     ) {
         self.content = content
         self.thinking = thinking
         self.finishReason = finishReason
         self.usage = usage
+        self.metadata = metadata
         self.retainedMessages = retainedMessages
     }
 }
@@ -153,6 +158,7 @@ extension LLMResponse {
         thinking = try values.decodeIfPresent(String.self, forKey: .thinking)
         finishReason = try values.decodeIfPresent(FinishReason.self, forKey: .finishReason)
         usage = try values.decodeIfPresent(Usage.self, forKey: .usage)
+        metadata = try values.decodeIfPresent([String: JSONValue].self, forKey: .metadata)
         retainedMessages = try values.decodeIfPresent([LLMMessage].self, forKey: .retainedMessages) ?? []
     }
 }

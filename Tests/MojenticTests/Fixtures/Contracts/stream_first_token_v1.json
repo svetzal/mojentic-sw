@@ -1,0 +1,168 @@
+{
+  "version": "ex-stream-first-token-v1",
+  "reference": {
+    "versions": [
+      "ts-stream-first-token-v1",
+      "ts-stream-first-token-v2"
+    ],
+    "commit": "54171796a2b02c0f0170d0758d2e3c693ad027c9",
+    "sha256": "9b64e037af8ee375a6344b94f4f66992f867357a32b8db360042a8eff4f12eca",
+    "file": "test/contracts/reference/ts-stream-first-token-v2.test.ts",
+    "v1": {
+      "commit": "b8db5d59c02297e39335ba1deed83fa04e1b8f11",
+      "sha256": "e94d4f53928b3ea519eceedcb0f7e7a41ae2eb5da52076369d92374108b3d2a8",
+      "file": "test/contracts/reference/ts-stream-first-token-v1.test.ts"
+    }
+  },
+  "milestones": {
+    "construction": 10,
+    "dispatch": 100,
+    "prefix": 110,
+    "frame": 125,
+    "terminal": 180,
+    "admission": 120,
+    "continuation_frame": 205,
+    "continuation_terminal": 230
+  },
+  "cases": [
+    {
+      "name": "content-first",
+      "delta": {
+        "content": "answer"
+      },
+      "kind": "content"
+    },
+    {
+      "name": "thinking-first",
+      "delta": {
+        "thinking": "thought"
+      },
+      "kind": "thinking"
+    },
+    {
+      "name": "tool-argument-first",
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "t1",
+            "function": {
+              "name": "lookup",
+              "arguments": "{"
+            }
+          }
+        ]
+      },
+      "kind": "tool_call"
+    },
+    {
+      "name": "thinking-content-tool-precedence",
+      "delta": {
+        "content": "answer",
+        "thinking": "thought",
+        "tool_calls": [
+          {
+            "index": 0,
+            "function": {
+              "arguments": "{"
+            }
+          }
+        ]
+      },
+      "kind": "thinking"
+    },
+    {
+      "name": "content-tool-precedence",
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "function": {
+              "arguments": "{"
+            }
+          }
+        ],
+        "content": "answer"
+      },
+      "kind": "content"
+    },
+    {
+      "name": "empty",
+      "delta": {},
+      "kind": null
+    },
+    {
+      "name": "empty-content",
+      "delta": {
+        "content": ""
+      },
+      "kind": null
+    },
+    {
+      "name": "tool-name-only",
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "function": {
+              "name": "lookup"
+            }
+          }
+        ]
+      },
+      "kind": null
+    },
+    {
+      "name": "empty-tool-arguments",
+      "delta": {
+        "tool_calls": [
+          {
+            "index": 0,
+            "function": {
+              "arguments": ""
+            }
+          }
+        ]
+      },
+      "kind": null
+    },
+    {
+      "name": "legacy-arguments",
+      "delta": {
+        "function_call": {
+          "arguments": "{"
+        }
+      },
+      "kind": "tool_call"
+    },
+    {
+      "name": "legacy-name-only",
+      "delta": {
+        "function_call": {
+          "name": "lookup"
+        }
+      },
+      "kind": null
+    },
+    {
+      "name": "empty-legacy-arguments",
+      "delta": {
+        "function_call": {
+          "arguments": ""
+        }
+      },
+      "kind": null
+    }
+  ],
+  "eof_frame": {
+    "model": "fixture-model",
+    "message": {
+      "thinking": "thought",
+      "content": "answer"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 900,
+    "prompt_eval_duration": 200
+  }
+}

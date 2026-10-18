@@ -16,6 +16,7 @@ struct BufferedRecovery {
     var wire: RecoveryHTTPResult?
     var metadata = RecoveryProviderMetadata(headers: [:], body: Data())
     var started: TimeInterval?
+    var streamTiming: StreamMeasurement?
 
     mutating func run(
         url: URL,
@@ -292,12 +293,14 @@ struct BufferedRecovery {
     }
 
     func report() -> CompletionRecoveryReport {
-        CompletionRecoveryReport(
+        var report = CompletionRecoveryReport(
             logicalID: logicalID,
             identity: identity,
             progress: progress,
             history: history,
         )
+        report.evidence = streamTiming?.evidence()
+        return report
     }
 
     private func withinLimits(delay: TimeInterval) -> Bool {

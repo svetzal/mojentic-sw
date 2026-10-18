@@ -20,9 +20,11 @@ public enum RecoveryGatewayStreamEvent: Sendable {
     /// One fully-assembled tool-call request the model wants to invoke.
     case toolCallRequest(LLMToolCall)
 
-    /// The provider declared the stream complete. May carry finish reason
-    /// and usage when reported.
-    case done(finishReason: FinishReason?, usage: Usage?)
+    /// Terminal success with provider finish reason, usage and completion evidence.
+    ///
+    /// Built-in gateways include client timing in `evidence.metadata`; custom
+    /// gateways can leave evidence absent. Each tool continuation has its own evidence.
+    case done(finishReason: FinishReason?, usage: Usage?, evidence: CompletionEvidence? = nil)
 }
 
 /// One event from ``LLMBroker/generateRecoveryStreamEvents(model:messages:config:context:)``.
@@ -46,9 +48,10 @@ public enum RecoveryCompletionStreamEvent: Sendable {
     /// Terminal success: the provider proved the turn finished normally.
     case completed(CompletionEvidence)
 
-    /// Terminal failure. ``MojenticError/incompleteCompletion(_:)`` carries
-    /// the provider's evidence; invalid recovery limits retain their original
-    /// `invalidArgument` case and message before any request capture or dispatch.
+    /// Terminal setup failure, or a lifted legacy ``MojenticError/streamFailure(_:)``.
+    ///
+    /// Invalid recovery limits retain their original `invalidArgument` case and
+    /// message before any request capture or dispatch.
     case error(MojenticError)
 
     /// Terminal recovery failure retaining typed causes and attempt history.

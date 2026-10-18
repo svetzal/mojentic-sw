@@ -52,6 +52,7 @@ struct StreamingRecoveryConsumerTests {
         do {
             for try await event in stream {
                 switch event {
+                case .metrics: break
                 case .toolCallRequested(let call):
                     order.append("tool")
                     publicCall = call

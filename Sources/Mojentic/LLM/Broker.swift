@@ -3,6 +3,9 @@ import Logging
 
 /// Broker-level streaming event surfaced to library consumers.
 public enum StreamEvent: Sendable {
+    /// Evidence for one provider completion, including each tool continuation.
+    case metrics(CompletionEvidence)
+
     /// A delta of assistant text content.
     case textDelta(String)
 

@@ -218,8 +218,10 @@ import Logging
 
             return AsyncThrowingStream { continuation in
                 let task = Task {
+                    let timing = StreamMeasurement()
                     do {
-                        let lines = try await client.streamLines(url: url, body: body, headers: headers)
+                        let lines = try await client.streamLines(
+                            url: url, body: body, headers: headers, timing: timing)
                         var accumulator = AnthropicStreamAccumulator()
                         for try await line in lines {
                             try Task.checkCancellation()
@@ -247,12 +249,15 @@ import Logging
                             continuation.yield(.toolCallRequest(call))
                         }
                         continuation.yield(
-                            .done(finishReason: accumulator.finishReason, usage: accumulator.usage)
+                            .done(
+                                finishReason: accumulator.finishReason,
+                                usage: accumulator.usage,
+                                evidence: timing.evidence(CompletionEvidence(usage: accumulator.usage)))
                         )
                         continuation.finish()
                     } catch is CancellationError {
-                        continuation.finish(throwing: MojenticError.cancelled)
-                    } catch { continuation.finish(throwing: error) }
+                        continuation.finish(throwing: timing.failure(MojenticError.cancelled))
+                    } catch { continuation.finish(throwing: timing.failure(error)) }
                 }
                 continuation.onTermination = { _ in task.cancel() }
             }

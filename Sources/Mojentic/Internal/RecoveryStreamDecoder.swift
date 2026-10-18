@@ -14,6 +14,7 @@ struct RecoveryStreamSnapshot {
 /// URLSession callbacks are serial; the lock also protects the async consumer's snapshot.
 final class RecoveryStreamDecoder: @unchecked Sendable {
     private let lock = NSLock()
+    let timing: StreamMeasurement
     private let provider: RecoveryProvider
     private let singleTurn: Bool
     private var identity: RecoveryIdentity?
@@ -39,7 +40,8 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     let events: AsyncStream<RecoveryGatewayStreamEvent>
     private let continuation: AsyncStream<RecoveryGatewayStreamEvent>.Continuation
 
-    init(provider: RecoveryProvider, singleTurn: Bool) {
+    init(provider: RecoveryProvider, singleTurn: Bool, timing: StreamMeasurement = StreamMeasurement()) {
+        self.timing = timing
         self.provider = provider
         self.singleTurn = singleTurn
         let pair = AsyncStream<RecoveryGatewayStreamEvent>.makeStream()
@@ -57,6 +59,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     func snapshot() -> RecoveryStreamSnapshot {
         lock.lock()
         defer { lock.unlock() }
+        timing.retain(evidence)
         return RecoveryStreamSnapshot(
             frameIndex: frameIndex,
             progress: progress,
@@ -67,6 +70,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     }
 
     func finish() {
+        timing.finishAttempt()
         continuation.finish()
     }
 
@@ -76,6 +80,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
         progress.headersReceived = status != nil
         progress.rawBytes += data.count
         guard status.map({ (200..<300).contains($0) }) == true else { return progress.observed }
+        timing.observe(data)
         buffer.append(data)
         while !terminal, let newline = buffer.firstIndex(of: 10) {
             let bytes = Data(buffer[..<newline])
@@ -337,7 +342,7 @@ final class RecoveryStreamDecoder: @unchecked Sendable {
     private func finishOpenAI(_ line: String) {
         let final = legacy.finish()
         let reason = final.compactMap { event -> FinishReason? in
-            if case .done(let reason, _) = event {
+            if case .done(let reason, _, _) = event {
                 return reason
             }
             return nil

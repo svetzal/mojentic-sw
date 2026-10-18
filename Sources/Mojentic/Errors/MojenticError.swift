@@ -66,9 +66,13 @@ public enum MojenticError: Error, Sendable, CustomStringConvertible {
     /// The gateway does not support single-turn event streams.
     case streamEventsUnsupported
 
+    /// Streaming failure retaining its original cause and terminal timing evidence.
+    case streamFailure(StreamFailure)
+
     /// Human-readable representation of the error suitable for logging.
     public var description: String {
         switch self {
+        case .streamFailure(let failure): failure.description
         case .http(let status, let body): "HTTP \(status): \(body)"
         case .transport(let message): "Transport error: \(message)"
         case .decoding(let message): "Decoding error: \(message)"

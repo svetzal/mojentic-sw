@@ -10,6 +10,37 @@ move independently.
 
 ## [Unreleased]
 
+### Added — client streaming timing
+
+- Built-in streams report first-token kind, milliseconds from actual first
+  dispatch, and terminal duration on success and failure.
+  Thinking wins over content and tool arguments within a frame; the first
+  argument fragment counts before assembly. Empty frames and keepalives do not.
+- Admitted retries share one monotonic origin. Tool continuations start fresh
+  clocks. Concurrent completions have independent measurements. Provider metrics
+  retain their original values and units alongside client fields.
+- Production legacy HTTP streams observe progressive responses on Linux and
+  Darwin before parsing and tool assembly. They retain the configured URLSession,
+  its authentication and pool, and the original request payloads. Encoding errors
+  before dispatch retain their original typed error without client timing.
+- Anthropic initial empty tool-input classification remains an owner-held contract
+  question. Fragment timing is verified; this correction does not establish full
+  section-2 readiness until that decision is coordinated.
+
+### Breaking changes and migration — streaming evidence
+
+- Gateway `done` events add a third `evidence` associated value, defaulting to
+  `nil` for existing event constructors. Update pattern matches to three values.
+- Broker/session `StreamEvent` adds `metrics(CompletionEvidence)` for each
+  completed provider turn; final `LLMResponse.metadata` carries the final turn's
+  metadata. Older Codable responses decode with metadata absent.
+- Streaming errors retain timing in `StreamFailure.evidence` and their original
+  typed cause in `StreamFailure.cause`. Throwing streams and single-turn error
+  events use the new `MojenticError.streamFailure` case. Update exhaustive switches
+  and inspect the cause when matching earlier error cases. Recovery errors retain their type,
+  outcome, cause and history, with additional `RecoveryError.evidence`.
+  Recovery reports also retain terminal evidence when cancellation stops iteration.
+
 ### Breaking changes and migration — request fidelity
 
 - `CompletionConfig.temperature` and `maxTokens` are optional; both and
@@ -57,7 +88,7 @@ move independently.
   model profiles.
 - `effectiveContextWindow(_:config:)` computes Ollama's upper bound using caller,
   model, then advertised limits. The default config now considers model defaults.
-  Discovery never applies limits to later requests. First-token timing remains pending.
+  Discovery never applies limits to later requests.
 
 ### Breaking changes and migration (native reasoning)
 
@@ -78,7 +109,6 @@ move independently.
   failed continuations and unfinished streams never commit native history.
   oMLX requests `chat_template_kwargs.preserve_thinking`; server overrides can
   still prevent preservation. Defaults continue to discard retained reasoning.
-- Part 3 first-token timing remains pending.
 
 - **Dependencies**: `swift-log` 1.15.1 → 1.16.1 in `Package.resolved`. The
   `Package.swift` constraint is unchanged.
@@ -128,8 +158,9 @@ move independently.
   deliver `.recoveryFailure`. Invalid recovery limits still throw
   `MojenticError.invalidArgument` through buffered and throwing APIs; single-turn
   recovery event streams deliver `.error(.invalidArgument(...))`. Both occur
-  before dispatch. Legacy entrypoints retain one-send behavior and existing errors. Recovery length-limit responses are
-  terminal typed failures rather than successful partial completions.
+  before dispatch. Legacy entrypoints retain one-send behavior; streaming error
+  migration is described above. Recovery length-limit responses are terminal typed
+  failures rather than successful partial completions.
 - Recovery provider/operation metadata uses closed enums, including the
   `ordinary`/`structured` serialized vocabulary described above; old aliases
   are rejected. Safe default reflection omits sensitive raw evidence, which
@@ -146,8 +177,8 @@ move independently.
   Old `complete`/`completeStructured` JSON aliases are rejected. Read sensitive
   headers, body bytes and causes through explicit evidence inspection rather
   than reflection.
-- Native reasoning and model metadata/request fidelity (release parts 2 and 3)
-  remain pending; this recovery baseline does not implement them.
+- Native reasoning and model metadata/request fidelity use the migrations above.
+  Full timing conformance still awaits the Anthropic initial tool-input decision.
 
 ### Fixed
 

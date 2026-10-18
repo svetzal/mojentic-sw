@@ -11,12 +11,37 @@ import Foundation
 /// conformance. Terminating the returned stream (the consumer stops
 /// iterating or its task is cancelled) must cancel the underlying request.
 protocol LineStreamingTransport: Sendable {
+    func streamLines(
+        url: URL, body: some Encodable, headers: [String: String], timing: StreamMeasurement
+    ) async throws -> AsyncThrowingStream<String, any Error>
+
     /// POST `body` as JSON and stream the response line by line.
     func streamLines(
         url: URL,
         body: some Encodable,
         headers: [String: String],
     ) async throws -> AsyncThrowingStream<String, any Error>
+}
+
+extension LineStreamingTransport {
+    func streamLines(
+        url: URL, body: some Encodable, headers: [String: String], timing: StreamMeasurement
+    ) async throws -> AsyncThrowingStream<String, any Error> {
+        timing.start()
+        let lines = try await streamLines(url: url, body: body, headers: headers)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await line in lines {
+                        timing.observe(line: line)
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
 }
 
 /// One HTTP response header as received.
@@ -186,6 +211,70 @@ public struct HTTPClient: Sendable, LineStreamingTransport, RequestTransport {
                         }
                         continuation.finish()
                     } catch { continuation.finish(throwing: error) }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        #endif
+    }
+
+    func streamLines(
+        url: URL, body: some Encodable, headers: [String: String], timing: StreamMeasurement
+    ) async throws -> AsyncThrowingStream<String, any Error> {
+        try Task.checkCancellation()
+        var request = makeRequest(url: url, method: "POST", headers: headers)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do { request.httpBody = try Self.requestEncoder().encode(body) } catch {
+            throw MojenticError.transport(
+                message: "Failed to encode streaming body: \(error.localizedDescription)")
+        }
+        #if canImport(FoundationNetworking)
+            let session = session
+            let dispatchedRequest = request
+            return AsyncThrowingStream { continuation in
+                let observer = MeasuredLineHTTP(
+                    timing: timing,
+                    continuation: continuation,
+                    original: session.delegate as? any URLSessionTaskDelegate)
+                let task = Task {
+                    let failure: (any Error)?
+                    do {
+                        try Task.checkCancellation()
+                        // The configured SDK dispatch call follows serialization and cancellation checks.
+                        timing.start()
+                        let (data, response) = try await session.data(
+                            for: dispatchedRequest, delegate: observer)
+                        try assertSuccess(response: response, sampleBody: data)
+                        failure = nil
+                    } catch { failure = error }
+                    // Preserve the caller's session and its pool. A barrier drains already queued
+                    // receipt callbacks before EOF/error; no private queue or session is created.
+                    session.delegateQueue.addBarrierBlock { observer.finish(failure) }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        #else
+            timing.start()
+            let (bytes, response) = try await session.bytes(for: request)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                var errorBody = Data()
+                for try await byte in bytes { errorBody.append(byte) }
+                try assertSuccess(response: response, sampleBody: errorBody)
+            }
+            try assertSuccess(response: response, sampleBody: Data())
+            return AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        for try await line in bytes.lines {
+                            try Task.checkCancellation()
+                            timing.observe(line: line)
+                            continuation.yield(line)
+                        }
+                        timing.finishAttempt()
+                        continuation.finish()
+                    } catch {
+                        timing.finishAttempt()
+                        continuation.finish(throwing: error)
+                    }
                 }
                 continuation.onTermination = { _ in task.cancel() }
             }

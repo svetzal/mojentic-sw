@@ -93,7 +93,7 @@ explicit:
 - ``CompletionStreamEvent/content(_:)``: visible assistant content, in order.
 - ``CompletionStreamEvent/completed(_:)``: terminal success, with
   ``CompletionEvidence`` (finish reason as reported, usage, provider model and
-  provider metadata; each `nil` when unreported).
+  provider metadata, plus client timing). Unreported provider fields remain `nil`.
 - ``CompletionStreamEvent/error(_:)``: terminal failure.
 
 Exactly one terminal event ends every stream. Nothing follows it. Content
@@ -101,7 +101,12 @@ yielded before an error is evidence of what the provider sent, not a result.
 
 ### Completion rules
 
-| Situation | Terminal event |
+After dispatch, failures use `MojenticError.streamFailure`: inspect
+``StreamFailure/cause`` for the original error case below and
+``StreamFailure/evidence`` for provider evidence and client timing.
+Pre-dispatch unsupported and validation errors keep their original cases.
+
+| Situation | Terminal result or original error cause |
 | --------- | -------------- |
 | OpenAI and oMLX: `finish_reason: "stop"` and `data: [DONE]` | `completed` |
 | OpenAI and oMLX: `[DONE]` with any other finish reason | ``MojenticError/incompleteCompletion(_:)`` with the evidence |
@@ -142,3 +147,5 @@ stream from them ends as an incomplete completion.
 Ollama evidence accumulates across frames. A frame that omits the model, token
 counts or timing fields keeps earlier reported values. Malformed message and
 completion control fields end the stream with an invalid-stream-event error.
+
+Client first-token and terminal duration measurements are described in <doc:FirstTokenTiming>.

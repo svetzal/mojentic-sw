@@ -70,7 +70,11 @@ struct OMLXStreamEventsTests {
             finishReason: "stop",
             usage: Usage(promptTokens: 57, completionTokens: 30, totalTokens: 87),
             providerModel: omlxFixtureModel,
-            metadata: ["id": "chatcmpl-05014002", "created": .integer(1_790_679_817)],
+            metadata: [
+                "id": "chatcmpl-05014002", "created": .integer(1_790_679_817),
+                "time_to_first_token": .number(0.73), "prompt_eval_duration": .number(0.73),
+                "generation_duration": .number(1.97), "total_time": .number(2.7),
+            ],
         )
         #expect(seen == [.content("\n\nhello"), .completed(evidence)])
     }

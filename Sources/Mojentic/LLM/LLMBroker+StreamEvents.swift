@@ -114,6 +114,7 @@ extension LLMBroker {
     ) -> LLMGatewayResponse {
         let evidence: CompletionEvidence? =
             switch terminal {
+            case .error(.streamFailure(let failure)): failure.evidence
             case .completed(let reported), .error(.incompleteCompletion(let reported)):
                 reported
             case .error(.incompleteStream(let reported)):
@@ -261,6 +262,8 @@ extension LLMBroker {
     ) -> LLMGatewayResponse {
         let evidence: CompletionEvidence? =
             switch terminal {
+            case .error(.streamFailure(let failure)): failure.evidence
+            case .recoveryFailure(let failure): failure.evidence
             case .completed(let reported), .error(.incompleteCompletion(let reported)): reported
             case .error(.incompleteStream(let reported)): reported
             default: nil

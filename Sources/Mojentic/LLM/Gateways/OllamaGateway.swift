@@ -217,8 +217,10 @@ public struct OllamaGateway: RecoveryStreamingGateway {
 
         return AsyncThrowingStream { continuation in
             let task = Task {
+                let timing = StreamMeasurement()
                 do {
-                    let lines = try await transport.streamLines(url: url, body: body, headers: headers)
+                    let lines = try await transport.streamLines(
+                        url: url, body: body, headers: headers, timing: timing)
                     for try await line in lines {
                         try Task.checkCancellation()
                         guard let data = line.data(using: .utf8) else { continue }
@@ -231,13 +233,21 @@ public struct OllamaGateway: RecoveryStreamingGateway {
                         }
                         if chunk.done == true {
                             continuation.yield(
-                                .done(finishReason: chunk.toFinishReason(), usage: chunk.evidence.usage)
+                                .done(
+                                    finishReason: chunk.toFinishReason(),
+                                    usage: chunk.evidence.usage,
+                                    evidence: timing.evidence(
+                                        CompletionEvidence(
+                                            usage: chunk.evidence.usage,
+                                            providerModel: chunk.evidence.model,
+                                            metadata: chunk.evidence.metadata)))
                             )
                         }
                     }
                     continuation.finish()
-                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
-                { continuation.finish(throwing: error) }
+                } catch is CancellationError {
+                    continuation.finish(throwing: timing.failure(MojenticError.cancelled))
+                } catch { continuation.finish(throwing: timing.failure(error)) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }

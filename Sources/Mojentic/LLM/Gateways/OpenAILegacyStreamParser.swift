@@ -93,8 +93,10 @@ enum OpenAILegacyStreaming {
     ) -> AsyncThrowingStream<GatewayStreamEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                let timing = StreamMeasurement()
                 do {
-                    let lines = try await transport.streamLines(url: url, body: body, headers: headers)
+                    let lines = try await transport.streamLines(
+                        url: url, body: body, headers: headers, timing: timing)
                     var parser = initial
                     for try await line in lines {
                         try Task.checkCancellation()
@@ -107,11 +109,17 @@ enum OpenAILegacyStreaming {
                     }
                     try parser.validateCompletion()
                     for event in parser.finish() {
-                        continuation.yield(event)
+                        if case .done(let reason, let usage, _) = event {
+                            continuation.yield(
+                                .done(finishReason: reason, usage: usage, evidence: timing.evidence()))
+                        } else {
+                            continuation.yield(event)
+                        }
                     }
                     continuation.finish()
-                } catch is CancellationError { continuation.finish(throwing: MojenticError.cancelled) } catch
-                { continuation.finish(throwing: error) }
+                } catch is CancellationError {
+                    continuation.finish(throwing: timing.failure(MojenticError.cancelled))
+                } catch { continuation.finish(throwing: timing.failure(error)) }
             }
             continuation.onTermination = { _ in task.cancel() }
         }

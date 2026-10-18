@@ -82,6 +82,8 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
                 }
                 self.continuation = continuation
                 self.task = task
+                stream?.timing.beginAttempt()
+                stream?.timing.start()
                 task.resume()
                 lock.unlock()
                 didStart()
