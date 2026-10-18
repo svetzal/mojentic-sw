@@ -192,6 +192,12 @@ move independently.
   one body byte before holding, because Apple URLSession reports a response
   only after its first body byte.
   Test harness only; library behaviour is unchanged.
+- The first-token failure-after-content test now holds its truncated reply
+  open until the caller has received the content. Legacy streams have no
+  delivery report, so the fixture closed the connection with the partial
+  body, and Apple URLSession can discard a partial body that arrives with
+  EOF; the token then never reached the client on macOS. Test harness only;
+  library behaviour is unchanged.
 
 - On Apple platforms, a recovery attempt whose non-2xx body ends before its
   `Content-Length` now keeps a `URLError.networkConnectionLost` cause.

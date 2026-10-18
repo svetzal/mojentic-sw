@@ -87,10 +87,12 @@ func assertFirstToken(
     }
 }
 
+/// Drives one stream to its terminal state and calls `onContent` each time content reaches the caller.
 func firstTokenOutcome(
     _ boundary: StreamingBoundary,
     gateway: any LLMGateway,
-    recovering: Bool
+    recovering: Bool,
+    onContent: (@Sendable () -> Void)? = nil
 ) async throws -> FirstTokenOutcome {
     var result = FirstTokenOutcome()
     if boundary.single {
@@ -99,7 +101,9 @@ func firstTokenOutcome(
                 model: "fixture", messages: [], config: .init())
             {
                 switch event {
-                case .content(let text): result.content += text
+                case .content(let text):
+                    result.content += text
+                    onContent?()
                 case .completed(let evidence):
                     result.evidence = evidence
                     result.terminal = "completed"
@@ -116,7 +120,7 @@ func firstTokenOutcome(
                 }
             }
         } else {
-            result = try await legacyFirstTokenOutcome(gateway)
+            result = try await legacyFirstTokenOutcome(gateway, onContent: onContent)
         }
     } else {
         do {
@@ -125,12 +129,14 @@ func firstTokenOutcome(
                     model: "fixture", messages: [], tools: nil, config: .init())
                 {
                     result.record(event)
+                    if case .textDelta = event { onContent?() }
                 }
             } else {
                 for try await event in gateway.stream(
                     model: "fixture", messages: [], tools: nil, config: .init())
                 {
                     result.record(event)
+                    if case .textDelta = event { onContent?() }
                 }
             }
         } catch let error as RecoveryError {
@@ -147,13 +153,18 @@ func firstTokenOutcome(
     return result
 }
 
-private func legacyFirstTokenOutcome(_ gateway: any LLMGateway) async throws -> FirstTokenOutcome {
+private func legacyFirstTokenOutcome(
+    _ gateway: any LLMGateway,
+    onContent: (@Sendable () -> Void)?
+) async throws -> FirstTokenOutcome {
     var result = FirstTokenOutcome()
     for await event in try gateway.completeStreamEvents(
         model: "fixture", messages: [], config: .init())
     {
         switch event {
-        case .content(let text): result.content += text
+        case .content(let text):
+            result.content += text
+            onContent?()
         case .completed(let evidence):
             result.evidence = evidence
             result.terminal = "completed"

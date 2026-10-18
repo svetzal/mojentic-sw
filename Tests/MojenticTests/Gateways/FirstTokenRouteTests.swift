@@ -51,13 +51,20 @@ struct FirstTokenRouteTests {
     func failuresBeforeAndAfterContent(_ boundary: StreamingBoundary, _ recovery: Bool) async throws {
         for content in [false, true] {
             let body = content ? try boundary.frame(content: "partial") : "\n"
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true)])
+            // Legacy streams have no delivery report, so the fixture releases the close only after
+            // the caller sees the content; Apple URLSession can otherwise discard a partial body
+            // that arrives with EOF.
+            let server = try RecoveryLoopback(replies: [
+                RecoveryReply(body: body, truncated: true, hold: content)
+            ])
+            defer { server.release() }
             var policy = recoveryPolicy(RecoveryRecorder())
             policy.maximumAttempts = 1
             let outcome = try await firstTokenOutcome(
                 boundary,
                 gateway: boundary.gateway(server, recovery ? policy : nil),
-                recovering: recovery)
+                recovering: recovery,
+                onContent: server.release)
             let terminal =
                 recovery ? (content ? "interrupted" : "exhausted") : boundary.single ? "error" : "throw"
             try assertFirstToken(outcome, kind: content ? "content" : nil, terminal: terminal)
