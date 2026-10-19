@@ -1,0 +1,42 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Constructing 1778 / 2080]
+[10 / 118] Logging
+[16 / 119] Mojentic
+[18 / 120] Mojentic
+[23 / 120] Mojentic
+[48 / 166] SolverChatSession-product
+[53 / 173] SimpleLLM-product
+[53 / 173] SolverChatSession-product
+[57 / 173] TracerDemo-product
+[61 / 173] RealtimeManualVAD-product
+[67 / 175] RealtimeBargeIn-product
+[72 / 176] ReAct-product
+[73 / 176] RealtimeManualVAD-product
+[79 / 177] IterativeSolver-product
+[85 / 179] RecoveryExample-product
+[91 / 181] CodingFileTool-product
+[94 / 181] RealtimeBargeIn-product
+[97 / 181] BrokerExamples-product
+[102 / 181] ImageAnalysis-product
+[107 / 183] AskUser-product
+[114 / 184] AnthropicSimple-product
+[119 / 184] SolverChatSession-product
+[135 / 184] RealtimeBargeIn-product
+[154 / 184] AnthropicSimple-product
+[157 / 184] WorkingMemory-product
+[161 / 184] WebSearch-product
+[164 / 184] RealtimeBargeIn-product
+[166 / 184] OMLXChat-product
+[169 / 184] RealtimeToolCall-product
+[171 / 184] RealtimeBargeIn-product
+[174 / 184] ListModels-product
+[181 / 184] AskUser-product
+[183 / 184] ChatSessionExample-product
+[190 / 190] AnthropicSimple-product
+[190 / 190] BrokerExamples-product
+[213 / 213] RealtimeToolCall-product
+Build complete! (46.42 secs)
