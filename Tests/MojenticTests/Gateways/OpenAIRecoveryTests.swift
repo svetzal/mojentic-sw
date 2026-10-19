@@ -88,27 +88,47 @@ struct OpenAIRecoveryTests {
         #expect(!recorder.events.withLock { $0.map(\.transition) }.contains(.retryStarted))
     }
 
-    @Test(arguments: [false, true])
-    func legacyStreamingOutcomesThroughLineBoundary(_ single: Bool) async throws {
+    @Test(arguments: [false, true], [false, true])
+    func legacyStreamingOutcomesThroughLineBoundary(_ single: Bool, _ recovery: Bool) async throws {
         let frame =
             #"""
             data: {"choices":[{"delta":{"content":"ok","reasoning_content":"private"},\#
             "finish_reason":"stop"}]}
             """#
         let body = frame + "\n\n"
+        let recorder = RecoveryRecorder()
         let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
-        let gateway = OpenAIGateway(
-            apiKey: "credential-sentinel",
-            baseURL: server.url,
-            client: server.client,
-            lineTransport: server,
-        )
+        let gateway =
+            if recovery {
+                OpenAIGateway(
+                    apiKey: "credential-sentinel",
+                    baseURL: server.url,
+                    client: server.client,
+                    recovery: recoveryPolicy(recorder),
+                )
+            } else {
+                OpenAIGateway(
+                    apiKey: "credential-sentinel",
+                    baseURL: server.url,
+                    client: server.client,
+                    lineTransport: server,
+                )
+            }
         if single {
             var result: [String] = []
             for await event in gateway.completeStreamEvents(model: "gpt-4o", messages: [], config: .init()) {
                 switch event {
                 case .content(let text): result.append(text)
-                case .error: result.append("error")
+                case .error(let error):
+                    result.append("error")
+                    guard case .streamFailure(let failure) = error,
+                        let cause = failure.cause as? MojenticError,
+                        case .incompleteStream(let evidence) = cause
+                    else {
+                        Issue.record("Expected timed legacy missing-DONE failure")
+                        continue
+                    }
+                    #expect(evidence == CompletionEvidence(finishReason: "stop"))
                 case .completed: Issue.record("Missing DONE must remain a legacy failure")
                 }
             }
@@ -127,7 +147,9 @@ struct OpenAIRecoveryTests {
         #expect(server.requests.withLock { $0.count } == 1)
         let headers = try #require(server.requestHeaders.withLock { $0.first }).lowercased()
         #expect(headers.contains("authorization: bearer credential-sentinel"))
-
+        #expect(recorder.requests.withLock { $0.isEmpty })
+        #expect(recorder.events.withLock { $0.isEmpty })
+        #expect(recorder.wires.withLock { $0.isEmpty })
     }
 
     @Test(arguments: [false, true], ["choices", "usage", "tools"])
