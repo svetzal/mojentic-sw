@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryHeaderEncodingTests {
     @Test
     func headerOctetsAndUTF8BodyThroughRecovery() async throws {
@@ -9,7 +10,7 @@ struct RecoveryHeaderEncodingTests {
             RecoveryReply(status: 503, headers: ["X-Exact": "raw-évidence"], body: "é猫"),
             RecoveryReply(body: #"{"message":{"content":"recovered"},"done":true}"#),
         ]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let boundary = RecoveryBoundary(omlx: false, structured: false)
         let response = try await boundary.complete(boundary.gateway(server, policy: recoveryPolicy(recorder)))
@@ -24,11 +25,7 @@ struct RecoveryHeaderEncodingTests {
             }
         }
         let first = normalizedHeaders(try #require(captured.first))
-        #if os(Linux)
-            #expect(first["x-exact"] == "raw-évidence")
-        #else
-            #expect(first["x-exact"] == "raw-Ã©vidence")
-        #endif
+        #expect(first["x-exact"] == "raw-évidence")
         let identities = try assertStatusWires(recorder, server: server, replies: replies)
         #expect(identities.count == 2)
     }

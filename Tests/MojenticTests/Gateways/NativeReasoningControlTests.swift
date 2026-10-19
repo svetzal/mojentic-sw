@@ -2,6 +2,7 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct NativeReasoningControlTests {
     @Test(arguments: [false, true], RecoveryStatusBoundary.Operation.allCases)
     func exactContractControlsAcrossPublicBoundaries(
@@ -16,7 +17,7 @@ struct NativeReasoningControlTests {
                     omlx: omlx,
                     stream: stream,
                     structured: structured)
-                let server = try RecoveryLoopback(
+                let server = try InProcessHTTPFixture(
                     replies: recovering
                         ? [RecoveryReply(status: 503, body: "retry"), success] : [success])
                 let gateway = RecoveryBoundary(
@@ -90,7 +91,7 @@ struct NativeReasoningControlTests {
 
     @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
     func rejectsUnsupportedControlsBeforeDispatch(_ boundary: RecoveryBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [])
+        let server = try InProcessHTTPFixture(replies: [])
         let gateway = boundary.gateway(
             server,
             policy: recoveryPolicy(RecoveryRecorder()))
@@ -153,7 +154,7 @@ struct NativeReasoningControlTests {
     func explicitProfileAcceptsUnknownDefaultAndExactQwenEfforts(omlx: Bool) async throws {
         let contract = try NativeReasoningContract()
         for effort: ReasoningEffort? in [nil, .disabled, .low, .medium, .xhigh] {
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 contract.reply(
                     omlx: omlx,
                     stream: false)

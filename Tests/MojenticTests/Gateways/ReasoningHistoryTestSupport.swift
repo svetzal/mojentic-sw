@@ -106,9 +106,9 @@ func invokeReasoningHistory(
     }
 }
 
-/// Decode only actual socket bytes and compare the complete native history, independently of adapters.
+/// Decode only captured HTTP boundary bytes and compare the complete native history, independently of adapters.
 func assertReasoningSocketHistory(
-    _ server: RecoveryLoopback, provider: RecoveryBoundary, populated: Bool,
+    _ server: InProcessHTTPFixture, provider: RecoveryBoundary, populated: Bool,
 ) throws {
     let expected: [JSONValue]
     if provider.anthropic {

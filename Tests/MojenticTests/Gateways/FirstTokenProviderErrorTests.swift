@@ -1,7 +1,8 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenProviderErrorTests {
     @Test(
         arguments: StreamingBoundary.all.filter(\.single),
@@ -13,7 +14,7 @@ struct FirstTokenProviderErrorTests {
         let error = boundary.omlx ? "data: {\"error\":\"busy\"}\n\n" : "{\"error\":\"busy\"}\n"
         let prefix = before ? try boundary.frame(content: "before") : ""
         let body = prefix + error + (try boundary.frame(content: "after terminal", done: true))
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let gateway = boundary.gateway(server, recovery ? recoveryPolicy(RecoveryRecorder()) : nil)
         let result = try await firstTokenOutcome(boundary, gateway: gateway, recovering: recovery)
         let terminal = recovery ? (before ? "interrupted" : "malformedResponse") : "error"

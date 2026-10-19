@@ -5,11 +5,13 @@ import Foundation
 /// stream was terminated.
 actor TransportRecorder {
     private(set) var bodies: [JSONValue] = []
+    private(set) var requests: [(URL, [String: String])] = []
     private(set) var terminations = 0
     private var terminationWaiters: [CheckedContinuation<Void, Never>] = []
 
-    func record(body: JSONValue) {
+    func record(body: JSONValue, url: URL, headers: [String: String]) {
         bodies.append(body)
+        requests.append((url, headers))
     }
 
     func recordTermination() {
@@ -47,13 +49,13 @@ struct FakeLineTransport: LineStreamingTransport {
     }
 
     func streamLines(
-        url _: URL,
+        url: URL,
         body: some Encodable,
-        headers _: [String: String],
+        headers: [String: String],
     ) async throws -> AsyncThrowingStream<String, any Error> {
         let data = try JSONEncoder().encode(body)
         let value = try JSONDecoder().decode(JSONValue.self, from: data)
-        await recorder.record(body: value)
+        await recorder.record(body: value, url: url, headers: headers)
         if let failure {
             throw failure
         }

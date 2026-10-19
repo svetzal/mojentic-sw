@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct OpenAIRecoveryProofTests {
     @Test
     func captureFailureRetainsReceivedSemanticsWithoutResend() async throws {
@@ -11,7 +12,7 @@ struct OpenAIRecoveryProofTests {
             "function":{"name":"resolve_date","arguments":"{}"}}]},\#
             "finish_reason":"tool_calls"}]}
             """#
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.wireObserver = { event in

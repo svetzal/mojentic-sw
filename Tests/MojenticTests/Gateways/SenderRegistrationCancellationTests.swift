@@ -6,6 +6,7 @@ import Testing
     import FoundationNetworking
 #endif
 
+@Suite(.serialized)
 struct SenderRegistrationCancellationTests {
     enum RetainedStream: Sendable {
         case gateway(AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>)
@@ -18,7 +19,6 @@ struct SenderRegistrationCancellationTests {
     /// The whole parallel suite shares the cooperative pool, so a tight
     /// deadline turns scheduling delay into a false failure. A missing signal
     /// still fails the test, only later.
-    private let readinessTimeout: Duration = .seconds(10)
 
     @Test(arguments: StreamingBoundary.withAnthropic, ["gateway", "broker", "session"])
     func publicHTTPBeforeSenderRegistration(_ boundary: StreamingBoundary, _ path: String) async throws {
@@ -146,8 +146,8 @@ struct SenderRegistrationCancellationTests {
 
     private func framingServer(
         body: String, prefixCount: Int, releaseSuffix: Bool?
-    ) throws -> RecoveryLoopback {
-        try RecoveryLoopback(replies: [
+    ) throws -> InProcessHTTPFixture {
+        try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 headers: ["X-Request-ID": "original-header"],
                 body: body,
@@ -229,7 +229,7 @@ struct SenderRegistrationCancellationTests {
         schedule: SenderRegistrationSchedule,
         consumer: RecoveryConsumerPause,
         retained: RecoveryLocked<RetainedStream?>,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         path: String,
         verify: () -> Void
     ) async throws {
@@ -250,7 +250,7 @@ struct SenderRegistrationCancellationTests {
             "HTTP delegate completion must precede consumer resumption")
         let peerClosed = server.waitForPeerClose()
         #expect(peerClosed, "Locally owned HTTP must close with the fixture still held")
-        server.trace.record("socket.peer.closed", "\(peerClosed)")
+        server.trace.record("boundary.peer.closed", "\(peerClosed)")
         verify()
         // Drain only after asserting cleanup, so rejection cannot strand a sender.
         try await consumeTerminal(try #require(retained.withLock { $0 }), path: path)
@@ -275,29 +275,15 @@ struct SenderRegistrationCancellationTests {
     }
 
     func awaitFinished(_ finished: RecoveryLocked<[String]>, count: Int) async throws {
-        let deadline = ContinuousClock.now.advanced(by: readinessTimeout)
-        while finished.withLock({ $0.count }) < count, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await finished.wait { $0.count >= count }
     }
 
     private func waitForSignals(_ stream: AsyncStream<Void>, count: Int) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                var iterator = stream.makeAsyncIterator()
-                for _ in 0..<count {
-                    guard await iterator.next() != nil else { return false }
-                }
-                return true
-            }
-            group.addTask {
-                try? await Task.sleep(for: readinessTimeout)
-                return false
-            }
-            let ready = await group.next() ?? false
-            group.cancelAll()
-            return ready
+        var iterator = stream.makeAsyncIterator()
+        for _ in 0..<count {
+            guard await iterator.next() != nil else { return false }
         }
+        return true
     }
 
     private func makeStream(

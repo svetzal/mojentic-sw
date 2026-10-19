@@ -11,7 +11,7 @@ struct RecoveryLifecycleScopedCancellationTests {
             phase == "active"
             ? RecoveryReply(body: "\n", truncated: true, hold: true)
             : RecoveryReply(status: 503, body: "busy")
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         defer { server.release() }
         let recorder = RecoveryRecorder()
         let ready = AsyncStream<Void>.makeStream()

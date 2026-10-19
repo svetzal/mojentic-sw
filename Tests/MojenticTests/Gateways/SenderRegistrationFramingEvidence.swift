@@ -13,7 +13,7 @@ extension SenderRegistrationCancellationTests {
     func beforeFraming(
         _ boundary: StreamingBoundary,
         path: String,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         recorder: RecoveryRecorder,
         schedule: SenderRegistrationSchedule,
         report: RecoveryLocked<CompletionRecoveryReport?>,
@@ -46,13 +46,8 @@ extension SenderRegistrationCancellationTests {
                 $0.key.lowercased() == "x-request-id" && $0.value == "original-header"
             })
         let cause = try #require(failure.inspectEvidence().cause as? URLError)
-        // libcurl's partial-file error is mapped to unknown by FoundationNetworking.
-        // Apple's URLSession reports a lost connection for the same truncated 200.
-        #if os(Linux)
-            #expect(cause.code == .unknown)
-        #else
-            #expect(cause.code == .networkConnectionLost)
-        #endif
+        // The in-process boundary injects the same typed connection-loss cause on every platform.
+        #expect(cause.code == .networkConnectionLost)
         var progress = RecoveryProgress()
         progress.headersReceived = true
         progress.rawBytes = body.count
@@ -100,7 +95,7 @@ extension SenderRegistrationCancellationTests {
         schedule: SenderRegistrationSchedule,
         consumer: RecoveryConsumerPause,
         retained: RecoveryLocked<RetainedStream?>,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         path: String,
         boundary: StreamingBoundary,
     ) async throws {
@@ -122,10 +117,7 @@ extension SenderRegistrationCancellationTests {
     }
 
     private func waitForTerminalSender(_ schedule: SenderRegistrationSchedule) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
-        while schedule.heldRole.withLock({ $0 }) == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await schedule.heldRole.wait { $0 != nil }
     }
 
     func consumeTransport(_ stream: RetainedStream, path: String) async throws {

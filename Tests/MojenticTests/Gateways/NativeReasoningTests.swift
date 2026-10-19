@@ -2,10 +2,11 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct NativeReasoningTests {
     @Test func booleanControlAndRetentionPreserveOtherTemplateOptions() async throws {
         let contract = try NativeReasoningContract()
-        let server = try RecoveryLoopback(replies: [contract.reply(omlx: true, stream: false)])
+        let server = try InProcessHTTPFixture(replies: [contract.reply(omlx: true, stream: false)])
         let gateway = OMLXGateway(host: server.url)
         _ = try await gateway.complete(
             model: "fixture",
@@ -44,7 +45,7 @@ struct NativeReasoningTests {
                 ]
             ]
         ]
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 status: 200, body: try #require(String(data: JSONEncoder().encode(reply), encoding: .utf8))),
             RecoveryReply(

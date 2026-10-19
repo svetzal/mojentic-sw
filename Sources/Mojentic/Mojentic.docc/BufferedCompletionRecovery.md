@@ -12,21 +12,18 @@ made by ``LLMBroker`` and ``ChatSession``. For streaming migration and terminal 
 ## Run the bounded recovery example
 
 The [RecoveryExample instructions](https://github.com/svetzal/mojentic-sw/tree/main/Examples/RecoveryExample)
-show how to build and run the public oMLX recovery executable against a scripted
-loopback server. From the repository root, run:
+explain the bounded policy in the reference oMLX executable. Its CLI requires
+a caller-owned loopback endpoint and is outside repository verification.
+Deterministic acceptance uses the public API with an in-process HTTP boundary:
 
 ```sh
-python3 scripts/probe-recovery-example.py
+swift test --traits full --filter RecoveryConformanceTests
 ```
 
-The probe builds the release product, starts its own loopback HTTP fixture, and
-runs the delivered executable. It requires an eligible 503, explicit admission,
-exactly two byte-identical completion requests, exact returned Unicode content,
-and diagnostics without credential or private-evidence sentinels. No model server
-or inference is needed. Its admission flag deliberately accepts duplicate work
-only for this caller-owned fixture; production admission needs independent resource
-and exact-attempt checks. See <doc:RecoveryCapabilities> for cited provider limits
-and <doc:LocalModelsWithOMLX> for keepalive behavior.
+The assertions cover eligible 503s, explicit admission, byte-identical resend,
+returned content, full lifecycle fields and private-evidence exclusion.
+See <doc:RecoveryCapabilities> for cited provider limits and
+<doc:LocalModelsWithOMLX> for keepalive behavior.
 
 ## Admission belongs to the caller
 

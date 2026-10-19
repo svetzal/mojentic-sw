@@ -93,9 +93,18 @@ private struct FakeTransport: RealtimeTransport {
 private struct SleepyTool: LLMTool {
     let descriptor = ToolDescriptor(name: "slow_tool", description: "sleep", parameters: ["type": "object"])
 
+    let started: RecoveryLocked<Bool>
+    let cancelled: RecoveryLocked<Bool>
     func execute(arguments _: JSONValue) async throws -> JSONValue {
-        try await Task.sleep(for: .milliseconds(200))
-        return ["slept": true]
+        started.withLock { $0 = true }
+        do {
+            try await waitForCancellation()
+            Issue.record("Tool completed without cancellation")
+            return .null
+        } catch {
+            cancelled.withLock { $0 = true }
+            throw error
+        }
     }
 }
 
@@ -113,8 +122,6 @@ struct RealtimeSessionTests {
         )
         await session.start()
         try await session.commit()
-        // Give the pump task a tick to drain.
-        try await Task.sleep(for: .milliseconds(50))
         let outbound = await state.sentEvents()
         #expect(outbound.contains { $0.contains("\"input_audio_buffer.commit\"") })
         #expect(outbound.contains { $0.contains("\"response.create\"") })
@@ -126,9 +133,11 @@ struct RealtimeSessionTests {
         async throws
     {
         let state = FakeTransportState()
+        let started = RecoveryLocked(false)
+        let cancelled = RecoveryLocked(false)
         let session = RealtimeSession(
             transport: FakeTransport(state: state),
-            tools: [SleepyTool()],
+            tools: [SleepyTool(started: started, cancelled: cancelled)],
             tracer: NullTracer(),
             toolRunner: SerialToolRunner(),
             vad: .server,
@@ -162,11 +171,12 @@ struct RealtimeSessionTests {
         ])
         await state.push(["type": "response.done", "response": ["id": "turn_1"]])
 
-        // Give the session a tick to start the tool batch, then interrupt.
-        try await Task.sleep(for: .milliseconds(50))
+        await started.wait { $0 }
         try await session.interrupt()
-        try await Task.sleep(for: .milliseconds(200))
-        consumer.cancel()
+        await cancelled.wait { $0 }
+        try await consumer.value
+        #expect(cancelled.withLock { $0 })
+        #expect(await state.sentEvents().allSatisfy { !$0.contains("slept") })
         #expect(await flag.value)
         await session.close()
     }
@@ -183,7 +193,6 @@ struct RealtimeSessionTests {
         )
         await session.start()
         try await session.send(audio: AudioFrame(samples: [1, 2, 3]))
-        try await Task.sleep(for: .milliseconds(50))
         let outbound = await state.sentEvents()
         #expect(outbound.contains { $0.contains("\"input_audio_buffer.append\"") })
         await session.close()

@@ -2,10 +2,11 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct ReasoningHistoryConformanceTests {
     @Test(arguments: [false, true])
     func explicitProfileRejectsUnsupportedNativeHistoryBeforeHTTP(omlx: Bool) async throws {
-        let server = try RecoveryLoopback(replies: [])
+        let server = try InProcessHTTPFixture(replies: [])
         let gateway = RecoveryBoundary(
             omlx: omlx,
             structured: false
@@ -41,7 +42,7 @@ struct ReasoningHistoryConformanceTests {
     func populatedHistoryAcrossPublicRetryBoundaries(_ boundary: RecoveryStatusBoundary) async throws {
         let failed = RecoveryReply(status: 503, body: "original failure é猫")
         let success = try reasoningReply(boundary)
-        let server = try RecoveryLoopback(replies: [failed, success])
+        let server = try InProcessHTTPFixture(replies: [failed, success])
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
@@ -91,7 +92,7 @@ struct ReasoningHistoryConformanceTests {
     func legacyAndNilHistoryStayCompatible(
         _ boundary: RecoveryStatusBoundary, _ populated: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [reasoningReply(boundary)])
+        let server = try InProcessHTTPFixture(replies: [reasoningReply(boundary)])
         try await invokeReasoningHistory(
             boundary,
             gateway: boundary.provider.gateway(
@@ -107,9 +108,10 @@ struct ReasoningHistoryConformanceTests {
     @Test(arguments: RecoveryStatusBoundary.all)
     func defaultPolicyKeepsOneAttemptWithNilHistory(_ boundary: RecoveryStatusBoundary) async throws {
         let failed = RecoveryReply(status: 503, body: "original failure")
-        let server = try RecoveryLoopback(replies: [failed])
+        let server = try InProcessHTTPFixture(replies: [failed])
         let recorder = RecoveryRecorder()
         var policy = CompletionRecoveryPolicy()
+        policy.timing = deterministicRecoveryTiming()
         #expect(policy.maximumAttempts == 1)
         policy.observer = { event in recorder.events.withLock { $0.append(event) } }
         policy.wireObserver = { event in
@@ -144,7 +146,7 @@ struct ReasoningHistoryConformanceTests {
                 omlx: true,
                 structured: false,
                 anthropic: true)
-            let server = try RecoveryLoopback(replies: [provider.success()])
+            let server = try InProcessHTTPFixture(replies: [provider.success()])
             let gateway = provider.gateway(
                 server,
                 policy: nil)

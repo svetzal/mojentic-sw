@@ -17,6 +17,7 @@ jobs:
   # Xcode 27 ships Swift 6.4, the current stable toolchain.
   build-macos:
     runs-on: xcode-27
+    timeout-minutes: 30
     if: ${{ github.actor != 'github-actions[bot]' }}
     steps:
       - uses: actions/checkout@v7
@@ -24,27 +25,21 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
-      # Loopback recovery tests start one accept thread and listener per
-      # fixture; record the runner's ceilings alongside each test run.
-      - name: Show host limits
-        run: |
-          sysctl hw.ncpu hw.memsize kern.num_taskthreads kern.maxfilesperproc
-          ulimit -n
-
       - name: Build (debug)
         run: swift build
 
       - name: Test
-        run: swift test --parallel
+        run: ./scripts/with-gate-environment swift test --parallel
 
       - name: Test (all provider traits)
-        run: swift test --traits full
+        run: ./scripts/with-gate-environment swift test --traits full
 
       - name: Build (release)
         run: swift build -c release
 
   build-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ github.actor != 'github-actions[bot]' }}
     container:
       image: swift:6.4-noble
@@ -58,10 +53,10 @@ jobs:
         run: swift build
 
       - name: Test
-        run: swift test --parallel
+        run: ./scripts/with-gate-environment swift test --parallel
 
       - name: Test (all provider traits)
-        run: swift test --traits full
+        run: ./scripts/with-gate-environment swift test --traits full
 
       - name: Build (release)
         run: swift build -c release
@@ -77,6 +72,7 @@ jobs:
   # swift-tools-version 6.1 is the declared minimum (package traits).
   build-linux-minimum:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ github.actor != 'github-actions[bot]' }}
     container:
       image: swift:6.1-noble
@@ -90,12 +86,13 @@ jobs:
         run: swift build
 
       - name: Test (all provider traits)
-        run: swift test --traits full
+        run: ./scripts/with-gate-environment swift test --traits full
 
   # Linux swift-format splits doc-comment sentences more strictly than macOS
   # (no NaturalLanguage framework), so the format gate runs on Linux.
   format-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ github.actor != 'github-actions[bot]' }}
     container:
       image: swift:6.4-noble
@@ -107,6 +104,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ github.actor != 'github-actions[bot]' }}
     container:
       image: ghcr.io/realm/swiftlint:0.65.1

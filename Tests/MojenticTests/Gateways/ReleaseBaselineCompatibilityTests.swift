@@ -3,6 +3,7 @@ import Mojentic
 import Testing
 
 /// Public consumers compiled without defaults so enum additions cannot hide API drift.
+@Suite(.serialized)
 struct ReleaseBaselineCompatibilityTests {
     private func legacyError(_ error: MojenticError) -> String {
         switch error {
@@ -61,7 +62,7 @@ struct ReleaseBaselineCompatibilityTests {
 
     @Test(arguments: [false, true], ["gateway", "completion", "broker"])
     func configuredRecoveryDoesNotChangeLegacyStreams(omlx: Bool, path: String) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "original-provider-body")
         ])
         let recorder = RecoveryRecorder()

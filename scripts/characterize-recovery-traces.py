@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Correlate opt-in loopback evidence without inferring cause from suite totals."""
+"""Correlate opt-in in-process boundary evidence without inferring cause from suite totals."""
 import argparse
 import base64
 import json
 from pathlib import Path
-import re
 
 
 def decode(entry):
@@ -55,10 +54,10 @@ def framing_order(entries, calls):
         if any(progress[phase][field] for phase in ('observed', 'delivered')
                for field in ('contentBytes', 'reasoningBytes', 'toolFragments', 'completedToolCalls')):
             errors.append('incomplete line produced semantic progress')
-        closes = [entry for entry in events.get('socket.close', [])
-                  if 'result=0' in entry['detail'] and entry['uptime'] < resume['uptime']]
+        closes = [entry for entry in events.get('boundary.closed', [])
+                  if entry['uptime'] < resume['uptime']]
         if len(closes) != 1:
-            errors.append('incomplete transport lacks successful socket closure before resumption')
+            errors.append('incomplete transport lacks transport completion acknowledgement before resumption')
     else:
         suffix = events.get('fixture.suffix.release', [])
         held = events.get('registration.held', [])
@@ -73,8 +72,8 @@ def framing_order(entries, calls):
         if 'cause=NSURLErrorDomain/-999' not in completion['detail']:
             errors.append('framed control lacks typed cancelled HTTP cause')
         if not any(entry['detail'] == 'true' and entry['uptime'] < resume['uptime']
-                   for entry in events.get('socket.peer.closed', [])):
-            errors.append('framed control lacks peer closure before resumption')
+                   for entry in events.get('boundary.peer.closed', [])):
+            errors.append('framed control lacks transport cancellation acknowledgement before resumption')
     lifecycle = events.get('lifecycle', [])
     if len(lifecycle) != 3 or any('lifecycle' not in entry for entry in lifecycle):
         errors.append('full lifecycle fields missing')
@@ -140,7 +139,7 @@ def characterize(path):
                    and e.get('logicalID') == identity['logicalID']]
         failures = [e for e in correlated if e['event'] == 'report.attempt']
         next_request = requests[index + 1]['uptime'] if index + 1 < len(requests) else float('inf')
-        socket_requests = [e for e in entries if e['event'] == 'socket.request'
+        boundary_requests = [e for e in entries if e['event'] == 'boundary.request'
                            and decode(e) == decode(request)
                            and request['uptime'] <= e['uptime'] < next_request]
         errors = []
@@ -156,16 +155,14 @@ def characterize(path):
             errors.append('terminal attempt bytes differ from wire-observed bytes')
         if dispatched and completed and reports and completed[-1]['uptime'] > reports[0]['uptime']:
             errors.append('report precedes HTTP delegate completion')
-        port = re.search(r'127\.0\.0\.1:(\d+)', request['detail'])
         attempts.append({
             'identity': identity,
             'dispatched': dispatched,
-            'port': int(port[1]) if port else None,
             'request_bytes': request['bytes'],
             'observed_body': base64.b64encode(body).decode(),
-            'socket_requests': socket_requests,
-            'socket_correlation': 'unique' if len(socket_requests) == 1 else
-                                  'absent' if not socket_requests else 'ambiguous',
+            'boundary_requests': boundary_requests,
+            'boundary_correlation': 'unique' if len(boundary_requests) == 1 else
+                                  'absent' if not boundary_requests else 'ambiguous',
             'delegate_completions': completed,
             'reports': reports,
             'terminal_attempts': failures,
@@ -192,7 +189,7 @@ def characterize(path):
         'registration_framing': framing_order(entries, calls),
         'zero_wire_reports': [e for e in entries if e['event'] == 'report'] if not requests else [],
         'zero_wire_lifecycle': [e for e in entries if e['event'] == 'lifecycle'] if not requests else [],
-        'socket_lifetime': [e for e in entries if e['event'].startswith(('socket.', 'listener.'))],
+        'boundary_lifetime': [e for e in entries if e['event'].startswith(('boundary.',))],
         'registration': [e for e in entries if e['event'].startswith(('registration.', 'send.'))],
         'cancellation': [e for e in entries if e['event'] in ('caller.cancel', 'http.cancel')],
         'producer_completion': finishes,
@@ -209,7 +206,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--syscalls', type=Path)
     args = parser.parse_args()
     paths = sorted(args.directory.glob('*.json'))
     if not paths:
@@ -219,16 +215,6 @@ def main():
         parser.error('no named public-call traces found')
     comparisons = framing_pairs(calls)
     output = {'calls': calls, 'registration_framing_comparison': comparisons}
-    if args.syscalls:
-        lines = args.syscalls.read_text().splitlines()
-        output['descriptor_exhaustion'] = [line for line in lines if 'EMFILE' in line]
-        # The full syscall log remains authoritative. Endpoint matching supplements
-        # fixture FD lifetimes and does not pretend FD numbers are unique forever.
-        ports = {attempt['port'] for call in calls for attempt in call['attempts']}
-        output['endpoint_syscalls'] = {
-            str(port): [line for line in lines if f':{port}' in line or f'htons({port})' in line]
-            for port in ports if port is not None
-        }
     args.output.write_text(json.dumps(output, indent=2) + '\n')
     errors = [error for call in calls for error in call['cleanup_errors']]
     errors += [error for call in calls for attempt in call['attempts'] for error in attempt['ordering_errors']]

@@ -2,11 +2,12 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct NativeReasoningExclusionTests {
     @Test(arguments: [false, true])
     func cancelledBufferedResponseCannotReturnRetainedHistory(omlx: Bool) async throws {
         let contract = try NativeReasoningContract()
-        let server = try RecoveryLoopback(replies: [contract.reply(omlx: omlx, stream: false)])
+        let server = try InProcessHTTPFixture(replies: [contract.reply(omlx: omlx, stream: false)])
         let tracer = PausedNativeResponseTracer()
         let broker = LLMBroker(
             gateway: RecoveryBoundary(omlx: omlx, structured: false).gateway(server, policy: nil),
@@ -42,7 +43,7 @@ struct NativeReasoningExclusionTests {
         reply.body = prefix + reply.body
         reply.splitAt = prefix.utf8.count
         reply.holdSuffix = true
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         defer { server.releaseSuffix() }
         let gateway = RecoveryBoundary(
             omlx: omlx,
@@ -89,7 +90,7 @@ struct NativeReasoningExclusionTests {
             ? ["choices": [["delta": message]]]
             : ["message": message, "done": false]
         let json = try #require(String(data: JSONEncoder().encode(root), encoding: .utf8))
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: omlx ? "data: \(json)\n\n" : json + "\n")
         ])
         let session = ChatSession(

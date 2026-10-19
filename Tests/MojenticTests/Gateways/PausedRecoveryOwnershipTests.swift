@@ -34,6 +34,7 @@ final class RecoveryConsumerPause: @unchecked Sendable {
     }
 }
 
+@Suite(.serialized)
 struct PausedRecoveryOwnershipTests {
     private enum RetainedStream: Sendable {
         case gateway(AsyncThrowingStream<RecoveryGatewayStreamEvent, any Error>)
@@ -73,7 +74,7 @@ struct PausedRecoveryOwnershipTests {
             return
         }
         let body = try replyBody(boundary: boundary, phase: phase)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 headers: ["X-Request-ID": "original-header"],
                 body: body,
@@ -236,7 +237,7 @@ struct PausedRecoveryOwnershipTests {
 
     private func assertCapturedAttempt(
         recorder: RecoveryRecorder,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         cleaned: CompletionRecoveryReport?,
         body: String,
         phase: String,

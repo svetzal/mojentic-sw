@@ -2,24 +2,34 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-private struct SleepyTool: LLMTool {
-    let id: String
-    let descriptor: ToolDescriptor
-
-    init(id: String, duration: Duration) {
-        self.id = id
-        descriptor = ToolDescriptor(
-            name: "sleep_\(id)",
-            description: "sleep",
-            parameters: ["type": "object"],
-        )
-        sleepDuration = duration
+private actor ToolCompletionOrder {
+    private(set) var completed: [String] = []
+    private var waiting: CheckedContinuation<Void, Never>?
+    func finish(_ id: String) async {
+        if id == "slow", !completed.contains("fast") {
+            await withCheckedContinuation { waiting = $0 }
+        }
+        completed.append(id)
+        if id == "fast" {
+            waiting?.resume()
+            waiting = nil
+        }
     }
+}
 
-    let sleepDuration: Duration
-
+private struct OrderedTool: LLMTool {
+    let id: String
+    let order: ToolCompletionOrder?
+    var descriptor: ToolDescriptor {
+        ToolDescriptor(
+            name: "ordered_\(id)", description: "scripted completion", parameters: ["type": "object"])
+    }
+    init(id: String, order: ToolCompletionOrder? = nil) {
+        self.id = id
+        self.order = order
+    }
     func execute(arguments _: JSONValue) async throws -> JSONValue {
-        try await Task.sleep(for: sleepDuration)
+        await order?.finish(id)
         return ["id": .string(id)]
     }
 }
@@ -82,18 +92,20 @@ struct ParallelToolRunnerTests {
         async throws
     {
         let runner = ParallelToolRunner(maxConcurrency: 4)
+        let order = ToolCompletionOrder()
         let tools: [any LLMTool] = [
-            SleepyTool(id: "slow", duration: .milliseconds(60)),
-            SleepyTool(id: "fast", duration: .milliseconds(5)),
+            OrderedTool(id: "slow", order: order),
+            OrderedTool(id: "fast", order: order),
         ]
         let calls = [
-            ToolCallExecution(id: "a", name: "sleep_slow", arguments: .object([:])),
-            ToolCallExecution(id: "b", name: "sleep_fast", arguments: .object([:])),
+            ToolCallExecution(id: "a", name: "ordered_slow", arguments: .object([:])),
+            ToolCallExecution(id: "b", name: "ordered_fast", arguments: .object([:])),
         ]
         let outcomes = try await runner.runBatch(calls, tools: tools)
         #expect(outcomes.count == 2)
         #expect(outcomes[0].id == "a")
         #expect(outcomes[1].id == "b")
+        #expect(await order.completed == ["fast", "slow"])
         if case .success(let value) = outcomes[0].kind {
             #expect(value.objectValue?["id"]?.stringValue == "slow")
         } else {
@@ -118,10 +130,10 @@ struct ParallelToolRunnerTests {
     @Test("tool failure is captured per-call without aborting siblings")
     func failureIsolated() async throws {
         let runner = ParallelToolRunner(maxConcurrency: 4)
-        let tools: [any LLMTool] = [ExplodingTool(), SleepyTool(id: "ok", duration: .milliseconds(5))]
+        let tools: [any LLMTool] = [ExplodingTool(), OrderedTool(id: "ok")]
         let calls = [
             ToolCallExecution(id: "x", name: "boom", arguments: .object([:])),
-            ToolCallExecution(id: "y", name: "sleep_ok", arguments: .object([:])),
+            ToolCallExecution(id: "y", name: "ordered_ok", arguments: .object([:])),
         ]
         let outcomes = try await runner.runBatch(calls, tools: tools)
         #expect(outcomes.count == 2)
@@ -134,8 +146,8 @@ struct ParallelToolRunnerTests {
         let runner = ParallelToolRunner(maxConcurrency: 4)
         let store = EventStore()
         let tracer = EventStoreTracer(store: store)
-        let tools: [any LLMTool] = [SleepyTool(id: "a", duration: .milliseconds(5))]
-        let calls = [ToolCallExecution(id: "1", name: "sleep_a", arguments: .object([:]))]
+        let tools: [any LLMTool] = [OrderedTool(id: "a")]
+        let calls = [ToolCallExecution(id: "1", name: "ordered_a", arguments: .object([:]))]
         let context = TracerContext()
         _ = try await runner.runBatch(calls, tools: tools, tracer: tracer, context: context)
         let events = await store.allEvents()
@@ -150,6 +162,7 @@ struct ParallelToolRunnerTests {
             return
         }
         #expect(payload.count == 1)
-        #expect(payload.duration > .zero)
+        #expect(payload.correlationId == context.correlationId)
+        #expect(payload.parentId == context.parentId)
     }
 }

@@ -63,7 +63,7 @@ struct NativeReasoningContract {
     }
 
     func assertControls(
-        _ server: RecoveryLoopback,
+        _ server: InProcessHTTPFixture,
         omlx: Bool,
         row: JSONValue,
         retain: Bool = false

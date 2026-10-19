@@ -1,7 +1,8 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenHTTPTests {
     private func number(_ value: JSONValue?) -> Double? {
         switch value {
@@ -13,7 +14,7 @@ struct FirstTokenHTTPTests {
 
     @Test
     func retryMixedFrameUsesFirstDispatchAndThinkingPrecedence() async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "retry"),
             RecoveryReply(
                 body:
@@ -22,7 +23,7 @@ struct FirstTokenHTTPTests {
             ),
         ])
         var policy = recoveryPolicy(RecoveryRecorder())
-        policy.timing.sleep = { _ in try await Task.sleep(for: .milliseconds(80)) }
+        policy.timing.sleep = { _ in TestStreamClock.current?.advance(80) }
         let gateway = StreamingBoundary(omlx: true, single: true, openAI: true).gateway(server, policy)
         var terminal: CompletionEvidence?
         var content = ""
@@ -38,8 +39,8 @@ struct FirstTokenHTTPTests {
         #expect(metadata["first_token_kind"] == .string("thinking"))
         let first = try #require(number(metadata["time_to_first_token_ms"]))
         let duration = try #require(number(metadata["request_duration_ms"]))
-        #expect(first >= 80)
-        #expect(duration >= first)
+        #expect(first == 80)
+        #expect(duration == 80)
         #expect(server.requests.withLock { $0.count } == 2)
     }
 }

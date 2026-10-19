@@ -5,7 +5,7 @@ import Testing
 func verifyTerminalEvidence(
     _ boundary: StreamingBoundary,
     _ body: String,
-    _ server: RecoveryLoopback,
+    _ server: InProcessHTTPFixture,
     _ recorder: RecoveryRecorder,
     _ reports: RecoveryLocked<[CompletionRecoveryReport]>,
     cancel: Bool,

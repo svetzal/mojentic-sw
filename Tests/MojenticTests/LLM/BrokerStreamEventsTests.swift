@@ -237,8 +237,6 @@ struct BrokerStreamEventsTests {
             break
         }
         await gateway.log.waitForTermination()
-        // Let the broker task observe the cancellation before inspecting the store.
-        try? await Task.sleep(for: .milliseconds(50))
         let events = await store.events(correlatedTo: context.correlationId)
         #expect(events.count == 1)
         if case .llmCall? = events.first {

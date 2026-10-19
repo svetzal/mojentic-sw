@@ -2,12 +2,12 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Recovery admission contract")
+@Suite("Recovery admission contract", .serialized)
 struct RecoveryAdmissionContractTests {
     @Test(arguments: RecoveryStatusBoundary.all)
     func emptyAdmissionDoesNotReject(_ boundary: RecoveryStatusBoundary) async throws {
         let reply = RecoveryReply(status: 503, body: "busy")
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.admission = { _, _ in AsyncStream { $0.finish() } }
@@ -34,7 +34,7 @@ extension RecoveryAdmissionContractTests {
     func providerAdmissionRules(_ boundary: RecoveryStatusBoundary, _ decision: String) async throws {
         let rejected = RecoveryReply(status: 503, body: "busy")
         let success = try admissionSuccess(boundary)
-        let server = try RecoveryLoopback(replies: [rejected, success])
+        let server = try InProcessHTTPFixture(replies: [rejected, success])
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         let admissions = RecoveryLocked<[RecoveryFailure]>([])
@@ -92,7 +92,7 @@ extension RecoveryAdmissionContractTests {
     @Test(arguments: RecoveryStatusBoundary.all, [false, true])
     func pendingAdmissionTerminates(_ boundary: RecoveryStatusBoundary, _ cancel: Bool) async throws {
         let rejected = RecoveryReply(status: 503, body: "busy")
-        let server = try RecoveryLoopback(replies: [rejected, admissionSuccess(boundary)])
+        let server = try InProcessHTTPFixture(replies: [rejected, admissionSuccess(boundary)])
         let recorder = RecoveryRecorder()
         let pending = AsyncStream<Void>.makeStream()
         let sleeping = AsyncStream<Void>.makeStream()

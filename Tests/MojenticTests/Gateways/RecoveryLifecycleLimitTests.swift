@@ -7,7 +7,7 @@ struct RecoveryLifecycleLimitTests {
     @Test(arguments: TypedRecoveryBoundary.all, ["budget", "deadline", "backoff-budget", "backoff-deadline"])
     func refusalRetainsAttempt(_ boundary: TypedRecoveryBoundary, _ limit: String) async throws {
         let reply = RecoveryReply(status: 503, headers: ["Retry-After": "31"], body: "busy")
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         let delivered = RecoveryLocked<Int>(0)

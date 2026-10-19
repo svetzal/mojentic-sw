@@ -2,7 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-// Bound simultaneous loopback fixtures while retaining every public matrix case.
+// Bound simultaneous in-process fixtures while retaining every public matrix case.
 @Suite(.serialized)
 struct RecoveryBoundedTimingTests {
     @Test(arguments: RecoveryStatusBoundary.all, [-1.0, 100.0, .nan, .infinity, -.infinity])

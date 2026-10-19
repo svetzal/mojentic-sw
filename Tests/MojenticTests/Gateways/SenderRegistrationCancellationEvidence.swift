@@ -9,7 +9,7 @@ import Testing
 extension SenderRegistrationCancellationTests {
     func assertAttempt(
         recorder: RecoveryRecorder,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         cleaned: CompletionRecoveryReport?,
         body: String,
         boundary: StreamingBoundary,

@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryCancellationTests {
     @Test(arguments: StreamingBoundary.withAnthropic, ["active", "admission", "backoff"])
     func cancellationRetainsActualAttempt(_ boundary: StreamingBoundary, _ phase: String) async throws {
@@ -11,7 +12,7 @@ struct StreamingRecoveryCancellationTests {
             } else {
                 RecoveryReply(status: 503, body: "busy")
             }
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             firstReply, RecoveryReply(body: boundary.frame(done: true)),
         ])
         defer { server.release() }
@@ -69,7 +70,7 @@ struct StreamingRecoveryCancellationTests {
     @Test(arguments: [false, true])
     func pausedTerminalTelemetryCannotSucceed(_ single: Bool) async throws {
         let boundary = StreamingBoundary(omlx: false, single: single)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(tool: !single, done: true, metrics: true))
         ])
         let recorder = RecoveryRecorder()

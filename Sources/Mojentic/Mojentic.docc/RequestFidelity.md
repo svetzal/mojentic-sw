@@ -50,9 +50,10 @@ capabilities are unchanged. A name such as `claude-3-7-sonnet-unregistered`
 therefore still uses 4096, even though the existing capability rules allow thinking.
 
 `request-fidelity-v1` revision `registered-output-limits-2026-10-17` exercises
-these exact names through production URLSession. Its shared fixture also drives
-`scripts/verify-packaged-request-fidelity`: a fresh SwiftPM consumer of a detached
-source archive and an HTTP provider verify each named default/explicit case.
+these exact names through public gateways with an in-process HTTP boundary.
+`scripts/verify-request-fidelity-contract` verifies the fixture and executable
+manifest, then runs the named default and explicit cases. There is no detached
+package-consumer verification claim.
 The warning assertions observe the actual swift-log diagnostic, including its
 level and model name, alongside omission of `reasoning_effort`.
 

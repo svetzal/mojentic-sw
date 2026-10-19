@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 #if anthropic
+    @Suite(.serialized)
     struct AnthropicRecoveryProofTests {
         @Test
         func captureFailureRetainsReceivedSemanticsWithoutResend() async throws {
@@ -12,7 +13,7 @@ import Testing
                 {"type":"tool_use","id":"t","name":"resolve_date","input":{}}],
                 "stop_reason":"tool_use","usage":{"input_tokens":3,"output_tokens":4}}
                 """#
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             var policy = recoveryPolicy(recorder)
             policy.wireObserver = { event in

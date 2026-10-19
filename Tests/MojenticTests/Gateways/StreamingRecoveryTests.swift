@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryTests {
     @Test(arguments: StreamingBoundary.withAnthropic, [400, 401, 403, 504])
     func numericFailuresAndPrivateEvidence(
@@ -14,7 +15,7 @@ struct StreamingRecoveryTests {
             body: "credential-sentinel",
             truncated: status != 504,
         )
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder, attempts: 3)
         policy.retryableStatuses.formUnion([400, 401, 403])
@@ -48,7 +49,7 @@ struct StreamingRecoveryTests {
             reasoning: kind == "reasoning" ? "想" : "",
             tool: kind == "tool",
         )
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body, truncated: true)])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
             try await boundary.consume(boundary.gateway(server, recoveryPolicy(recorder)))
@@ -76,7 +77,7 @@ struct StreamingRecoveryTests {
         _ boundary: StreamingBoundary
     ) async throws {
         let body = try boundary.frame(content: "é", reasoning: "想", done: true, metrics: true)
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.wireObserver = { event in
@@ -108,7 +109,7 @@ struct StreamingRecoveryTests {
             reason: "length",
             metrics: true,
         )
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let seen = RecoveryLocked<[String]>([])
         let failure = try await recoveryFailure {
@@ -139,7 +140,7 @@ struct StreamingRecoveryTests {
     func legacyRemainsSingleSend(
         _ boundary: StreamingBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "legacy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "legacy")])
         do {
             try await boundary.consume(boundary.gateway(server, nil))
             Issue.record("Expected rejection")

@@ -2,7 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-// Bound socket usage while the repository's recovery matrices run in parallel.
+// Keep contract row diagnostics in a stable suite order.
 @Suite(.serialized)
 struct ContextWindowJourneyTests {
     @Test(arguments: ["ollama", "omlx", "openai"], ["ordinary", "json", "structured", "stream", "events"])
@@ -31,7 +31,7 @@ struct ContextWindowJourneyTests {
         let reply = RecoveryReply(
             body: streaming ? (ollama ? response + "\n" : "data: \(response)\n\ndata: [DONE]\n\n") : response)
         let discovery = RecoveryReply(body: try #require(row["response"]?.stringValue))
-        let server = try RecoveryLoopback(
+        let server = try InProcessHTTPFixture(
             replies: provider == "openai" ? [reply, reply] : [reply, discovery, reply])
         defer { server.release() }
         let gateway = ContextWindowContract.gateway(provider, server: server)
@@ -111,7 +111,7 @@ struct ContextWindowJourneyTests {
             let provider = try #require(row["provider"]?.stringValue)
             let response = try #require(row["response"])
             let bytes = try JSONEncoder().encode(response)
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 RecoveryReply(body: try #require(String(bytes: bytes, encoding: .utf8)))
             ])
             defer { server.release() }

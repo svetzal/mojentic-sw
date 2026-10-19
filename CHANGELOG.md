@@ -10,6 +10,16 @@ move independently.
 
 ## [Unreleased]
 
+### Changed
+
+- Completion conformance tests now use in-process HTTP and line transports,
+  injected timing and explicit cancellation handshakes. Retain recovery,
+  reasoning, request identity and privacy assertions without sockets or sleeps.
+- Add an internal Anthropic streaming transport injection point; public
+  initialization and production dispatch behavior are unchanged.
+- Verify executable contract manifests in both test gates, remove server-based
+  packaged/example probes, and bound every CI job with a timeout.
+
 ## [3.0.0] - 2026-10-18
 
 ### Added — client streaming timing

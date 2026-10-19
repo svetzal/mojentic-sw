@@ -173,3 +173,16 @@ Per user's global instructions: integrate directly to `main`. No long-lived
 feature branches, no PRs as gates. Commit scoped, working changes; push to
 `origin/main` after each commit. See user's `~/.claude/CLAUDE.md` for full
 policy.
+
+## Deterministic public-API conformance
+
+Tests and verification scripts must use in-process gateway/HTTP boundary doubles,
+never sockets, servers, remote registries, real sleeps or elapsed-time thresholds.
+Use the per-completion clock seam for exact stream measurements and continuation
+signals for ordering/cancellation. Keep `RecoveryReply` and `RecoveryLocked`
+shared across recovery and native-reasoning support. Do not mock library internals.
+Both test gates run the versioned contract-source manifest verification through
+`scripts/with-gate-environment`; CI uses the same wrapper. See
+[deterministic test guidance](docs/DETERMINISTIC-TESTS.md) for the decision map,
+fixture provenance, inspection and verification scope. A changed manifest must
+be reviewed with its executable assertions; hashes alone are not behavior proof.

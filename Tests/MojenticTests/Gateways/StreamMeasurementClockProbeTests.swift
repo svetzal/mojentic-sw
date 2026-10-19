@@ -3,19 +3,21 @@ import Foundation
 import Testing
 
 /// Exercises the clock through the public streaming API at the line transport boundary.
+@Suite(.serialized)
 struct StreamMeasurementClockProbeTests {
     @Test
     func firstTokenAndDurationUseInjectedClock() async throws {
         let origin = ContinuousClock.now
         let ticks = RecoveryLocked<Int64>(-25)
-        try await StreamMeasurement.$now.withValue({
+        let now: @Sendable () -> ContinuousClock.Instant = {
             origin.advanced(
                 by: .milliseconds(
                     ticks.withLock { value in
                         value += 25
                         return value
                     }))
-        }) {
+        }
+        try await StreamMeasurement.$now.withValue(now) {
             let gateway = OllamaGateway(
                 baseURL: try #require(URL(string: "mojentic-fixture://clock")),
                 lineTransport: FakeLineTransport(lines: [

@@ -12,7 +12,7 @@ struct DateResolverToolTests {
         components.day = 15
         components.hour = 12
         components.timeZone = TimeZone(identifier: "UTC")
-        return Calendar(identifier: .gregorian).date(from: components) ?? Date()
+        return Calendar(identifier: .gregorian).date(from: components) ?? Date(timeIntervalSince1970: 0)
     }
 
     private static func makeTool() -> DateResolverTool {

@@ -2,66 +2,39 @@
 
 This runnable example uses `OMLXGateway.complete` with an opt-in
 `CompletionRecoveryPolicy`. It deliberately admits one eligible HTTP 503 retry
-against a caller-owned scripted loopback server. It needs no oMLX installation,
-model download, API account or live inference.
-
-From the repository root, with Swift 6.1 or newer and Python 3 installed:
+against a caller-provided endpoint. The example itself performs HTTP I/O;
+repository acceptance runs entirely in process:
 
 ```sh
-python3 scripts/probe-recovery-example.py
+swift test --traits full --filter RecoveryConformanceTests
 ```
 
-The probe builds `RecoveryExample` in release mode, starts a server on an ephemeral
-`127.0.0.1` port, runs the actual executable, and shuts down the server. Expected
-executable output:
+These public-API tests use a scripted HTTP boundary and verify retry admission,
+unchanged request bytes, exact response content, identities, lifecycle and privacy.
+The former server-launching example probe has been removed.
 
-```text
-attemptFailed wire=1 status=503 eligible=true acceptance=unknown
-admission next=2 decision=allow
-attemptSucceeded wire=2
-Recovered exactly: café 猫
-```
-
-The probe additionally requires exactly two `/v1/chat/completions` requests,
-identical encoded payload bytes, the expected model and message, the synthetic
-credential on both requests, and no credential or private response sentinel in
-stdout or stderr. Assertion failure exits nonzero.
-
-To build separately:
+Build the reference product without starting a provider:
 
 ```sh
 ./scripts/with-gate-environment swift build -c release --product RecoveryExample
 ```
 
-For your own scripted HTTP fixture (503 first, valid OpenAI-compatible buffered
-completion second), use its loopback port:
+The executable's CLI still accepts only a caller-owned HTTP `127.0.0.1` root
+URL with a port and `--admit-scripted-retry`. Repository tests and verification
+scripts never invoke that network path. The flag acknowledges possible duplicate
+work on a synthetic provider; it is not a production admission rule.
 
-```sh
-RECOVERY_EXAMPLE_API_KEY=synthetic-key ./scripts/with-gate-environment swift run -c release RecoveryExample http://127.0.0.1:PORT --admit-scripted-retry
-```
+The reference policy allows two total attempts with zero base delay, a
+one-second delay ceiling and a five-second recovery budget. Retry-After can
+still delay or refuse admission. The budget governs admission/backoff, not
+healthy generation. Eligibility is separate from permission: a status, timeout,
+closure or keepalive cannot establish that inference ended. Production admission
+needs independent resource and exact-attempt evidence.
 
-Replace `PORT` with the fixture's numeric port. The executable accepts only an
-HTTP `127.0.0.1` root URL with a port and the explicit admission flag. It uses
-`scripted-model` and the user message `Demonstrate bounded recovery.` It makes no
-model-list, load, unload, or health requests. The flag acknowledges duplicate
-work on a synthetic server; do not use this admission rule for production.
-
-The policy allows two total attempts, zero base delay, a one-second delay ceiling
-and five-second recovery budget. Retry-After can still delay or refuse admission.
-The budget governs admission/backoff, not healthy generation; the HTTP timeout is
-ten seconds. Eligibility is separate from permission. A 503, timeout, socket
-closure or keepalive does not prove remote termination. Dispatched acceptance
-remains unknown. Production controllers must independently decide whether to
-allow duplicate work and must leave unresolved admission pending or reject it.
-
-The example prints safe lifecycle fields and `RecoveryError.description` only.
-Other errors use a fixed diagnostic and failures exit 1; invalid command lines
-exit 2. Invalid policy limits can throw `MojenticError.invalidArgument` before
-dispatch. Raw wire capture and `inspectEvidence()` are sensitive and are not
-logged. Recovery never replays a broker loop or tool, and failed semantic output
-cannot be retried. Cancellation remains authoritative.
+The example prints safe lifecycle fields and safe error descriptions. Raw capture
+and `inspectEvidence()` are sensitive and are not logged. Recovery does not replay
+brokers or tools; cancellation remains authoritative.
 
 See [buffered recovery](../../Sources/Mojentic/Mojentic.docc/BufferedCompletionRecovery.md),
-[entrypoint error rules](../../RECOVERY-CONFORMANCE.md#public-entrypoints),
-[cited capabilities](../../Sources/Mojentic/Mojentic.docc/RecoveryCapabilities.md),
-and [oMLX keepalive behavior](../../Sources/Mojentic/Mojentic.docc/LocalModelsWithOMLX.md).
+[public entrypoints](../../RECOVERY-CONFORMANCE.md#public-entrypoints), and
+[provider capabilities](../../Sources/Mojentic/Mojentic.docc/RecoveryCapabilities.md).

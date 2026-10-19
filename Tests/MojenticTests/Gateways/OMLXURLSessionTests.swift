@@ -71,7 +71,7 @@ final class OMLXStubURLProtocol: URLProtocol {
     }
 }
 
-@Suite("oMLX gateway over a real URLSession")
+@Suite("oMLX gateway over a real URLSession", .serialized)
 struct OMLXURLSessionTests {
     private let host = "http://omlx.test:8000"
 

@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryHTTPDateTests {
     enum Form: CaseIterable, Sendable {
         case imf, rfc850, asctime
@@ -28,7 +29,7 @@ struct RecoveryHTTPDateTests {
                 status: 429, headers: ["Retry-After": form.header(seconds: 3)], body: "busy",
             )
             let replies = [rejected, try success(boundary)]
-            let server = try RecoveryLoopback(replies: replies)
+            let server = try InProcessHTTPFixture(replies: replies)
             let recorder = RecoveryRecorder()
             let sleeps = RecoveryLocked<[TimeInterval]>([])
             let failures = RecoveryLocked<[RecoveryFailure]>([])
@@ -72,7 +73,7 @@ struct RecoveryHTTPDateTests {
     @Test(arguments: RecoveryBoundary.all, [2.0, 3.0, 4.0])
     func obsoleteYearUsesInjectedFiftyYearWindow(_ boundary: RecoveryBoundary, _ offset: Double) async throws
     {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 status: 429, headers: ["Retry-After": "Wednesday, 01-Jan-70 00:00:03 GMT"], body: "busy"),
             boundary.success(),
@@ -105,7 +106,7 @@ struct RecoveryHTTPDateTests {
             status: 429, headers: header.map { ["Retry-After": $0] } ?? [:], body: "busy",
         )
         let replies = [rejected, try success(boundary)]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let sleeps = RecoveryLocked<[TimeInterval]>([])
         let observed = RecoveryLocked<RecoveryRetryAfter?>(nil)
@@ -130,7 +131,7 @@ struct RecoveryHTTPDateTests {
         let reply = RecoveryReply(
             status: 429, headers: ["Retry-After": form.header(seconds: 31)], body: "busy",
         )
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let sleeps = RecoveryLocked<[TimeInterval]>([])
         var policy = timedPolicy(recorder, wall: 0, sleeps: sleeps)
@@ -148,7 +149,7 @@ struct RecoveryHTTPDateTests {
             // Admission also uses sleep for its budget timer; keep it pending until cancellation.
             policy.timing.sleep = { delay in
                 sleeps.withLock { $0.append(delay) }
-                try await Task.sleep(for: .seconds(60))
+                try await waitForCancellation()
             }
         }
         let failure = try await recoveryFailure {

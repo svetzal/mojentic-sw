@@ -1,13 +1,14 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenBrokerTests {
     @Test(arguments: StreamingBoundary.all.filter(\.single), [false, true])
     func brokerSingleTurnPreservesTimingAndProviderMetrics(
         _ boundary: StreamingBoundary, _ recovery: Bool
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 body: boundary.frame(
                     content: "answer", reasoning: "thought", done: true, metrics: true))
@@ -41,7 +42,7 @@ struct FirstTokenBrokerTests {
     func httpRejectionRetainsStatusAndNoFirstToken(
         _ boundary: StreamingBoundary, _ recovery: Bool
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy")])
         var policy = recoveryPolicy(RecoveryRecorder())
         policy.maximumAttempts = 1
         let result = try await firstTokenOutcome(
@@ -78,7 +79,7 @@ struct FirstTokenBrokerTests {
             + "\"time_to_first_token\":0.25,\"prompt_eval_duration\":1.5,"
             + "\"generation_duration\":2.0,\"total_time\":3.5}}\n\n"
             + "data: [DONE]\n\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let boundary = StreamingBoundary(omlx: true, single: true)
         let gateway = boundary.gateway(server, recovery ? recoveryPolicy(RecoveryRecorder()) : nil)
         let result = try await firstTokenOutcome(boundary, gateway: gateway, recovering: recovery)

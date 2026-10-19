@@ -3,11 +3,12 @@ import Foundation
 import Testing
 
 #if anthropic
+    @Suite(.serialized)
     struct AnthropicRecoveryTests {
         @Test
         func completeJSONRetriesFrozenSchemaAndSupportedThinking() async throws {
             let boundary = RecoveryBoundary(omlx: true, structured: true, anthropic: true)
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 RecoveryReply(status: 503, body: "busy"), boundary.success(),
             ])
             let recorder = RecoveryRecorder()
@@ -47,7 +48,7 @@ import Testing
         func terminalUsageAndToolsRespectFinish(_ single: Bool, _ reason: String) async throws {
             let boundary = StreamingBoundary(omlx: true, single: single, anthropic: true)
             let body = try boundary.frame(tool: !single, done: true, reason: reason, metrics: true)
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let gateway = boundary.gateway(server, recoveryPolicy(recorder))
             let metrics = RecoveryLocked<[CompletionEvidence]>([])
@@ -173,7 +174,7 @@ import Testing
                 """#
             let payload = provider ? providerError : malformed
             let body = "event: error\ndata: \(payload)\n\n"
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let error = try await recoveryFailure {
                 try await boundary.consume(boundary.gateway(server, recoveryPolicy(recorder)))
@@ -202,7 +203,7 @@ import Testing
         func invalidUsageAndForeignTerminalProduceNoMetrics(_ single: Bool, _ payload: String) async throws {
             let boundary = StreamingBoundary(omlx: true, single: single, anthropic: true)
             let body = "data: \(payload)\n\n"
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let seen = RecoveryLocked<[String]>([])
             let failure = try await recoveryFailure {
@@ -228,7 +229,7 @@ import Testing
             let reply = RecoveryReply(
                 body: #"{"content":[{"type":"text","text":"legacy"}],"stop_reason":"max_tokens"}"#
             )
-            let server = try RecoveryLoopback(replies: [reply])
+            let server = try InProcessHTTPFixture(replies: [reply])
             let gateway = AnthropicGateway(apiKey: "fixture-key", baseURL: server.url)
             #expect(
                 try await gateway.complete(model: "fixture", messages: [], tools: nil, config: .init())
@@ -249,7 +250,7 @@ import Testing
 #endif
 
 /// Exact wire payload and identity assertions shared by public acceptance tests.
-func assertRecoveryRequests(_ recorder: RecoveryRecorder, _ server: RecoveryLoopback) {
+func assertRecoveryRequests(_ recorder: RecoveryRecorder, _ server: InProcessHTTPFixture) {
     let requests = recorder.requests.withLock { $0 }
     #expect(requests.map(\.1) == server.requests.withLock { $0 })
     #expect(!requests.isEmpty)

@@ -17,14 +17,14 @@ struct RecoveryCountingTool: LLMTool {
     }
 }
 
-@Suite("Recovery through broker and session")
+@Suite("Recovery through broker and session", .serialized)
 struct RecoveryToolSafetyTests {
     @Test(arguments: RecoveryBoundary.all.filter { !$0.structured }, [false, true])
     func completedToolSurvivesRecoveredFollowUp(
         _ boundary: RecoveryBoundary,
         _ session: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -110,7 +110,7 @@ struct RecoveryToolSafetyTests {
         _ boundary: RecoveryBoundary,
         _ session: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             boundary.success(tools: true), RecoveryReply(body: " ", truncated: true),
         ])
         let count = RecoveryToolCounter()
@@ -144,7 +144,7 @@ struct RecoveryToolSafetyTests {
 
     @Test(arguments: RecoveryBoundary.all.filter { !$0.structured })
     func recoveryDoesNotResetToolDepth(_ boundary: RecoveryBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             boundary.success(tools: true), RecoveryReply(status: 503, body: "busy"),
             boundary.success(tools: true),
         ])

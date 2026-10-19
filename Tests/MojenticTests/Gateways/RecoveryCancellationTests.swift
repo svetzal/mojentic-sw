@@ -2,7 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Recovery cancellation and capture boundaries")
+@Suite("Recovery cancellation and capture boundaries", .serialized)
 struct RecoveryCancellationTests {
     @Test(arguments: RecoveryBoundary.all, ["request", "headers", "body"])
     func captureFailureIsTerminal(
@@ -10,19 +10,10 @@ struct RecoveryCancellationTests {
         _ phase: String,
     ) async throws {
         let success = try boundary.success()
-        // Apple URLSession reports a response only after its first body byte, so a
-        // header-only hold never reaches the headers boundary there. Elsewhere the
-        // hold stays header-only: FoundationNetworking delivers a prefix byte even
-        // after the headers observer cancels, which would count as raw progress.
-        #if os(Linux)
-            let prefix = 0
-        #else
-            let prefix = 1
-        #endif
-        let reply =
-            phase == "headers"
-            ? RecoveryReply(body: success.body, hold: true, splitAt: prefix) : success
-        let server = try RecoveryLoopback(replies: [reply])
+        // An explicit header-only response terminates in process after the capture
+        // callback; no body delivery or platform-specific socket cancellation is needed.
+        let reply = phase == "headers" ? RecoveryReply(body: "") : success
+        let server = try InProcessHTTPFixture(replies: [reply])
         defer { server.release() }
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
@@ -93,7 +84,7 @@ struct RecoveryCancellationTests {
     func cancellationBeforeDispatchMakesZeroRequests(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [boundary.success()])
+        let server = try InProcessHTTPFixture(replies: [boundary.success()])
         let recorder = RecoveryRecorder()
         let ready = AsyncStream<Void>.makeStream()
         let start = AsyncStream<Void>.makeStream()
@@ -139,7 +130,7 @@ struct RecoveryCancellationTests {
                     RecoveryReply(status: 503, body: "busy")
                 }
             }
-        let server = try RecoveryLoopback(replies: [reply, boundary.success()])
+        let server = try InProcessHTTPFixture(replies: [reply, boundary.success()])
         defer { server.release() }
         let recorder = RecoveryRecorder()
         let ready = AsyncStream<Void>.makeStream()
@@ -233,7 +224,7 @@ struct RecoveryCancellationTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let reply = try boundary.success()
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: reply.body, hold: true)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: reply.body, hold: true)])
         server.trace.record("call", "healthy-generation/\(boundary)")
         let recorder = RecoveryRecorder()
         let now = RecoveryLocked<TimeInterval>(0)

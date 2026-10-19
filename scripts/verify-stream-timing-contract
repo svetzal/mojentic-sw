@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+echo swift-deterministic-contracts-v1
+git rev-parse HEAD
+sha256sum --check Tests/MojenticTests/Fixtures/Contracts/stream_first_token_v1.manifest.sha256
+exec ./scripts/with-gate-environment swift test --traits full --filter 'FirstToken|AnthropicLineBoundaryProbeTests|StreamMeasurementClockProbeTests' "$@"

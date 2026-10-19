@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryProviderFrameMetadataTests {
     @Test(
         arguments: RecoveryStatusBoundary.all.filter { [.tools, .single].contains($0.operation) },
@@ -19,7 +20,7 @@ struct RecoveryProviderFrameMetadataTests {
         )
         reply.status = 200
         reply.body = boundary.provider.omlx ? "event: error\ndata: \(reply.body)\n\n" : reply.body + "\n"
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder, attempts: 1)

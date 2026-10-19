@@ -1,13 +1,14 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenToolRouteTests {
     @Test(arguments: StreamingBoundary.all, [false, true])
     func argumentsCountAcrossToolCapableAndRejectingSingleTurnRoutes(
         _ boundary: StreamingBoundary, _ recovery: Bool
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(tool: true, done: true))
         ])
         let gateway = boundary.gateway(server, recovery ? recoveryPolicy(RecoveryRecorder()) : nil)

@@ -2,14 +2,14 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Recovery refusal safety")
+@Suite("Recovery refusal safety", .serialized)
 struct RecoveryAdmissionSafetyTests {
     @Test(
         arguments: RecoveryBoundary.all,
         ["exhausted", "ineligible", "admissionRequired", "limit", "capture", "jitter"],
     )
     func cancellationWinsOverRefusal(_ boundary: RecoveryBoundary, _ phase: String) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: phase == "ineligible" ? 400 : 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -123,7 +123,7 @@ struct RecoveryAdmissionSafetyTests {
                 ["message": .object(message), "done": true]
             }
         let bytes = try JSONEncoder().encode(envelope)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: #require(String(data: bytes, encoding: .utf8)), truncated: true),
             boundary.success(),
         ])

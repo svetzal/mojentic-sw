@@ -2,11 +2,12 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct OpenAIRecoveryTests {
     @Test(arguments: [false, true], ["stop", "length"])
     func terminalUsagePrecedesOutcomeAndExcludesEchoes(_ single: Bool, _ reason: String) async throws {
         let boundary = StreamingBoundary(omlx: true, single: single, openAI: true)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(done: true, reason: reason, metrics: true))
         ])
         let seen = RecoveryLocked<[String]>([])
@@ -34,7 +35,7 @@ struct OpenAIRecoveryTests {
     @Test(arguments: [false, true])
     func multipleChoicesAreMalformedWithoutDelivery(_ single: Bool) async throws {
         let body = #"data: {"choices":[{"delta":{}},{"delta":{"content":"hidden"}}]}"# + "\n\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let boundary = StreamingBoundary(omlx: true, single: single, openAI: true)
         let seen = RecoveryLocked<[String]>([])
         let failure = try await recoveryFailure {
@@ -52,7 +53,7 @@ struct OpenAIRecoveryTests {
     func singleTurnRejectedToolsRetainAllObservedSemantics(_ captureFails: Bool) async throws {
         let boundary = StreamingBoundary(omlx: true, single: true, openAI: true)
         let body = try boundary.frame(content: "é", reasoning: "想", tool: true)
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         let capture = policy.wireObserver
@@ -87,20 +88,20 @@ struct OpenAIRecoveryTests {
         #expect(!recorder.events.withLock { $0.map(\.transition) }.contains(.retryStarted))
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func legacyStreamsRemainSingleSendWithPolicy(_ single: Bool, _ enabled: Bool) async throws {
+    @Test(arguments: [false, true])
+    func legacyStreamingOutcomesThroughLineBoundary(_ single: Bool) async throws {
         let frame =
             #"""
             data: {"choices":[{"delta":{"content":"ok","reasoning_content":"private"},\#
             "finish_reason":"stop"}]}
             """#
         let body = frame + "\n\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
-        let recorder = RecoveryRecorder()
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let gateway = OpenAIGateway(
             apiKey: "credential-sentinel",
             baseURL: server.url,
-            recovery: enabled ? recoveryPolicy(recorder) : nil,
+            client: server.client,
+            lineTransport: server,
         )
         if single {
             var result: [String] = []
@@ -118,8 +119,15 @@ struct OpenAIRecoveryTests {
             )
             #expect(seen == [.text("ok"), .done(.stop, nil)])
         }
-        #expect(recorder.events.withLock { $0.isEmpty })
+        let bytes = try #require(server.requests.withLock { $0.first })
+        let request = try #require(JSONDecoder().decode(JSONValue.self, from: bytes).objectValue)
+        #expect(request["model"] == "gpt-4o")
+        #expect(request["stream"] == true)
+        #expect(request["messages"] == [])
         #expect(server.requests.withLock { $0.count } == 1)
+        let headers = try #require(server.requestHeaders.withLock { $0.first }).lowercased()
+        #expect(headers.contains("authorization: bearer credential-sentinel"))
+
     }
 
     @Test(arguments: [false, true], ["choices", "usage", "tools"])
@@ -134,7 +142,7 @@ struct OpenAIRecoveryTests {
                 "function":{"name":"x","arguments":"invalid"}}]}}]}
                 """#
             }
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let boundary = RecoveryBoundary(omlx: true, structured: structured, openAI: true)
         let failure = try await recoveryFailure {
             _ = try await boundary.complete(
@@ -155,8 +163,8 @@ struct OpenAIRecoveryTests {
     func recoveryPreservesModelShaping(_ model: String, _ structured: Bool) async throws {
         let boundary = RecoveryBoundary(omlx: true, structured: structured, openAI: true)
         let reply = try boundary.success()
-        let old = try RecoveryLoopback(replies: [reply])
-        let new = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy"), reply])
+        let old = try InProcessHTTPFixture(replies: [reply])
+        let new = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy"), reply])
         let config = CompletionConfig(temperature: 0.3, maxTokens: 17, topP: 0.8, reasoning: .high)
         for (server, policy) in [(old, nil), (new, recoveryPolicy(RecoveryRecorder()))] {
             let gateway = OpenAIGateway(apiKey: "key", baseURL: server.url, recovery: policy)

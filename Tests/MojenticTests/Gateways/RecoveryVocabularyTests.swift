@@ -2,13 +2,14 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryVocabularyTests {
     @Test(arguments: RecoveryStatusBoundary.all.filter { $0.operation != .json })
     func publicVocabulary(_ boundary: RecoveryStatusBoundary) async throws {
         let replies = [
             statusReply(503, attempt: 1, truncated: false), statusReply(504, attempt: 2, truncated: false),
         ]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let admissions = RecoveryLocked<[RecoveryFailure]>([])
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])

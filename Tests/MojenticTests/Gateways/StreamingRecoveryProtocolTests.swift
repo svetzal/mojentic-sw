@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryProtocolTests {
     @Test(arguments: StreamingBoundary.all, ["text", "tools", "done", "reason"])
     func malformedFramesHaveNoTelemetry(_ boundary: StreamingBoundary, _ field: String) async throws {
@@ -30,7 +31,7 @@ struct StreamingRecoveryProtocolTests {
                 }
             }
         let body = boundary.omlx ? "data: \(payload)\n\n" : payload + "\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let seen = RecoveryLocked<[String]>([])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
@@ -53,7 +54,7 @@ struct StreamingRecoveryProtocolTests {
             } else {
                 "{\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":\(Int.max),\"eval_count\":1}\n"
             }
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let seen = RecoveryLocked<[String]>([])
         let failure = try await recoveryFailure {
             try await boundary.consume(
@@ -70,7 +71,7 @@ struct StreamingRecoveryProtocolTests {
     func safeFormattingAndTelemetryExcludeEchoes(
         _ boundary: StreamingBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(content: "é", done: true, metrics: true))
         ])
         let recorder = RecoveryRecorder()
@@ -112,7 +113,7 @@ struct StreamingRecoveryProtocolTests {
         _ boundary: StreamingBoundary
     ) async throws {
         let body = boundary.omlx ? ": keepalive\n\n" : "\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
             try await boundary.consume(boundary.gateway(server, recoveryPolicy(recorder)))

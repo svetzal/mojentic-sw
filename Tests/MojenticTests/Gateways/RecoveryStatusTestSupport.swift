@@ -64,14 +64,6 @@ func statusReply(_ status: Int, attempt: Int, truncated: Bool) -> RecoveryReply 
 
 func statusHeaders(_ reply: RecoveryReply) -> [String: String] {
     var headers = reply.headers.reduce(into: [String: String]()) { $0[$1.key.lowercased()] = $1.value }
-    #if !os(Linux)
-        // The fixture writes UTF-8 octets. Apple URLSession exposes each header
-        // octet as Latin-1; FoundationNetworking decodes the same octets as UTF-8.
-        // Assert that exact platform representation without altering captured evidence.
-        headers = headers.mapValues { value in
-            value.utf8.map { String(UnicodeScalar($0)) }.joined()
-        }
-    #endif
     headers["content-length"] = String(reply.body.utf8.count + (reply.truncated ? 20 : 0))
     headers["connection"] = "close"
     headers["content-type"] = "application/json"
@@ -82,9 +74,9 @@ func normalizedHeaders(_ headers: [String: String]) -> [String: String] {
     headers.reduce(into: [:]) { $0[$1.key.lowercased()] = $1.value }
 }
 
-/// Compares ordered captures to actual socket bytes and exact scripted HTTP evidence.
+/// Compares ordered captures to captured HTTP boundary bytes and exact scripted HTTP evidence.
 func assertStatusWires(
-    _ recorder: RecoveryRecorder, server: RecoveryLoopback, replies: [RecoveryReply],
+    _ recorder: RecoveryRecorder, server: InProcessHTTPFixture, replies: [RecoveryReply],
 ) throws -> [RecoveryIdentity] {
     let requests = recorder.requests.withLock { $0 }
     #expect(server.requests.withLock { $0 } == requests.map(\.1))
@@ -163,11 +155,7 @@ func assertStatusFailure(
     #expect(evidence.body == Data(reply.body.utf8))
     if reply.truncated {
         let cause = try #require(evidence.cause as? URLError)
-        #if os(Linux)
-            #expect(cause.code == .unknown)
-        #else
-            #expect(cause.code == .networkConnectionLost)
-        #endif
+        #expect(cause.code == .networkConnectionLost)
     } else {
         let cause = try #require(evidence.cause as? RecoveryHTTPStatusFailure)
         #expect(cause.status == reply.status)

@@ -2,6 +2,7 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryVocabularyCodableTests {
     @Test(arguments: RecoveryProvider.allCases)
     func providerRoundTrip(_ provider: RecoveryProvider) throws {

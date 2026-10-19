@@ -3,7 +3,7 @@ import Foundation
 
 /// Persist synthetic HTTP evidence only when the foreground harness requests it.
 func retainStopSequenceCapture(
-    _ recorder: RecoveryRecorder, _ server: RecoveryLoopback, entrypoint: String,
+    _ recorder: RecoveryRecorder, _ server: InProcessHTTPFixture, entrypoint: String,
 ) throws {
     guard let path = ProcessInfo.processInfo.environment["STOP_SEQUENCE_EVIDENCE_DIR"] else { return }
     let encoder = JSONEncoder()
@@ -34,8 +34,8 @@ func retainStopSequenceCapture(
     }
     let capture: JSONValue = try [
         "entrypoint": .string(entrypoint), "wire_events": .array(wires),
-        "socket_request_headers": .array(server.requestHeaders.withLock { $0.map(JSONValue.string) }),
-        "socket_request_bodies_base64": .array(
+        "boundary_request_headers": .array(server.requestHeaders.withLock { $0.map(JSONValue.string) }),
+        "boundary_request_bodies_base64": .array(
             server.requests.withLock {
                 $0.map { .string($0.base64EncodedString()) }
             }

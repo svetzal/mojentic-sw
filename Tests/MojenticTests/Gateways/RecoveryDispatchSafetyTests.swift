@@ -2,14 +2,14 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Recovery dispatch safety")
+@Suite("Recovery dispatch safety", .serialized)
 struct RecoveryDispatchSafetyTests {
     @Test(arguments: RecoveryBoundary.all, [false, true])
     func expiryDuringRetryCapturePreventsResend(
         _ boundary: RecoveryBoundary,
         _ duringTransportSetup: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -21,7 +21,7 @@ struct RecoveryDispatchSafetyTests {
         // URLSession setup after the engine's first final check has passed.
         policy.timing.sleep = { delay in
             if delay > 0 {
-                try await Task.sleep(for: .seconds(60))
+                try await waitForCancellation()
             }
         }
         let capture = policy.wireObserver
@@ -63,7 +63,7 @@ struct RecoveryDispatchSafetyTests {
     func slowInitialFailureStartsBudgetAndAdmittedRequestMayOutliveLimits(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: " ", truncated: true, hold: true), boundary.success(),
         ])
         defer { server.release() }
@@ -77,7 +77,7 @@ struct RecoveryDispatchSafetyTests {
         policy.timing.monotonic = { now.withLock { $0 } }
         policy.timing.sleep = { delay in
             if delay > 0 {
-                try await Task.sleep(for: .seconds(60))
+                try await waitForCancellation()
             }
         }
         policy.reportObserver = { value in report.withLock { $0 = value } }
@@ -135,7 +135,7 @@ struct RecoveryDispatchSafetyTests {
     func expiryFromActualStartObserverDoesNotAbortAdmittedRequest(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -146,7 +146,7 @@ struct RecoveryDispatchSafetyTests {
         policy.timing.monotonic = { now.withLock { $0 } }
         policy.timing.sleep = { delay in
             if delay > 0 {
-                try await Task.sleep(for: .seconds(60))
+                try await waitForCancellation()
             }
         }
         let observe = policy.observer
@@ -177,7 +177,7 @@ struct RecoveryDispatchSafetyTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let success = try boundary.success()
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "busy"),
             RecoveryReply(body: success.body, hold: true, splitAt: 0),
         ])

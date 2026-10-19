@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryConsumerTests {
     @Test(
         arguments: StreamingBoundary.withAnthropic.filter { !$0.single },
@@ -17,7 +18,7 @@ struct StreamingRecoveryConsumerTests {
             RecoveryReply(status: 503, body: "busy"),
             RecoveryReply(body: boundary.frame(content: "recovered", done: true)),
         ]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
@@ -115,7 +116,7 @@ struct StreamingRecoveryConsumerTests {
     @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single }, [false, true])
     func recoveryPreservesStreamingToolDepth(_ boundary: StreamingBoundary, _ session: Bool) async throws {
         let toolReply = try RecoveryReply(body: boundary.frame(tool: true, done: true))
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             toolReply, RecoveryReply(status: 503, body: "busy"), toolReply,
         ])
         let count = RecoveryToolCounter()
@@ -149,7 +150,7 @@ struct StreamingRecoveryConsumerTests {
 
     @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.single })
     func brokerSingleTurnRetainsTypedRecovery(_ boundary: StreamingBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 504, body: "busy")])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
         var terminals = 0
         for await event in broker.generateRecoveryStreamEvents(model: "fixture", messages: []) {

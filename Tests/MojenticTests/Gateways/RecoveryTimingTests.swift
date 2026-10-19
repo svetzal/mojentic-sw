@@ -2,11 +2,11 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Recovery admission and timing")
+@Suite("Recovery admission and timing", .serialized)
 struct RecoveryTimingTests {
     @Test(arguments: RecoveryBoundary.all, ["2", "Thu, 01 Jan 1970 00:00:03 GMT", "invalid", "-2"])
     func retryAfterUsesInjectedTiming(_ boundary: RecoveryBoundary, _ header: String) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": header], body: "busy"), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -44,7 +44,7 @@ struct RecoveryTimingTests {
         _ boundary: RecoveryBoundary,
         _ budget: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": "31"], body: "busy")
         ])
         let recorder = RecoveryRecorder()
@@ -70,7 +70,7 @@ struct RecoveryTimingTests {
         _ allow: Bool,
     ) async throws {
         // Truncated successful response is ambiguous transport failure, not termination proof.
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: " ", truncated: true), boundary.success(),
         ])
         let recorder = RecoveryRecorder()
@@ -113,7 +113,7 @@ struct RecoveryTimingTests {
     func ambiguousFailureWithoutHookRequiresAdmission(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 504, body: "busy")])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.admission = nil
@@ -128,13 +128,13 @@ struct RecoveryTimingTests {
     }
 }
 
-@Suite("Recovery admission limits")
+@Suite("Recovery admission limits", .serialized)
 struct RecoveryAdmissionLimitTests {
     @Test(arguments: RecoveryBoundary.all)
     func expiresWhileAdmissionIsPending(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy")])
         let recorder = RecoveryRecorder()
         let sleeping = AsyncStream<Void>.makeStream()
         let elapsed = AsyncStream<Void>.makeStream()
@@ -167,15 +167,15 @@ struct RecoveryAdmissionLimitTests {
     }
 }
 
-@Suite("Ambiguous local timeout")
+@Suite("Ambiguous local timeout", .serialized)
 struct RecoveryTimeoutTests {
     @Test(arguments: RecoveryBoundary.all, [false, true])
     func timeoutRemainsPendingUntilExplicitAllowOrReject(
         _ boundary: RecoveryBoundary,
         _ allow: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
-            RecoveryReply(body: "", truncated: true, hold: true), boundary.success(),
+        let server = try InProcessHTTPFixture(replies: [
+            RecoveryReply(body: "", error: .timedOut), boundary.success(),
         ])
         defer { server.release() }
         let recorder = RecoveryRecorder()
@@ -217,13 +217,13 @@ struct RecoveryTimeoutTests {
     }
 }
 
-@Suite("Recovery bounded backoff")
+@Suite("Recovery bounded backoff", .serialized)
 struct RecoveryBackoffTests {
     @Test(arguments: RecoveryBoundary.all)
     func exponentialCeilingsAndBoundedHistory(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 504, body: "busy")])
         let recorder = RecoveryRecorder()
         let delays = RecoveryLocked<[TimeInterval]>([])
         var policy = recoveryPolicy(recorder, attempts: 4)
@@ -246,7 +246,7 @@ struct RecoveryBackoffTests {
     func pastDateDoesNotReplaceJitterDelay(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 status: 429,
                 headers: ["Retry-After": "Thu, 01 Jan 1970 00:00:00 GMT"],
@@ -271,7 +271,7 @@ struct RecoveryBackoffTests {
     func expiredAbsoluteDeadlinePreventsAdmission(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy")])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.deadline = 1

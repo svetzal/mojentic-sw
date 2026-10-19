@@ -8,11 +8,11 @@ import Testing
 
 /// A custom scheme makes network fallback impossible, even if interception fails.
 final class RecoverySeamProbeProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.scheme == "mojentic-fixture"
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.scheme == "mojentic-probe"
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         guard let url = request.url,
@@ -36,9 +36,10 @@ struct RecoveryTransportSeamProbeTests {
         defer { URLProtocol.unregisterClass(RecoverySeamProbeProtocol.self) }
         #expect(registered)
         var policy = CompletionRecoveryPolicy()
+        policy.timing = deterministicRecoveryTiming()
         policy.maximumAttempts = 1
         let gateway = OllamaGateway(
-            baseURL: try #require(URL(string: "mojentic-fixture://isolated")),
+            baseURL: try #require(URL(string: "mojentic-probe://isolated")),
             client: HTTPClient(session: URLSession(configuration: configuration)),
             recovery: recovering ? policy : nil)
         let response = try await gateway.complete(

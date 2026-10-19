@@ -41,18 +41,20 @@ final class RecoveryCallTrace: @unchecked Sendable {
         lifecycle: RecoveryEvent? = nil,
     ) {
         guard destination != nil else { return }
-        let entry = Entry(
-            time: Date().timeIntervalSince1970,
-            uptime: ProcessInfo.processInfo.systemUptime,
-            event: event,
-            detail: detail,
-            bytes: bytes,
-            identity: identity,
-            logicalID: logicalID ?? identity?.logicalID,
-            progress: progress,
-            lifecycle: lifecycle,
-        )
-        entries.withLock { $0.append(entry) }
+        entries.withLock { values in
+            let entry = Entry(
+                time: Double(values.count),
+                uptime: Double(values.count),
+                event: event,
+                detail: detail,
+                bytes: bytes,
+                identity: identity,
+                logicalID: logicalID ?? identity?.logicalID,
+                progress: progress,
+                lifecycle: lifecycle,
+            )
+            values.append(entry)
+        }
     }
 
     func flush() {

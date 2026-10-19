@@ -2,11 +2,14 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct PausedRecoveryDeliveryTests {
     @Test(arguments: StreamingBoundary.all)
     func cancellationAfterDeliveredValuesRetainsProgress(_ boundary: StreamingBoundary) async throws {
         let body = try boundary.frame(content: "é", reasoning: "ré")
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true, hold: true)])
+        let server = try InProcessHTTPFixture(replies: [
+            RecoveryReply(body: body, truncated: true, hold: true)
+        ])
         defer { server.release() }
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<CompletionRecoveryReport?>(nil)
@@ -65,10 +68,7 @@ struct PausedRecoveryDeliveryTests {
         var signal = ready.stream.makeAsyncIterator()
         _ = await signal.next()
         task.cancel()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while reports.withLock({ $0 }) == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await reports.wait { $0 != nil }
         let report = reports.withLock { $0 }
         #expect(report != nil)
         #expect(server.waitForPeerClose())

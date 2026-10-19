@@ -2,7 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Typed recovery errors at public boundaries")
+@Suite("Typed recovery errors at public boundaries", .serialized)
 struct TypedRecoveryErrorTests {
     @Test(
         "Multimodal session length preserves exact provider image bytes",
@@ -21,7 +21,7 @@ struct TypedRecoveryErrorTests {
                 "done":true,"done_reason":"length","prompt_eval_count":3,"eval_count":4}
                 """#
         )
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let boundary = RecoveryBoundary(omlx: false, structured: false)
         let broker = LLMBroker(gateway: boundary.gateway(server, policy: recoveryPolicy(recorder)))
@@ -49,7 +49,7 @@ struct TypedRecoveryErrorTests {
 extension TypedRecoveryErrorTests {
     @Test(arguments: TypedRecoveryBoundary.all, [false, true])
     func invalidPolicy(_ boundary: TypedRecoveryBoundary, _ scoped: Bool) async throws {
-        let server = try RecoveryLoopback(replies: [])
+        let server = try InProcessHTTPFixture(replies: [])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         let changes: [@Sendable (inout CompletionRecoveryPolicy) -> Void] = [
@@ -92,7 +92,7 @@ extension TypedRecoveryErrorTests {
     ) async throws {
         let (scoped, postResponse) = options
         let reply = try boundary.reply(length: false)
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         var policy = recoveryPolicy(recorder)
@@ -173,7 +173,7 @@ extension TypedRecoveryErrorTests {
     @Test(arguments: TypedRecoveryBoundary.all, [false, true])
     func lengthCause(_ boundary: TypedRecoveryBoundary, _ scoped: Bool) async throws {
         let reply = try boundary.reply(length: true)
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         let delivered = RecoveryLocked<Int>(0)
@@ -254,7 +254,7 @@ extension TypedRecoveryErrorTests {
 
     private func invoke(
         _ boundary: TypedRecoveryBoundary,
-        _ server: RecoveryLoopback,
+        _ server: InProcessHTTPFixture,
         _ policy: CompletionRecoveryPolicy,
         _ counter: RecoveryToolCounter,
         scoped: Bool,

@@ -2,10 +2,11 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryTimingTests {
     @Test(arguments: StreamingBoundary.withAnthropic, ["2", "Thu, 01 Jan 1970 00:00:03 GMT", "invalid"])
     func retryAfterPreservesPolicy(_ boundary: StreamingBoundary, _ header: String) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": header], body: "busy"),
             RecoveryReply(body: boundary.frame(content: "ok", done: true)),
         ])
@@ -27,7 +28,7 @@ struct StreamingRecoveryTimingTests {
         _ boundary: StreamingBoundary,
         _ budget: Bool,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 429, headers: ["Retry-After": "31"], body: "busy")
         ])
         let recorder = RecoveryRecorder()
@@ -53,7 +54,7 @@ struct StreamingRecoveryTimingTests {
         _ allow: Bool,
     ) async throws {
         let keepalive = boundary.omlx ? ": still alive\n\n" : "\n"
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: keepalive, truncated: true),
             RecoveryReply(body: boundary.frame(content: "ok", done: true)),
         ])

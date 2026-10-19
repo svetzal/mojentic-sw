@@ -22,7 +22,7 @@ struct PublicInterruptionCase: Sendable, CustomStringConvertible {
 
 struct PublicInterruptionCapture {
     let recorder: RecoveryRecorder
-    let server: RecoveryLoopback
+    let server: InProcessHTTPFixture
     let reports: RecoveryLocked<[CompletionRecoveryReport]>
     let baseline: Int
     let eventBaseline: Int
@@ -31,7 +31,7 @@ struct PublicInterruptionCapture {
 
     init(
         recorder: RecoveryRecorder,
-        server: RecoveryLoopback,
+        server: InProcessHTTPFixture,
         reports: RecoveryLocked<[CompletionRecoveryReport]>
     ) {
         self.recorder = recorder
@@ -70,11 +70,7 @@ struct PublicInterruptionCapture {
         #expect(report.progress == failure.failure.progress)
         let evidence = failure.failure.inspectEvidence()
         let cause = try #require(evidence.cause as? URLError)
-        #if os(Linux)
-            #expect(cause.code == .unknown)
-        #else
-            #expect(cause.code == .networkConnectionLost)
-        #endif
+        #expect(cause.code == .networkConnectionLost)
         let historyCause = try #require(failure.history.first?.inspectEvidence().cause as? URLError)
         let reportCause = try #require(report.history.first?.inspectEvidence().cause as? URLError)
         #expect((historyCause as NSError).isEqual(cause as NSError))

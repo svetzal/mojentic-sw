@@ -14,7 +14,7 @@ struct RecoveryLifecycleCompletionTests {
         let success = try boundary.buffered.success()
         let rejected = RecoveryReply(status: 503, body: "busy")
         let replies = retry ? [rejected, success] : [success]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let delivered = RecoveryLocked<[String]>([])
         try await boundary.invoke(
@@ -51,7 +51,7 @@ struct RecoveryLifecycleCompletionTests {
         let success = try RecoveryReply(body: boundary.frame(content: "é🐈", done: true))
         let rejected = RecoveryReply(status: 503, body: "busy")
         let replies = retry ? [rejected, success] : [success]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let gateway = boundary.gateway(server, recoveryPolicy(recorder))
         let broker = LLMBroker(gateway: gateway)

@@ -2,11 +2,11 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-// Bound socket usage while the repository's recovery matrices run in parallel.
+// Keep contract row diagnostics in a stable suite order.
 @Suite(.serialized)
 struct ContextWindowContractTests {
     @Test func exactSelectionThroughHTTP() async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 body:
                     #"""
@@ -32,7 +32,7 @@ extension ContextWindowContractTests {
         let model = try #require(fields["model"]?.stringValue)
         let status = try #require(fields["status"]?.intValue)
         let body = try #require(fields["response"]?.stringValue)
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: status, body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: status, body: body)])
         defer { server.release() }
         let authenticated = fields["without_api_key"] != .bool(true)
         let gateway = ContextWindowContract.gateway(provider, server: server, authenticated: authenticated)
@@ -91,7 +91,7 @@ extension ContextWindowContractTests {
     }
 
     @Test func registryRowsNeverRequestHTTP() async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 418, body: "must not request")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 418, body: "must not request")])
         defer { server.release() }
         let gateway = ContextWindowContract.gateway("openai", server: server)
         for row in try ContextWindowContract().rows("registry_cases") {
@@ -105,7 +105,7 @@ extension ContextWindowContractTests {
 extension ContextWindowContractTests {
     @Test(arguments: ["ollama", "omlx"])
     func transportFailureIsAnError(provider: String) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: "{}", truncated: true)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: "{}", truncated: true)])
         defer { server.release() }
         let gateway = ContextWindowContract.gateway(provider, server: server)
         await #expect { _ = try await gateway.modelContextWindow(model: "exact-model") } throws: { error in

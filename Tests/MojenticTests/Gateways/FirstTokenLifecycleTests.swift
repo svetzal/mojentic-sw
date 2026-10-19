@@ -1,7 +1,8 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenLifecycleTests {
     @Test(arguments: [false, true])
     func firstArgumentFragmentPrecedesTerminalAssembly(_ recovery: Bool) async throws {
@@ -13,7 +14,7 @@ struct FirstTokenLifecycleTests {
             "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"functio"
             + "n\":{\"arguments\":\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\nda"
             + "ta: [DONE]\n\n"
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 body: prefix + suffix, splitAt: prefix.utf8.count, holdSuffix: true)
         ])
@@ -27,36 +28,36 @@ struct FirstTokenLifecycleTests {
         }
         var arrival = server.arrivals.makeAsyncIterator()
         #expect(await arrival.next() == 1)
-        try await Task.sleep(for: .milliseconds(200))
+        await server.deliveries.wait { $0 > 0 }
+        TestStreamClock.current?.advance(200)
         server.releaseSuffix()
         let result = try await task.value
         try assertFirstToken(result, kind: "tool_call", terminal: "done")
         let metadata = try #require(result.evidence?.metadata)
         let first = try #require(timingNumber(metadata["time_to_first_token_ms"]))
         let duration = try #require(timingNumber(metadata["request_duration_ms"]))
-        #expect(duration - first >= 150)
+        #expect(duration - first == 200)
     }
 
     @Test(arguments: StreamingBoundary.withAnthropic)
     func delayedCaptureIsOutsideFirstDispatch(_ boundary: StreamingBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(content: "answer", done: true))
         ])
         var policy = recoveryPolicy(RecoveryRecorder())
+        let time = TestStreamClock.current
         policy.wireObserver = { event in
-            if case .request = event { Thread.sleep(forTimeInterval: 0.2) }
+            if case .request = event { time?.advance(200) }
         }
-        let clock = ContinuousClock()
-        let start = clock.now
+        let start = TestStreamClock.current?.milliseconds ?? 0
         let result = try await firstTokenOutcome(
             boundary,
             gateway: boundary.gateway(server, policy),
             recovering: true)
-        let elapsed = start.duration(to: clock.now).components
-        let wall = Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15
+        let wall = Double((TestStreamClock.current?.milliseconds ?? 0) - start)
         try assertFirstToken(result, kind: "content", terminal: boundary.single ? "completed" : "done")
         let duration = try #require(timingNumber(result.evidence?.metadata?["request_duration_ms"]))
-        #expect(wall - duration >= 180)
+        #expect(wall - duration == 200)
     }
 
     @Test(arguments: StreamingBoundary.all.filter { !$0.single }, [false, true])
@@ -64,13 +65,13 @@ struct FirstTokenLifecycleTests {
         _ boundary: StreamingBoundary, _ session: Bool
     ) async throws {
         let firstBody = try boundary.frame(tool: true, done: true)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: firstBody),
             RecoveryReply(body: boundary.frame(content: "answer", done: true)),
         ])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
         let chat = ChatSession(broker: broker, model: "fixture", tools: [TimingTool()])
-        let start = ContinuousClock.now
+        let start = TestStreamClock.current?.milliseconds ?? 0
         var completions: [CompletionEvidence] = []
         var final: LLMResponse?
         let stream =
@@ -81,8 +82,7 @@ struct FirstTokenLifecycleTests {
             if case .metrics(let evidence) = event { completions.append(evidence) }
             if case .done(let response) = event { final = response }
         }
-        let elapsed = start.duration(to: .now).components
-        let total = Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15
+        let total = Double((TestStreamClock.current?.milliseconds ?? 0) - start)
         #expect(completions.count == 2)
         let first = try #require(completions.first)
         let last = try #require(completions.last)
@@ -90,7 +90,7 @@ struct FirstTokenLifecycleTests {
         #expect(last.metadata?["first_token_kind"] == .string("content"))
         let firstDuration = try #require(timingNumber(first.metadata?["request_duration_ms"]))
         let lastDuration = try #require(timingNumber(last.metadata?["request_duration_ms"]))
-        #expect(total - firstDuration - lastDuration >= 150)
+        #expect(total - firstDuration - lastDuration == 200)
         #expect(final?.content == "answer")
         #expect(final?.metadata == last.metadata)
         #expect(server.requests.withLock { $0.count } == 2)
@@ -100,13 +100,13 @@ struct FirstTokenLifecycleTests {
     @Test(arguments: [false, true])
     func failedToolContinuationHasFreshTimingAndNoReplay(_ session: Bool) async throws {
         let boundary = StreamingBoundary(omlx: true, single: false, openAI: true)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: boundary.frame(tool: true, done: true)),
             RecoveryReply(body: boundary.frame(content: "partial"), truncated: true),
         ])
         let broker = LLMBroker(gateway: boundary.gateway(server, recoveryPolicy(RecoveryRecorder())))
         let chat = ChatSession(broker: broker, model: "fixture", tools: [TimingTool()])
-        let start = ContinuousClock.now
+        let start = TestStreamClock.current?.milliseconds ?? 0
         var first: CompletionEvidence?
         var failure: RecoveryError?
         var tools = 0
@@ -134,10 +134,37 @@ struct FirstTokenLifecycleTests {
         #expect(first?.metadata?["first_token_kind"] == .string("tool_call"))
         let firstDuration = try #require(timingNumber(first?.metadata?["request_duration_ms"]))
         let failedDuration = try #require(timingNumber(error.evidence?.metadata?["request_duration_ms"]))
-        let elapsed = start.duration(to: .now).components
-        let total = Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15
-        #expect(total - firstDuration - failedDuration >= 150)
+        let total = Double((TestStreamClock.current?.milliseconds ?? 0) - start)
+        #expect(total - firstDuration - failedDuration == 200)
         if session { #expect(await chat.messages().isEmpty) }
+    }
+
+    @Test
+    func sameGatewayConcurrentCompletionsKeepSeparateOrigins() async throws {
+        let boundary = StreamingBoundary(omlx: true, single: false, openAI: true)
+        let fixture = try InProcessHTTPFixture(replies: [
+            RecoveryReply(
+                body: boundary.frame(reasoning: "slow-thought", done: true), splitAt: 0, holdSuffix: true),
+            RecoveryReply(body: boundary.frame(content: "fast-answer", done: true)),
+        ])
+        defer { fixture.release() }
+        let gateway = boundary.gateway(fixture, nil)
+        let slow = Task { try await firstTokenOutcome(boundary, gateway: gateway, recovering: false) }
+        var arrivals = fixture.arrivals.makeAsyncIterator()
+        #expect(await arrivals.next() == 1)
+        TestStreamClock.current?.advance(50)
+        let fast = try await firstTokenOutcome(boundary, gateway: gateway, recovering: false)
+        TestStreamClock.current?.advance(150)
+        fixture.releaseSuffix()
+        let delayed = try await slow.value
+        try assertFirstToken(fast, kind: "content", terminal: "done")
+        try assertFirstToken(delayed, kind: "thinking", terminal: "done")
+        #expect(fast.content == "fast-answer")
+        #expect(delayed.content.isEmpty)
+        #expect(fast.evidence?.metadata?["time_to_first_token_ms"] == .number(0))
+        #expect(fast.evidence?.metadata?["request_duration_ms"] == .number(0))
+        #expect(delayed.evidence?.metadata?["time_to_first_token_ms"] == .number(200))
+        #expect(delayed.evidence?.metadata?["request_duration_ms"] == .number(200))
     }
 
     @Test
@@ -145,9 +172,11 @@ struct FirstTokenLifecycleTests {
         let slowBoundary = StreamingBoundary(omlx: false, single: true)
         let fastBoundary = StreamingBoundary(omlx: true, single: true)
         let slowBody = try slowBoundary.frame(reasoning: "thought", done: true)
-        let slow = try RecoveryLoopback(replies: [RecoveryReply(body: slowBody, splitAt: 0, holdSuffix: true)]
+        let slow = try InProcessHTTPFixture(replies: [
+            RecoveryReply(body: slowBody, splitAt: 0, holdSuffix: true)
+        ]
         )
-        let fast = try RecoveryLoopback(replies: [
+        let fast = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: fastBoundary.frame(content: "answer", done: true))
         ])
         defer { slow.release() }
@@ -163,14 +192,14 @@ struct FirstTokenLifecycleTests {
             fastBoundary,
             gateway: fastBoundary.gateway(fast, nil),
             recovering: false)
-        try await Task.sleep(for: .milliseconds(150))
+        TestStreamClock.current?.advance(150)
         slow.releaseSuffix()
         let slowResult = try await pending.value
         try assertFirstToken(fastResult, kind: "content", terminal: "completed")
         try assertFirstToken(slowResult, kind: "thinking", terminal: "completed", minimum: 150)
         let fastDuration = try #require(timingNumber(fastResult.evidence?.metadata?["request_duration_ms"]))
         let slowFirst = try #require(timingNumber(slowResult.evidence?.metadata?["time_to_first_token_ms"]))
-        #expect(slowFirst - fastDuration >= 100)
+        #expect(slowFirst - fastDuration == 150)
     }
 }
 
@@ -178,7 +207,7 @@ private struct TimingTool: LLMTool {
     let descriptor = ToolDescriptor(
         name: "resolve_date", description: "Resolve a date", parameters: ["type": "object"])
     func execute(arguments _: JSONValue) async throws -> JSONValue {
-        try await Task.sleep(for: .milliseconds(200))
+        TestStreamClock.current?.advance(200)
         return ["date": "tomorrow"]
     }
 }

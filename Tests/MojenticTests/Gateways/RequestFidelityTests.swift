@@ -52,7 +52,7 @@ struct RequestFidelityTests {
                 topP: explicit ? 0.8 : nil,
                 reasoning: fields["reasoning"] == true ? .high : nil,
                 numCtx: explicit ? 8192 : nil)
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 try requestFidelityReply("openai")
             ])
             defer { server.release() }
@@ -75,7 +75,7 @@ struct RequestFidelityTests {
     #if anthropic
         @Test(arguments: ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-20241022"], [false, true])
         func documentedLegacyOutputLimit(model: String, explicit: Bool) async throws {
-            let server = try RecoveryLoopback(replies: [try requestFidelityReply("anthropic")])
+            let server = try InProcessHTTPFixture(replies: [try requestFidelityReply("anthropic")])
             defer { server.release() }
             let config = CompletionConfig(maxTokens: explicit ? 8192 : nil, reasoning: .high)
             let result = try await AnthropicGateway(apiKey: "contract-secret", baseURL: server.url).complete(
@@ -95,7 +95,7 @@ struct RequestFidelityTests {
         func anthropicRequiredLimitAndThinking(row: JSONValue, explicit: Bool) async throws {
             let fields = try #require(row.objectValue)
             let model = try #require(fields["model"]?.stringValue)
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 try requestFidelityReply("anthropic")
             ])
             defer { server.release() }
@@ -132,7 +132,7 @@ struct RequestFidelityTests {
     @Test(arguments: [false, true])
     func sessionReservesOnlyExplicitOutputLimit(explicit: Bool) async throws {
         let reply = try requestFidelityReply("openai")
-        let server = try RecoveryLoopback(replies: [reply, reply])
+        let server = try InProcessHTTPFixture(replies: [reply, reply])
         defer { server.release() }
         let gateway = OpenAIGateway(apiKey: "contract-secret", baseURL: server.url)
         let session = ChatSession(

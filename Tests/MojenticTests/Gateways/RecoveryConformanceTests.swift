@@ -2,14 +2,16 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-@Suite("Buffered recovery conformance")
+@Suite("Buffered recovery conformance", .serialized)
 struct RecoveryConformanceTests {
     @Test(arguments: RecoveryBoundary.all)
     func bothOperationsPreserveShapingAndResults(
         _ boundary: RecoveryBoundary
     ) async throws {
         let success = try boundary.success()
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "unavailable"), success])
+        let server = try InProcessHTTPFixture(replies: [
+            RecoveryReply(status: 503, body: "unavailable"), success,
+        ])
         let recorder = RecoveryRecorder()
         let report = RecoveryLocked<CompletionRecoveryReport?>(nil)
         var policy = recoveryPolicy(recorder)
@@ -109,7 +111,7 @@ struct RecoveryConformanceTests {
         _ boundary: RecoveryBoundary,
         _ status: Int,
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 status: status,
                 headers: ["X-Request-ID": "credential-sentinel"],
@@ -146,7 +148,7 @@ struct RecoveryConformanceTests {
     func persistent504IsBounded(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 504, body: "payload-sentinel")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 504, body: "payload-sentinel")])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
             _ = try await boundary.complete(
@@ -166,7 +168,7 @@ struct RecoveryConformanceTests {
     func successfulCaptureFailureRetainsObservedAndTypedCause(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [boundary.success(tools: true)])
+        let server = try InProcessHTTPFixture(replies: [boundary.success(tools: true)])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.wireObserver = { event in
@@ -197,7 +199,7 @@ struct RecoveryConformanceTests {
     func malformedResponseNeverResends(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: "not JSON payload-sentinel")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: "not JSON payload-sentinel")])
         let recorder = RecoveryRecorder()
         let failure = try await recoveryFailure {
             _ = try await boundary.complete(boundary.gateway(server, policy: recoveryPolicy(recorder)))
@@ -212,7 +214,7 @@ struct RecoveryConformanceTests {
     func disabledRecoveryRetainsLegacyOneSend(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "legacy"), boundary.success(),
         ])
         let failure = await httpFailure {
@@ -228,8 +230,8 @@ struct RecoveryConformanceTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let reply = try boundary.success()
-        let legacyServer = try RecoveryLoopback(replies: [reply])
-        let recoveryServer = try RecoveryLoopback(replies: [reply])
+        let legacyServer = try InProcessHTTPFixture(replies: [reply])
+        let recoveryServer = try InProcessHTTPFixture(replies: [reply])
         let legacy = try await boundary.complete(boundary.gateway(legacyServer, policy: nil))
         let recorder = RecoveryRecorder()
         let recovered = try await boundary.complete(
@@ -249,13 +251,13 @@ struct RecoveryConformanceTests {
     }
 }
 
-@Suite("Recovery protocol and identity safeguards")
+@Suite("Recovery protocol and identity safeguards", .serialized)
 struct RecoverySafeguardTests {
     @Test(arguments: RecoveryBoundary.all)
     func redirectsAreNotFollowed(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(
                 status: 307,
                 headers: ["Location": "http://127.0.0.1:1/forbidden"],
@@ -279,7 +281,7 @@ struct RecoverySafeguardTests {
         let structured = RecoveryBoundary(
             omlx: ordinary.omlx, structured: true, openAI: ordinary.openAI, anthropic: ordinary.anthropic,
         )
-        let server = try RecoveryLoopback(replies: [ordinary.success()])
+        let server = try InProcessHTTPFixture(replies: [ordinary.success()])
         let failure = try await recoveryFailure {
             _ = try await structured.gateway(server, policy: recoveryPolicy(RecoveryRecorder())).completeJSON(
                 model: "fixture",
@@ -300,7 +302,7 @@ struct RecoverySafeguardTests {
     func failedSecondRequestCaptureDoesNotInventAnotherAttempt(
         _ boundary: RecoveryBoundary
     ) async throws {
-        let server = try RecoveryLoopback(replies: [RecoveryReply(status: 503, body: "busy")])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy")])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder)
         policy.wireObserver = { event in
@@ -329,8 +331,8 @@ struct RecoverySafeguardTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let reply = try boundary.success()
-        let oldServer = try RecoveryLoopback(replies: [reply])
-        let newServer = try RecoveryLoopback(replies: [reply])
+        let oldServer = try InProcessHTTPFixture(replies: [reply])
+        let newServer = try InProcessHTTPFixture(replies: [reply])
         let config = CompletionConfig(responseFormat: .jsonObject)
         let old = try await boundary.gateway(oldServer, policy: nil).complete(
             model: "fixture",
@@ -353,7 +355,7 @@ struct RecoverySafeguardTests {
         _ boundary: RecoveryBoundary
     ) async throws {
         let good = try boundary.success(tools: true)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: good.body + "malformed-tail", hold: true, splitAt: good.body.utf8.count)
         ])
         defer { server.release() }

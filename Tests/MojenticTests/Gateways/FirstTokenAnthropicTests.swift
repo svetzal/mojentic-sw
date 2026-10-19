@@ -1,14 +1,15 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
 #if anthropic
+    @Suite(DeterministicStreamTime(), .serialized)
     struct FirstTokenAnthropicTests {
         @Test(arguments: [false, true])
         func nativeLegacyAndRecoveryKinds(_ recovery: Bool) async throws {
             let boundary = StreamingBoundary(omlx: true, single: false, anthropic: true)
             for kind in ["thinking", "content", "empty"] {
-                let server = try RecoveryLoopback(replies: [
+                let server = try InProcessHTTPFixture(replies: [
                     RecoveryReply(
                         body: boundary.frame(
                             content: kind == "content" ? "answer" : "",
@@ -48,7 +49,7 @@ import Testing
             }
             let prefix = try frames(start)
             let suffix = try frames((fragment ? [delta] : []) + end)
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 RecoveryReply(
                     body: prefix + suffix,
                     splitAt: prefix.utf8.count,
@@ -65,7 +66,8 @@ import Testing
             }
             var arrivals = server.arrivals.makeAsyncIterator()
             _ = await arrivals.next()
-            try await Task.sleep(for: .milliseconds(250))
+            await server.deliveries.wait { $0 >= prefix.utf8.count }
+            TestStreamClock.current?.advance(250)
             server.releaseSuffix()
             let result = try await task.value
             try assertFirstToken(result, kind: fragment ? "tool_call" : nil, terminal: "done")
@@ -77,10 +79,10 @@ import Testing
             #expect(call.name == expected["name"]?.stringValue)
             #expect(call.arguments == (fragment ? expected["arguments"] : .object([:])))
             let duration = try #require(timingNumber(result.evidence?.metadata?["request_duration_ms"]))
-            #expect(duration >= 300)
+            #expect(duration == 350)
             if fragment {
                 let first = try #require(timingNumber(result.evidence?.metadata?["time_to_first_token_ms"]))
-                #expect(first >= 300)
+                #expect(first == 350)
             }
         }
 
@@ -108,7 +110,7 @@ import Testing
                 data: {"type":"message_stop"}
 
                 """ + "\n"
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 RecoveryReply(
                     body: prefix + suffix,
                     splitAt: prefix.utf8.count,
@@ -124,13 +126,14 @@ import Testing
             }
             var arrivals = server.arrivals.makeAsyncIterator()
             _ = await arrivals.next()
-            try await Task.sleep(for: .milliseconds(200))
+            await server.deliveries.wait { $0 >= prefix.utf8.count }
+            TestStreamClock.current?.advance(200)
             server.releaseSuffix()
             let result = try await task.value
             try assertFirstToken(result, kind: "tool_call", terminal: "done")
             let first = try #require(timingNumber(result.evidence?.metadata?["time_to_first_token_ms"]))
             let duration = try #require(timingNumber(result.evidence?.metadata?["request_duration_ms"]))
-            #expect(duration - first >= 150)
+            #expect(duration - first == 200)
         }
     }
 #endif

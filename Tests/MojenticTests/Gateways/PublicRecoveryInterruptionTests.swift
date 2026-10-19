@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct PublicRecoveryInterruptionTests {
     @Test(arguments: PublicInterruptionCase.all)
     func publicPartialStreamNeverReplays(_ scenario: PublicInterruptionCase) async throws {
@@ -28,7 +29,7 @@ private func probePublicInterruption(
     ).success()
     let reply = RecoveryReply(
         headers: ["X-Request-ID": "interruption-original"], body: body, truncated: true, hold: true)
-    let server = try RecoveryLoopback(replies: path == "session" ? [seed, reply] : [reply])
+    let server = try InProcessHTTPFixture(replies: path == "session" ? [seed, reply] : [reply])
     defer { server.release() }
     server.trace.record("call", "interruption/\(boundary)/\(path)/\(kind)")
     let recorder = RecoveryRecorder()

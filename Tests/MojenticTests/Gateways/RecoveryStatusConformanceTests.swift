@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryStatusConformanceTests {
     @Test
     func jsonPermanentTruncationProof() async throws {
@@ -9,7 +10,7 @@ struct RecoveryStatusConformanceTests {
         let reply = RecoveryReply(
             status: 401, headers: ["X-Recovery-Probe": "exact"], body: body, truncated: true,
         )
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         var policy = recoveryPolicy(recorder, attempts: 3)
         policy.retryableStatuses = [400, 401, 403, 504]
@@ -29,11 +30,7 @@ struct RecoveryStatusConformanceTests {
         #expect(!error.failure.eligible)
         #expect(error.failure.inspectEvidence().body == Data(body.utf8))
         let cause = try #require(error.failure.inspectEvidence().cause as? URLError)
-        #if os(Linux)
-            #expect(cause.code == .unknown)
-        #else
-            #expect(cause.code == .networkConnectionLost)
-        #endif
+        #expect(cause.code == .networkConnectionLost)
         let requests = recorder.requests.withLock { $0 }
         #expect(server.requests.withLock { $0 } == requests.map(\.1))
         let identity = try #require(requests.first?.0)

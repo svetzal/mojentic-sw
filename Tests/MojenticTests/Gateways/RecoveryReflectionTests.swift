@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryReflectionTests {
     @Test
     func publicBoundaryProof() async throws {
@@ -94,7 +95,7 @@ struct RecoveryReflectionTests {
                 body: "payload-sentinel é猫 attempt-\(attempt)",
             )
         }
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder, attempts: 2)

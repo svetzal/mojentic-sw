@@ -2,7 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
-/// Decode the socket body, asserting the entire ordered exchange independently of adapters.
+/// Decode the captured HTTP body, asserting the entire ordered exchange independently of adapters.
 func assertStreamingFollowUpHistory(_ body: Data, boundary: StreamingBoundary) throws {
     let fields = try #require(JSONDecoder().decode(JSONValue.self, from: body).objectValue)
     let arguments: JSONValue = ["relative": "tomorrow"]
@@ -50,10 +50,10 @@ func assertStreamingFollowUpHistory(_ body: Data, boundary: StreamingBoundary) t
     #expect(fields["messages"] == expected)
 }
 
-/// Match every actual socket send to capture, admission, lifecycle, failure and final reports.
+/// Match every actual HTTP boundary send to capture, admission, lifecycle, failure and final reports.
 func assertStreamingFollowUpEvidence(
     _ recorder: RecoveryRecorder,
-    server: RecoveryLoopback,
+    server: InProcessHTTPFixture,
     replies: [RecoveryReply],
     admissions: [(RecoveryFailure, Int)],
     reports: [CompletionRecoveryReport],

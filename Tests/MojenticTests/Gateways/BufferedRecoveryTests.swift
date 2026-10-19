@@ -8,12 +8,13 @@ final class RecoveryRecorder: Sendable {
     let wires = RecoveryLocked<[RecoveryWireEvent]>([])
 }
 
-@Suite("Buffered recovery public boundary")
+@Suite("Buffered recovery public boundary", .serialized)
 struct BufferedRecoveryTests {
     @Test
     func admitted503PreservesBytesAndIdentity() async throws {
-        let server = try RecoveryLoopback()
+        let server = try InProcessHTTPFixture()
         var policy = CompletionRecoveryPolicy()
+        policy.timing = deterministicRecoveryTiming()
         policy.maximumAttempts = 2
         policy.baseDelay = 0
         policy.admission = { _, _ in

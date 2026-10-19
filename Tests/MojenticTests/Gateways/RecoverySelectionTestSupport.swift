@@ -24,7 +24,7 @@ func assertTerminalStatus(
         if status == 200 { reply.body = "" }
         return reply
     }
-    let server = try RecoveryLoopback(replies: replies)
+    let server = try InProcessHTTPFixture(replies: replies)
     let recorder = RecoveryRecorder()
     let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
     let reports = RecoveryLocked<[CompletionRecoveryReport]>([])

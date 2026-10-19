@@ -2,12 +2,13 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryMetadataIdentityTests {
     @Test
-    func publicLoopbackIdentity() async throws {
+    func publicBoundaryIdentity() async throws {
         let boundary = StreamingBoundary(omlx: false, single: false)
         let body = try boundary.frame(content: "é", done: true, metrics: true)
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let gateway = boundary.gateway(server, recoveryPolicy(recorder))
         var frames: [RecoveryProgress] = []

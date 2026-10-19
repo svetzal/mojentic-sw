@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 #if anthropic
+    @Suite(.serialized)
     struct AnthropicRecoveryCaptureTests {
         @Test(arguments: ["buffered", "structured", "tools", "single"], [false, true])
         func captureAndCancellationRetainExactObservedEvidence(_ path: String, _ cancel: Bool) async throws {
@@ -21,7 +22,7 @@ import Testing
                     "stop_reason":"tool_use","usage":{"input_tokens":3,"output_tokens":12}}
                     """#
                 }
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let handle = RecoveryLocked<Task<Void, any Error>?>(nil)
             let start = AsyncStream<Void>.makeStream()
@@ -106,7 +107,7 @@ import Testing
                 """#
             let delta = "event: content_block_delta\ndata: \(partial)\n\n"
             let body = initial + delta
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body, truncated: true)])
             let recorder = RecoveryRecorder()
             let seen = RecoveryLocked<[String]>([])
             let error = try await recoveryFailure {

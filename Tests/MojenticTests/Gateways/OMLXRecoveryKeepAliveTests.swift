@@ -2,12 +2,13 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct OMLXRecoveryKeepAliveTests {
     @Test(arguments: [false, true])
     func keepaliveOnlyRequiresAdmission(_ single: Bool) async throws {
         let boundary = StreamingBoundary(omlx: true, single: single)
         let body = try keepalive() + keepalive()
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body, truncated: true)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body, truncated: true)])
         let recorder = RecoveryRecorder()
         let pending = AsyncStream<Void>.makeStream()
         let decision = AsyncStream<RecoveryAdmission>.makeStream()
@@ -57,7 +58,7 @@ struct OMLXRecoveryKeepAliveTests {
         let baseline = first + last + "data: [DONE]\n\n"
         let interleaved = try keepalive() + first + keepalive() + last + keepalive() + "data: [DONE]\n\n"
         for body in [baseline, interleaved] {
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let order = RecoveryLocked<[String]>([])
             let policy = recoveryPolicy(recorder)
@@ -110,7 +111,7 @@ struct OMLXRecoveryKeepAliveTests {
             (#"data: {"model":"MODEL","choices":[{"index":0,"delta":{"content":"ordinary"},"#
             + #""finish_reason":"stop"}]}"#)
             .replacingOccurrences(of: "MODEL", with: model) + "\n\ndata: [DONE]\n\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let order = RecoveryLocked<[String]>([])
         let evidence = try await consume(

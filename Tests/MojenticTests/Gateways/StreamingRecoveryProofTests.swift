@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct StreamingRecoveryProofTests {
     @Test(arguments: StreamingBoundary.all.filter { !$0.single })
     func publicHTTPRecovery(_ boundary: StreamingBoundary) async throws {
@@ -13,7 +14,7 @@ struct StreamingRecoveryProofTests {
             } else {
                 "{\"message\":{\"content\":\"é\"},\"done\":true,\"done_reason\":\"stop\"}\n"
             }
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(status: 503, body: "credential-sentinel"), RecoveryReply(body: success),
         ])
         let recorder = RecoveryRecorder()

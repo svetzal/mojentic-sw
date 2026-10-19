@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Reject infrastructure/timing operations in repository test and verifier paths.
+
+This textual guard complements the call-path review in docs/DETERMINISTIC-TESTS.md.
+It is deliberately not a proof that an arbitrary new gateway is safely stubbed.
+"""
+from pathlib import Path
+import re
+
+root = Path(__file__).resolve().parent.parent
+patterns = {
+    'real sleep': r'(?:Task|Thread)\.sleep\s*\(|\b(?:time\.sleep|usleep|nanosleep)\s*\(',
+    'socket/server': r'\b(?:socket|listen|accept|bind)\s*\(|http\.server|ThreadingHTTPServer',
+    'external command': r'\b(?:curl|wget)\s+https?://|\bProcess\s*\(|subprocess\.',
+    'wall-clock measurement': r'\bDate\(\)|systemUptime|duration\(to:|ContinuousClock\.now\.advanced',
+}
+failures = []
+paths = sorted((root / 'Tests').rglob('*.swift'))
+paths += sorted(path for path in (root / 'scripts').iterdir() if path.is_file() and path.name != Path(__file__).name)
+for path in paths:
+    for line_number, line in enumerate(path.read_text().splitlines(), 1):
+        if line.lstrip().startswith(('//', '#')):
+            continue
+        for name, pattern in patterns.items():
+            if re.search(pattern, line):
+                failures.append(f'{path.relative_to(root)}:{line_number}: {name}: {line.strip()}')
+if failures:
+    raise SystemExit('\n'.join(failures))
+print(f'Inspected {len(paths)} test/support/verifier paths: no prohibited operations')

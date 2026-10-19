@@ -21,7 +21,7 @@ struct RecoveryLifecycleBufferedCallerTests {
         let success = try provider.success()
         let rejected = RecoveryReply(status: 503, body: "busy")
         let replies = retry ? [rejected, success] : [success]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         let gateway = provider.gateway(server, policy: recoveryPolicy(recorder))

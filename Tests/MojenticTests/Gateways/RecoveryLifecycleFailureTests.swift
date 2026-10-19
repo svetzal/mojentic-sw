@@ -10,7 +10,7 @@ struct RecoveryLifecycleFailureTests {
             boundary.path.streaming
             ? (boundary.provider.omlx ? "data: {bad}\n\n" : "{bad}\n") : "{bad}"
         let reply = RecoveryReply(body: body)
-        let server = try RecoveryLoopback(replies: [reply])
+        let server = try InProcessHTTPFixture(replies: [reply])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         let gateway = boundary.provider.gateway(server, policy: recoveryPolicy(recorder))
@@ -50,7 +50,7 @@ struct RecoveryLifecycleFailureTests {
 
     @Test(arguments: TypedRecoveryBoundary.all)
     func cancellationAtRequestCapturePreventsDispatch(_ boundary: TypedRecoveryBoundary) async throws {
-        let server = try RecoveryLoopback(replies: [boundary.reply(length: false)])
+        let server = try InProcessHTTPFixture(replies: [boundary.reply(length: false)])
         let recorder = RecoveryRecorder()
         let counter = RecoveryToolCounter()
         var policy = recoveryPolicy(recorder)

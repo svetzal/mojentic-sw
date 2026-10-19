@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct TerminalRecoveryDeliveryTests {
     @Test(
         arguments: StreamingBoundary.withAnthropic,
@@ -18,7 +19,7 @@ struct TerminalRecoveryDeliveryTests {
             return
         }
         let body = try boundary.frame(content: "é", reasoning: "ré", done: true, metrics: true)
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(headers: ["X-Request-ID": "terminal-original"], body: body)
         ])
         let recorder = RecoveryRecorder()
@@ -141,10 +142,7 @@ struct TerminalRecoveryDeliveryTests {
     }
 
     private func awaitReport(_ reports: RecoveryLocked<[CompletionRecoveryReport]>) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while reports.withLock({ $0.isEmpty }), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await reports.wait { !$0.isEmpty }
         #expect(!reports.withLock { $0.isEmpty })
     }
 }

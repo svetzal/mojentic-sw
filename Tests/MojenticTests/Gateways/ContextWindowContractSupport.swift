@@ -30,15 +30,29 @@ struct ContextWindowContract {
     }
 
     static func gateway(
-        _ provider: String, server: RecoveryLoopback, authenticated: Bool = true
+        _ provider: String, server: InProcessHTTPFixture, authenticated: Bool = true
     ) -> any LLMGateway {
         switch provider {
         case "ollama":
-            OllamaGateway(baseURL: server.url, headers: ["X-Contract": "configured"])
+            OllamaGateway(
+                baseURL: server.url,
+                client: server.client,
+                headers: ["X-Contract": "configured"],
+                lineTransport: server,
+            )
         case "omlx":
-            OMLXGateway(host: server.url, apiKey: authenticated ? "contract-secret" : "")
+            OMLXGateway(
+                configuration: .init(host: server.url, apiKey: authenticated ? "contract-secret" : nil),
+                transport: server.client,
+                lineTransport: server,
+            )
         default:
-            OpenAIGateway(apiKey: "contract-secret", baseURL: server.url.appendingPathComponent("v1"))
+            OpenAIGateway(
+                apiKey: "contract-secret",
+                baseURL: server.url.appendingPathComponent("v1"),
+                client: server.client,
+                lineTransport: server,
+            )
         }
     }
 }

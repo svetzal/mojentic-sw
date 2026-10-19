@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryMetadataConformanceTests {
     @Test(arguments: StreamingBoundary.withAnthropic, [false, true])
     func publicMetadata(_ boundary: StreamingBoundary, _ brokerPath: Bool) async throws {
@@ -16,7 +17,7 @@ struct RecoveryMetadataConformanceTests {
             semantic = String(semantic[startEnd.upperBound...])
         }
         let body = try metadataFrame(boundary, attempt: 2) + semantic
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: initial, truncated: true), RecoveryReply(body: body),
         ])
         let recorder = RecoveryRecorder()
@@ -70,14 +71,9 @@ struct RecoveryMetadataConformanceTests {
         #expect(failure.progress.rawBytes == initial.utf8.count)
         #expect(failure.progress.observed == RecoverySemanticProgress())
         #expect(failure.progress.delivered == RecoverySemanticProgress())
-        // FoundationNetworking retains libcurl's partial-transfer error as unknown;
-        // Darwin retains its native lost-connection error. Both remain typed transport evidence.
+        // The boundary supplies the same typed connection loss on every platform.
         let cause = try #require(failure.inspectEvidence().cause as? URLError)
-        #if os(Linux)
-            #expect(cause.code == .unknown)
-        #else
-            #expect(cause.code == .networkConnectionLost)
-        #endif
+        #expect(cause.code == .networkConnectionLost)
         #expect(admissions.withLock { $0.map(\.identity) } == [first.0])
         #expect(report.progress.observed.contentBytes == 5)
         #expect(report.progress.delivered.contentBytes == 5)
@@ -259,7 +255,7 @@ struct RecoveryMetadataConformanceTests {
     @Test(arguments: StreamingBoundary.withAnthropic.filter { !$0.openAI && !$0.anthropic })
     func metadataDisconnectRequiresAdmission(_ boundary: StreamingBoundary) async throws {
         let initial = try metadataFrame(boundary, attempt: 1)
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: initial, truncated: true)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: initial, truncated: true)])
         let recorder = RecoveryRecorder()
         let reports = AsyncStream<CompletionRecoveryReport>.makeStream()
         var policy = recoveryPolicy(recorder)
@@ -303,7 +299,7 @@ struct RecoveryMetadataConformanceTests {
         let body = try boundary.frame(
             content: "é", reasoning: "猫", tool: true, done: true, reason: "length", metrics: true,
         )
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+        let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
         let recorder = RecoveryRecorder()
         let gateway = boundary.gateway(server, recoveryPolicy(recorder))
         var order: [String] = []

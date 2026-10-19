@@ -1,7 +1,8 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
+@Suite(DeterministicStreamTime(), .serialized)
 struct FirstTokenRouteTests {
     @Test(arguments: StreamingBoundary.all, [false, true])
     func contentThinkingEmptyAndProviderMetrics(_ boundary: StreamingBoundary, _ recovery: Bool) async throws
@@ -12,7 +13,7 @@ struct FirstTokenRouteTests {
                 reasoning: kind == "thinking" ? "thought" : "",
                 done: true,
                 metrics: true)
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let result = try await firstTokenOutcome(
                 boundary,
                 gateway: boundary.gateway(server, recovery ? recoveryPolicy(RecoveryRecorder()) : nil),
@@ -33,7 +34,9 @@ struct FirstTokenRouteTests {
         let boundary = StreamingBoundary(omlx: true, single: true, openAI: true)
         let json = try JSONEncoder().encode(JSONValue.object(["choices": [["delta": row.delta]]]))
         let frame = "data: " + (try #require(String(bytes: json, encoding: .utf8))) + "\n\n"
-        let server = try RecoveryLoopback(replies: [RecoveryReply(body: frame + boundary.frame(done: true))])
+        let server = try InProcessHTTPFixture(replies: [
+            RecoveryReply(body: frame + boundary.frame(done: true))
+        ])
         let outcome = try await firstTokenOutcome(
             boundary,
             gateway: boundary.gateway(server, nil),
@@ -54,7 +57,7 @@ struct FirstTokenRouteTests {
             // Legacy streams have no delivery report, so the fixture releases the close only after
             // the caller sees the content; Apple URLSession can otherwise discard a partial body
             // that arrives with EOF.
-            let server = try RecoveryLoopback(replies: [
+            let server = try InProcessHTTPFixture(replies: [
                 RecoveryReply(body: body, truncated: true, hold: content)
             ])
             defer { server.release() }
@@ -77,7 +80,7 @@ struct FirstTokenRouteTests {
         let boundary = StreamingBoundary(omlx: true, single: true)
         let keepalive =
             "data: {\"model\":\"keepalive\",\"choices\":[{\"delta\":{\"content\":\"ignored\"}}]}\n\n"
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             RecoveryReply(body: keepalive + boundary.frame(done: true))
         ])
         let outcome = try await firstTokenOutcome(

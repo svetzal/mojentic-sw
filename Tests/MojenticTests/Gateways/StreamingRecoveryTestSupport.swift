@@ -29,7 +29,7 @@ struct StreamingBoundary: Sendable, CustomStringConvertible {
         #endif
     }
 
-    func gateway(_ server: RecoveryLoopback, _ policy: CompletionRecoveryPolicy?) -> any LLMGateway {
+    func gateway(_ server: InProcessHTTPFixture, _ policy: CompletionRecoveryPolicy?) -> any LLMGateway {
         RecoveryBoundary(omlx: omlx, structured: false, openAI: openAI, anthropic: anthropic).gateway(
             server, policy: policy,
         )

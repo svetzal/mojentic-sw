@@ -2,6 +2,7 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct NativeReasoningContinuityTests {
     @Test(arguments: [false, true], [false, true])
     func completedMultipleToolCallsAndSessionHistory(
@@ -9,7 +10,7 @@ struct NativeReasoningContinuityTests {
         stream: Bool
     ) async throws {
         let contract = try NativeReasoningContract()
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             contract.reply(
                 omlx: omlx,
                 stream: stream,
@@ -86,7 +87,7 @@ struct NativeReasoningContinuityTests {
     @Test(arguments: [false, true])
     func retentionIsOptIn(omlx: Bool) async throws {
         let contract = try NativeReasoningContract()
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             contract.reply(
                 omlx: omlx,
                 stream: false)
@@ -110,7 +111,7 @@ struct NativeReasoningContinuityTests {
     @Test(arguments: [false, true])
     func failedContinuationNeverCommitsNativeHistory(omlx: Bool) async throws {
         let contract = try NativeReasoningContract()
-        let server = try RecoveryLoopback(replies: [
+        let server = try InProcessHTTPFixture(replies: [
             contract.reply(
                 omlx: omlx,
                 stream: true,

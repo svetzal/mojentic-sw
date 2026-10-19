@@ -2,12 +2,13 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryJSONConformanceTests {
     @Test(arguments: RecoveryStatusBoundary.all.filter { $0.operation == .json })
     func completeJSONRetrySuccess(_ boundary: RecoveryStatusBoundary) async throws {
         let rejected = statusReply(503, attempt: 1, truncated: false)
         let success = try boundary.buffered.success()
-        let server = try RecoveryLoopback(replies: [rejected, success])
+        let server = try InProcessHTTPFixture(replies: [rejected, success])
         let recorder = RecoveryRecorder()
         let admissions = RecoveryLocked<[(RecoveryFailure, Int)]>([])
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])

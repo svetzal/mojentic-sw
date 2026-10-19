@@ -2,13 +2,14 @@ import Foundation
 import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct ReasoningHistoryTests {
     @Test
     func populatedHistorySurvivesStreamingRetry() async throws {
         let boundary = StreamingBoundary(omlx: true, single: false)
         let success = try RecoveryReply(body: boundary.frame(content: "recovered", done: true))
         let failed = RecoveryReply(status: 503, body: "original failure")
-        let server = try RecoveryLoopback(replies: [failed, success])
+        let server = try InProcessHTTPFixture(replies: [failed, success])
         let recorder = RecoveryRecorder()
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
         var policy = recoveryPolicy(recorder)
@@ -39,7 +40,7 @@ struct ReasoningHistoryTests {
         for bytes in server.requests.withLock({ $0 }) {
             let root = try JSONDecoder().decode(JSONValue.self, from: bytes)
             guard case .array(let history) = root.objectValue?["messages"] else {
-                Issue.record("Missing socket history")
+                Issue.record("Missing HTTP boundary history")
                 return
             }
             try #require(history.count == 4)

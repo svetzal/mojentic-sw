@@ -33,7 +33,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
     }
 
     func gateway(
-        _ server: RecoveryLoopback,
+        _ server: InProcessHTTPFixture,
         policy: CompletionRecoveryPolicy?,
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
@@ -41,41 +41,64 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         let policy = policy.map { reportingDeliveries(to: server, $0) }
         #if anthropic
             if anthropic {
-                let session = URLSessionConfiguration.ephemeral
-                session.timeoutIntervalForRequest = idleTimeout
+                if let policy {
+                    return AnthropicGateway(
+                        apiKey: "credential-sentinel",
+                        baseURL: server.url,
+                        client: server.client,
+                        recovery: policy,
+                    )
+                }
                 return AnthropicGateway(
                     apiKey: "credential-sentinel",
                     baseURL: server.url,
-                    client: HTTPClient(session: URLSession(configuration: session)),
-                    recovery: policy,
+                    client: server.client,
+                    lineTransport: server,
                 )
             }
         #endif
         if openAI {
-            let session = URLSessionConfiguration.ephemeral
-            session.timeoutIntervalForRequest = idleTimeout
+            if let policy {
+                return OpenAIGateway(
+                    apiKey: "credential-sentinel",
+                    baseURL: server.url,
+                    client: server.client,
+                    recovery: policy,
+                )
+            }
             return OpenAIGateway(
                 apiKey: "credential-sentinel",
                 baseURL: server.url,
-                client: HTTPClient(session: URLSession(configuration: session)),
-                recovery: policy,
+                client: server.client,
+                lineTransport: server,
             )
         }
         if omlx {
-            return OMLXGateway(
-                host: server.url,
-                apiKey: "credential-sentinel",
-                timeout: idleTimeout,
+            if let policy {
+                return OMLXGateway(
+                    host: server.url,
+                    apiKey: "credential-sentinel",
+                    timeout: idleTimeout,
+                    recovery: policy,
+                )
+            }
+            let configuration = OMLXConfiguration(
+                host: server.url, apiKey: "credential-sentinel", timeout: idleTimeout)
+            return OMLXGateway(configuration: configuration, transport: server.client, lineTransport: server)
+        }
+        if let policy {
+            return OllamaGateway(
+                baseURL: server.url,
+                client: server.client,
+                headers: ["Authorization": "credential-sentinel"],
                 recovery: policy,
             )
         }
-        let session = URLSessionConfiguration.ephemeral
-        session.timeoutIntervalForRequest = idleTimeout
         return OllamaGateway(
             baseURL: server.url,
-            client: HTTPClient(session: URLSession(configuration: session)),
+            client: server.client,
             headers: ["Authorization": "credential-sentinel"],
-            recovery: policy,
+            lineTransport: server,
         )
     }
 
@@ -168,6 +191,7 @@ struct RecoveryCaptureSentinel: Error, Sendable, CustomStringConvertible {
 
 func recoveryPolicy(_ recorder: RecoveryRecorder, attempts: Int = 2) -> CompletionRecoveryPolicy {
     var policy = CompletionRecoveryPolicy()
+    policy.timing = deterministicRecoveryTiming()
     policy.maximumAttempts = attempts
     policy.baseDelay = 0
     policy.admission = { _, _ in
@@ -186,9 +210,9 @@ func recoveryPolicy(_ recorder: RecoveryRecorder, attempts: Int = 2) -> Completi
     return policy
 }
 
-/// Reports received body bytes to the loopback after the caller's wire observer, even when it throws.
+/// Reports received body bytes to the in-process boundary after the caller's wire observer, even when it throws.
 private func reportingDeliveries(
-    to server: RecoveryLoopback,
+    to server: InProcessHTTPFixture,
     _ policy: CompletionRecoveryPolicy,
 ) -> CompletionRecoveryPolicy {
     var policy = policy
@@ -228,14 +252,34 @@ func recoveryFailure(_ action: () async throws -> Void) async throws -> Recovery
 final class RecoveryLocked<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
+    private var waiters: [(@Sendable (Value) -> Bool, CheckedContinuation<Void, Never>)] = []
     init(_ value: Value) {
         self.value = value
     }
 
     func withLock<Result>(_ action: (inout Value) throws -> Result) rethrows -> Result {
         lock.lock()
-        defer { lock.unlock() }
+        defer {
+            let ready = waiters.filter { $0.0(value) }.map(\.1)
+            waiters.removeAll { $0.0(value) }
+            lock.unlock()
+            ready.forEach { $0.resume() }
+        }
         return try action(&value)
+    }
+
+    /// Observe the state transition itself instead of polling a scheduler.
+    func wait(until predicate: @escaping @Sendable (Value) -> Bool) async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if predicate(value) {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append((predicate, continuation))
+                lock.unlock()
+            }
+        }
     }
 }
 

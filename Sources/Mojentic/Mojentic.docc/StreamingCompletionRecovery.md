@@ -264,7 +264,7 @@ iteration ends normally. HTTP cleanup reporting and independent relay completion
 are distinct boundaries; cleanup reporting alone does not establish that session
 rollback has finished.
 
-The loopback conformance tests retain the stream and iterator while paused after all
+The in-process conformance tests retain the stream and iterator while paused after all
 nonterminal events. Cleanup and reporting must finish before that pause is released.
 Successful controls accept one terminal event and stream end. Ollama progress/metrics,
 OpenAI metrics, and Anthropic start/final metrics retain their provider order; oMLX

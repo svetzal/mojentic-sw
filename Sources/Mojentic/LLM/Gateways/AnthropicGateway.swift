@@ -42,6 +42,7 @@ import Logging
         private let apiKey: String
         private let apiVersion: String
         private let client: HTTPClient
+        var lineTransport: any LineStreamingTransport
         private let registry: AnthropicModelRegistry
         private let logger: Logger
 
@@ -58,6 +59,7 @@ import Logging
             self.baseURL = baseURL
             self.apiVersion = apiVersion
             self.client = client
+            self.lineTransport = client
             self.registry = registry
             logger = Logger(label: "mojentic.gateway.anthropic")
         }
@@ -213,14 +215,14 @@ import Logging
                 extraSystemSuffix: nil,
             )
             let url = baseURL.appendingPathComponent("messages")
-            let client = client
+            let transport = lineTransport
             let headers = authHeaders()
 
             return AsyncThrowingStream { continuation in
                 let task = Task {
                     let timing = StreamMeasurement()
                     do {
-                        let lines = try await client.streamLines(
+                        let lines = try await transport.streamLines(
                             url: url, body: body, headers: headers, timing: timing)
                         var accumulator = AnthropicStreamAccumulator()
                         for try await line in lines {

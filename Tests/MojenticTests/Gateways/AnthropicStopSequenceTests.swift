@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 #if anthropic
+    @Suite(.serialized)
     struct AnthropicStopSequenceTests {
         @Test(arguments: [
             "complete", "completeJSON", "completeStructured", "streamRecovering",
@@ -12,7 +13,7 @@ import Testing
             let streaming = entrypoint.contains("Recovering")
             let text = #"{"answer":"é思"}"#
             let body = try stopSequenceBody(streaming: streaming, text: text)
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
             let gateway = AnthropicGateway(
                 apiKey: "credential-sentinel", baseURL: server.url, recovery: recoveryPolicy(recorder),
@@ -133,8 +134,13 @@ import Testing
         @Test(arguments: [false, true])
         func legacyStopSequenceMappingRemainsOther(_ streaming: Bool) async throws {
             let body = try stopSequenceBody(streaming: streaming, text: "legacy")
-            let server = try RecoveryLoopback(replies: [RecoveryReply(body: body)])
-            let gateway = AnthropicGateway(apiKey: "fixture-key", baseURL: server.url)
+            let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
+            let gateway = AnthropicGateway(
+                apiKey: "fixture-key",
+                baseURL: server.url,
+                client: server.client,
+                lineTransport: server,
+            )
             if streaming {
                 var content = ""
                 var finishes: [FinishReason?] = []
@@ -161,7 +167,7 @@ import Testing
         }
 
         private func assertWireEvidence(
-            _ recorder: RecoveryRecorder, _ server: RecoveryLoopback, body: String, streaming: Bool,
+            _ recorder: RecoveryRecorder, _ server: InProcessHTTPFixture, body: String, streaming: Bool,
         ) throws {
             let requests = recorder.requests.withLock { $0 }
             #expect(requests.count == 1)

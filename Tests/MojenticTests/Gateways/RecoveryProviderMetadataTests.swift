@@ -2,6 +2,7 @@ import Foundation
 @testable import Mojentic
 import Testing
 
+@Suite(.serialized)
 struct RecoveryProviderMetadataTests {
     @Test
     func wrappedCredentialAndEscapedPayload() async throws {
@@ -18,7 +19,7 @@ struct RecoveryProviderMetadataTests {
                 body: #"{"error":{"code":"unknown_code"}}"#,
             ),
         ]
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let admitted = RecoveryLocked<[RecoveryFailure]>([])
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
@@ -83,7 +84,7 @@ struct RecoveryProviderMetadataTests {
                 anthropic: anthropic,
             )
         }
-        let server = try RecoveryLoopback(replies: replies)
+        let server = try InProcessHTTPFixture(replies: replies)
         let recorder = RecoveryRecorder()
         let admitted = RecoveryLocked<[RecoveryFailure]>([])
         let reports = RecoveryLocked<[CompletionRecoveryReport]>([])
