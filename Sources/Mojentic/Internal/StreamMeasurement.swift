@@ -5,7 +5,10 @@ import Foundation
 /// The lock protects the monotonic origin and first observation across cancellation.
 final class StreamMeasurement: @unchecked Sendable {
     private let lock = NSLock()
-    private let clock = ContinuousClock()
+    /// Captured per completion so inherited tasks share a caller's test clock.
+    @TaskLocal static var now: @Sendable () -> ContinuousClock.Instant = { .now }
+
+    private let clock = StreamMeasurement.now
     private var started: ContinuousClock.Instant?
     private var first: (Double, String)?
     private var buffer = Data()
@@ -15,7 +18,7 @@ final class StreamMeasurement: @unchecked Sendable {
     func start() {
         lock.lock()
         defer { lock.unlock() }
-        if started == nil { started = clock.now }
+        if started == nil { started = clock() }
     }
 
     func observe(_ data: Data) {
@@ -68,7 +71,7 @@ final class StreamMeasurement: @unchecked Sendable {
         guard let started else { return reported }
         var metadata = self.reported.metadata ?? [:]
         metadata.merge(reported.metadata ?? [:]) { _, supplied in supplied }
-        metadata["request_duration_ms"] = .number(milliseconds(started.duration(to: clock.now)))
+        metadata["request_duration_ms"] = .number(milliseconds(started.duration(to: clock())))
         if let first {
             metadata["time_to_first_token_ms"] = .number(first.0)
             metadata["first_token_kind"] = .string(first.1)
@@ -194,7 +197,7 @@ final class StreamMeasurement: @unchecked Sendable {
         } else {
             kind = nil
         }
-        if let kind { first = (milliseconds(started.duration(to: clock.now)), kind) }
+        if let kind { first = (milliseconds(started.duration(to: clock())), kind) }
     }
 
     private func present(_ value: JSONValue?) -> Bool {
