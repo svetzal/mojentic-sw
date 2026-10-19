@@ -10,20 +10,41 @@ import re
 root = Path(__file__).resolve().parent.parent
 patterns = {
     'real sleep': r'(?:Task|Thread)\.sleep\s*\(|\b(?:time\.sleep|usleep|nanosleep)\s*\(',
-    'socket/server': r'\b(?:socket|listen|accept|bind)\s*\(|http\.server|ThreadingHTTPServer',
+    'socket/server': r'\b(?:socket|listen|accept|bind)\s*\(|http\.server|ThreadingHTTP[S]erver',
     'external command': r'\b(?:curl|wget)\s+https?://|\bProcess\s*\(|subprocess\.',
-    'wall-clock measurement': r'\bDate\(\)|systemUptime|duration\(to:|ContinuousClock\.now\.advanced',
+    'wall-clock measurement': r'\bDate\(\)|system[U]ptime|duration\(to:|ContinuousClock\.now\.advanced',
 }
+def prohibited(line):
+    if line.lstrip().startswith(('//', '#')):
+        return []
+    return [name for name, pattern in patterns.items() if re.search(pattern, line)]
+
+
+# These inert strings exercise the same detector as the repository scan.
+# Split literals keep the guard from mistaking its samples for operations.
+samples = {
+    'real sleep': ['Task.' 'sleep(1)', 'Thread.' 'sleep(1)', 'time.' 'sleep(1)',
+                   'us' 'leep(1)', 'nano' 'sleep(1)'],
+    'socket/server': ['sock' 'et()', 'lis' 'ten()', 'acc' 'ept()', 'bi' 'nd()',
+                      'http.' 'server', 'ThreadingHTTP' 'Server'],
+    'external command': ['cu' 'rl https://example.invalid', 'wg' 'et https://example.invalid',
+                         'Pro' 'cess()', 'sub' 'process.run([])'],
+    'wall-clock measurement': ['Da' 'te()', 'system' 'Uptime', 'duration' '(to: next)',
+                               'ContinuousClock.' 'now.advanced'],
+}
+for category, operations in samples.items():
+    for operation in operations:
+        if category not in prohibited(operation):
+            raise SystemExit(f'Guard failed to reject {category} sample')
+print(f'Rejected {sum(map(len, samples.values()))} inert prohibited-operation samples')
+
 failures = []
 paths = sorted((root / 'Tests').rglob('*.swift'))
-paths += sorted(path for path in (root / 'scripts').iterdir() if path.is_file() and path.name != Path(__file__).name)
+paths += sorted(path for path in (root / 'scripts').iterdir() if path.is_file())
 for path in paths:
     for line_number, line in enumerate(path.read_text().splitlines(), 1):
-        if line.lstrip().startswith(('//', '#')):
-            continue
-        for name, pattern in patterns.items():
-            if re.search(pattern, line):
-                failures.append(f'{path.relative_to(root)}:{line_number}: {name}: {line.strip()}')
+        for name in prohibited(line):
+            failures.append(f'{path.relative_to(root)}:{line_number}: {name}: {line.strip()}')
 if failures:
     raise SystemExit('\n'.join(failures))
 print(f'Inspected {len(paths)} test/support/verifier paths: no prohibited operations')

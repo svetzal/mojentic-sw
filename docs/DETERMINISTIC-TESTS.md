@@ -9,12 +9,25 @@ mandatory test modes verify every existing contract manifest before executing
 the tests. CI uses the same gate wrapper. Manifest checks identify the tested
 code; the public-API assertions establish behavior.
 
-Tested Swift base: `c123c8b0146e2fa3430e5a18cca6b5db7bedaa55`, with the uncommitted
-correction identified by executable-manifest SHA-256
-`010a425e8d3d44ca8a484bbcbbd3f90fd6377357443670a4a977632644ed76eb`.
-The preserved c2 branch differs from this task's initial source only in Foundry
-scratch logs. No merge, commit, ref update, publication or sibling modification
-is part of this correction.
+Tested Swift base: `a4b31b5bb10c5377539e721c2326a12943ee8eab` (preserved cycle 4),
+with the uncommitted correction identified by executable-manifest SHA-256
+`41b50effb0308a59c4702885fe4b1307b7dd1ebcc8059b45c3b8731a81c919b5`.
+The four-case OpenAI legacy characterization is retained. The internal OpenAI
+line-transport initializer now accepts an optional recovery policy, so both
+policy settings exercise the same injected I/O boundary. Public constructors
+still default to HTTPClient; both legacy methods still use lineTransport.
+No merge, commit, ref update, publication or sibling modification is part of
+this correction.
+
+The unchanged cycle 4 probe rejected the recovery-enabled cases (exit 1):
+`stream` delivered only `done(nil, nil)` and `completeStreamEvents` delivered
+only an error with absent finish evidence. Its stdout SHA-256 is
+`a9b5a5262e3773df90b49a119e44d1c74efeed72e8c4b31fd9b1967c7fd9052e`.
+After correcting injection, the same filtered command passed all four cases
+(exit 0), stdout SHA-256
+`31cd5324409bdf334004bb00b15621bf47aa04336ef1867a9149ddf8e4f1be4d`:
+`env XDG_CACHE_HOME="$PWD/.build/audit-cache" swift test --filter OpenAIRecoveryTests/legacyStreamingOutcomesThroughLineBoundary`.
+Foundry retains both transcripts and the validated behavioral proof record.
 
 Authoritative root contract text was read from mojentic-unify commit
 `36f1cd9a2c89b8ad48384ab15a8ad25c4bb387ad`; those three working files were clean.
@@ -89,7 +102,7 @@ existing test names and assertions were inventoried; no test suite was deleted.
 | --- | --- |
 | Socket request/response capture | `assertStatusWires`, recovery conformance/identity suites: entire frozen encoded bodies, unmasked logical/attempt UUIDs, wire numbers, exact headers/body/status, ordered captures and complete independently expected lifecycle fields. |
 | Partial TCP close and peer FIN | `PublicRecoveryInterruptionTests`, sender-registration and paused ownership suites: explicit typed boundary interruption/cancellation, producer completion before resumption, observed/delivered prefixes, no resend or tool execution, and seeded session rollback. |
-| Legacy OpenAI successful SDK streaming with/without a recovery policy | `OpenAIRecoveryTests.legacyStreamingOutcomesThroughLineBoundary` preserves exact text/done and missing-DONE error outcomes through the existing line boundary, plus complete request assertions. `ReleaseBaselineCompatibilityTests.configuredRecoveryDoesNotChangeLegacyStreams` separately drives the public recovery-configured constructors and verifies original typed status/body, one send and no recovery capture/lifecycle. Successful FoundationNetworking progressive callback wiring through URLProtocol is outside this split proof. |
+| Legacy OpenAI successful SDK streaming with/without a recovery policy | `OpenAIRecoveryTests.legacyStreamingOutcomesThroughLineBoundary` runs all four public-API/policy combinations through the injected line boundary: exactly text `ok` then done(stop, nil) for `stream`, content `ok` then typed incompleteStream(CompletionEvidence(finishReason: "stop")) for `completeStreamEvents`. Each asserts exactly one request, model gpt-4o, stream true, empty messages, Authorization Bearer credential-sentinel, and empty recovery request/lifecycle/wire captures. `ReleaseBaselineCompatibilityTests.configuredRecoveryDoesNotChangeLegacyStreams` separately drives the public recovery-configured constructors and verifies original typed status/body, one send and no recovery capture/lifecycle. Successful FoundationNetworking progressive callback wiring through URLProtocol is outside this split proof. |
 | Platform header-octet decoding | `RecoveryHeaderEncodingTests`: exact Unicode boundary header values and UTF-8 body bytes on every platform. Raw TCP octet decoding belongs to Foundation and is no longer asserted. |
 | Real idle timeout | `RecoveryTimeoutTests`: an injected `URLError.timedOut` leaves admission pending, permits only explicit allow, preserves exact resend/body/identity and rejects without a second request. The test proves recovery policy, not SDK timeout implementation. |
 | Delayed prefixes/capture/retry/tools | `FirstToken*Tests`: injected 200 ms prefix-to-terminal and tool/capture differences, 350 ms Anthropic fragment/duration, no initial empty-input token, duration-only zero-argument tools, retry-origin and provider-unit preservation. |
@@ -110,8 +123,11 @@ record and transcripts separately from repository documentation.
 
 ## Static execution-path inspection
 
-`scripts/check-deterministic-tests` inspects all 157 Swift test/support and
-verifier paths. It rejects socket/server operations, real sleeps, remote-command
+`scripts/check-deterministic-tests` inspects all 158 Swift test/support and
+verifier paths, including itself. Character-class spellings in its server and
+uptime patterns avoid self-matching while preserving detection. Every invocation
+checks 19 inert operation samples with the same detector; a temporary test file
+containing all 19 samples was also rejected (exit 1) and removed before gates. It rejects socket/server operations, real sleeps, remote-command
 launches and wall-clock measurements. A manual call-path review also covered
 implicit defaults that a textual guard cannot establish:
 
@@ -142,26 +158,29 @@ no loopback thread/listener or descriptor-floor assumptions.
 
 ## Required gate results
 
-All commands from `.hone-gates.json` passed on Linux Swift 6.4.1. Elapsed
-seconds include command startup and any required compilation. Transcript hashes
+All six commands from `.hone-gates.json` passed on Linux Swift 6.4.1 against
+the corrected source and manifest identified above. Gate names below refer to
+those exact commands, each invoked through `foundry capture`. Transcript hashes
 cover complete stdout followed by stderr; Foundry archives those run records.
 
-| Gate | Exit | Elapsed seconds | Transcript SHA-256 |
-| --- | --- | --- | --- |
-| `format` | 0 | 3.395 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
-| `lint` | 0 | 0.289 | `0fde78c8b3eccc4e8447024fcbeb213813cf757c6ad0adf6b395f95390a9d707` |
-| `build` | 0 | 30.236 | `2556070e49c2e4420630def87bfcb9700d311c00a4f4cada1f89e88a3370417e` |
-| `test` | 0 | 36.967 | `76ce1a3f79ad8eee27d8a1fd6565abcfd7651e893f3d5eedba9d83ce43a3a9ac` |
-| `test-full-traits` | 0 | 60.965 | `d07b72d26b75992c1a5b46d2c561ab006867fdf05a1ab4a4b1deb7f8061d3384` |
-| `docs` | 0 | 11.158 | `f021e0a0cba064e802a572f7329f6fb1e00c43ade89264a3f3d975e43804d8ef` |
+| Gate | Exit | Transcript SHA-256 |
+| --- | --- | --- |
+| `format` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `lint` | 0 | `87d1518979ea2ef7317f730983f0cc30c8a0f4a22e2882345e44390e8f99133c` |
+| `build` | 0 | `d255d1bee014d3bccfaedf3e06d9729d6d0bbd1e3e8f1f2200e016ae9f31c450` |
+| `test` | 0 | `aba48f2b893d4a8a86c09e0ab8035094f584d5521fa46849e264587e0ce169c6` |
+| `test-full-traits` | 0 | `a4e1c8d79ec08645c2847fd21b74ab1c46e557a266441aa3ac3b0fccb6c1160f` |
+| `docs` | 0 | `8f646ea11bc5567ade6759171d5658ac376ed1e0c0c6a388502ef01588b7fdf3` |
 
 Both test modes verified the same executable manifest before running their
 public-API assertions. The default suite passed 441 tests; the full-provider
 suite passed 461. Counts supplement the named assertion maps, not replace them.
 
-The maintained context, request-fidelity and timing verifier entrypoints also
-passed. Their `--skip-build` invocations reused the full-provider binary already
-verified above, with unchanged executable sources/manifests. The sender-registration
+Earlier correction evidence is retained below; these supplemental commands
+and traces were not rerun for cycle 5. The context, request-fidelity and timing
+verifier entrypoints passed in that earlier correction. Their `--skip-build`
+invocations reused its then-current full-provider binary with unchanged
+executable sources/manifests. The sender-registration
 trace run and the trace analyzer both exited 0.
 
 | Additional check | Exit | Elapsed seconds | Transcript SHA-256 |
@@ -174,7 +193,7 @@ trace run and the trace analyzer both exited 0.
 
 ## Retained public-boundary trace
 
-The trace analyzer verified 42 named calls with no byte/ordering violations.
+In the earlier correction, the trace analyzer verified 42 named calls with no byte/ordering violations.
 The archived aggregate trace SHA-256 is
 `7e94f735ed51b3abad3fdff51e0c5176cc6bc74a18c581421ef4fa40c6af9e54`. This supplements the complete event equality assertions in tests.
 One concrete capture is `sender/ollama/tools/gateway/incomplete`:
@@ -203,9 +222,9 @@ sender, no tool execution or resend, and transport/producer completion before
 consumer resumption. Framed controls release the delimiter separately and prove
 cancellation/ownership rather than treating incomplete bytes as a decoded frame.
 
-The final isolated Anthropic seam probe exited 0 against the same manifest;
+The earlier isolated Anthropic seam probe exited 0 against its then-current manifest;
 transcript SHA-256 `2dc83265cf77cd3e5902b7da631322f702301f950496f72e1a1dfce8f3312925`. The initial rejecting probe exited 1 with an
-actual streaming failure; transcript SHA-256 `2de65dd3872d0d4de7aaabd03ec9e3a342cce68b3e724d1e63dee4533f1ae689`. The behavioral proof's
+actual streaming failure; transcript SHA-256 `2de65dd3872d0d4de7aaabd03ec9e3a342cce68b3e724d1e63dee4533f1ae689`. That earlier behavioral proof's
 JSON shape, integer exit codes, command strings and both existing log paths were
 validated after these runs.
 

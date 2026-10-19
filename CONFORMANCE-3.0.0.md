@@ -1,16 +1,24 @@
 # Swift 3.0.0 conformance
 
 Local verification passed all six required gates, including both test modes and
-DocC, against executable manifest `010a425e8d3d44ca8a484bbcbbd3f90fd6377357443670a4a977632644ed76eb`.
-The [verification record](docs/DETERMINISTIC-TESTS.md) gives elapsed runtimes,
+DocC, against executable manifest `41b50effb0308a59c4702885fe4b1307b7dd1ebcc8059b45c3b8731a81c919b5`.
+The [verification record](docs/DETERMINISTIC-TESTS.md) gives command results,
 complete transcript hashes, unmasked trace evidence and the external verification gap.
 
-This correction reconciles preserved campaign `foundry-task/mojentic-sw-mojentic-sw-no-network-tests-c2-1cb46e`
-under Stacey's October 19 authorization. The public API and default production
-transport are unchanged. The only new library change is the internal Anthropic
-`LineStreamingTransport` initializer and dispatch route. The authorized per-completion
-`StreamMeasurement` clock remains intact. Recovery semantics, dependencies,
-Swift tools 6.1, versions, tags and publication state are preserved.
+This correction finishes preserved cycle 4 at Swift base
+`a4b31b5bb10c5377539e721c2326a12943ee8eab` under Stacey's October 19
+internal-seam authorization. The internal OpenAI line-transport initializer
+accepts an optional recovery policy. Public constructors still default to
+HTTPClient; both legacy streaming methods already used lineTransport and retain
+that routing. RecoveryReply and RecoveryLocked remain shared support.
+The four-case `OpenAIRecoveryTests.legacyStreamingOutcomesThroughLineBoundary`
+now proves both policy settings preserve exact text/done versus content/typed
+incompleteStream(stop) outcomes, one characterized request and Authorization,
+and no recovery request, lifecycle or wire observations. The verification record
+retains actual rejecting and passing evidence. The deterministic guard includes
+itself and rejects 19 prohibited-operation samples without executing them.
+Recovery, native reasoning, metadata/request fidelity/timing, public APIs,
+dependencies, Swift tools 6.1, versions, tags and publication state are preserved.
 
 The local root copies of `TRANSIENT-RECOVERY-2026-10.md`,
 `REASONING-PROTOTYPE-2026-10.md` and `MODEL-METADATA-2026-10.md` are byte-identical

@@ -68,12 +68,14 @@ public struct OpenAIGateway: RecoveryStreamingGateway {
         client: HTTPClient = HTTPClient(),
         registry: OpenAIModelRegistry = .shared,
         lineTransport: any LineStreamingTransport,
+        recovery: CompletionRecoveryPolicy? = nil,
     ) {
         precondition(!apiKey.isEmpty, "OpenAI API key must not be empty")
         self.apiKey = apiKey
         self.baseURL = baseURL
         self.client = client
         self.lineTransport = lineTransport
+        self.recovery = recovery
         self.registry = registry
         logger = Logger(label: "mojentic.gateway.openai")
     }

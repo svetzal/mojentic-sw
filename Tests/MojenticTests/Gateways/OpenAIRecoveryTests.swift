@@ -98,22 +98,13 @@ struct OpenAIRecoveryTests {
         let body = frame + "\n\n"
         let recorder = RecoveryRecorder()
         let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
-        let gateway =
-            if recovery {
-                OpenAIGateway(
-                    apiKey: "credential-sentinel",
-                    baseURL: server.url,
-                    client: server.client,
-                    recovery: recoveryPolicy(recorder),
-                )
-            } else {
-                OpenAIGateway(
-                    apiKey: "credential-sentinel",
-                    baseURL: server.url,
-                    client: server.client,
-                    lineTransport: server,
-                )
-            }
+        let gateway = OpenAIGateway(
+            apiKey: "credential-sentinel",
+            baseURL: server.url,
+            client: server.client,
+            lineTransport: server,
+            recovery: recovery ? recoveryPolicy(recorder) : nil,
+        )
         if single {
             var result: [String] = []
             for await event in gateway.completeStreamEvents(model: "gpt-4o", messages: [], config: .init()) {
@@ -145,8 +136,11 @@ struct OpenAIRecoveryTests {
         #expect(request["stream"] == true)
         #expect(request["messages"] == [])
         #expect(server.requests.withLock { $0.count } == 1)
-        let headers = try #require(server.requestHeaders.withLock { $0.first }).lowercased()
-        #expect(headers.contains("authorization: bearer credential-sentinel"))
+        let headers = try #require(server.requestHeaders.withLock { $0.first })
+        let authorization = headers.components(separatedBy: "\r\n")
+            .filter { $0.lowercased().hasPrefix("authorization: ") }
+            .map { String($0.dropFirst("authorization: ".count)) }
+        #expect(authorization == ["Bearer credential-sentinel"])
         #expect(recorder.requests.withLock { $0.isEmpty })
         #expect(recorder.events.withLock { $0.isEmpty })
         #expect(recorder.wires.withLock { $0.isEmpty })
