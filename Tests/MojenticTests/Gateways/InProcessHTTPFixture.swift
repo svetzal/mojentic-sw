@@ -146,13 +146,33 @@ final class InProcessHTTPFixture: @unchecked Sendable {
         condition.unlock()
     }
 
+    /// Returns the complete request body that the URL protocol received.
+    ///
+    /// Darwin's URLSession moves the body into `httpBodyStream` before the
+    /// protocol sees the request, so `httpBody` is nil there. FoundationNetworking
+    /// keeps `httpBody`.
+    private static func body(of request: URLRequest) -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var body = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            body.append(contentsOf: buffer[0..<count])
+        }
+        return body
+    }
+
     fileprivate func respond(
         request: URLRequest,
         headers: (Int, [String: String]) -> Void,
         data: @escaping @Sendable (Data) -> Void,
         finish: @escaping @Sendable (URLError.Code?) -> Void
     ) {
-        let body = request.httpBody ?? Data()
+        let body = Self.body(of: request)
         condition.lock()
         let index = requests.withLock { values in
             values.append(body)

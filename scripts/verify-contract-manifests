@@ -1,14 +1,35 @@
-#!/usr/bin/env python3
-"""Verify the versioned executable contract sources without tools or network I/O."""
-from hashlib import sha256
-from pathlib import Path
+#!/bin/sh
+# Verify the versioned executable contract sources without tools or network I/O.
+#
+# It needs only POSIX sh and sha256sum (or shasum on macOS), so it runs in the
+# Linux CI containers, which have no python3.
+set -eu
+LC_ALL=C
+export LC_ALL
 
-root = Path(__file__).resolve().parent.parent
-manifests = sorted((root / 'Tests/MojenticTests/Fixtures/Contracts').glob('*.sha256'))
-for manifest in manifests:
-    for line in manifest.read_text().splitlines():
-        expected, name = line.split(maxsplit=1)
-        path = root / name.lstrip('*')
-        if sha256(path.read_bytes()).hexdigest() != expected:
-            raise SystemExit(f'Contract source mismatch: {name}')
-print('swift-deterministic-contracts-v1: all executable-source and catalog manifests verified')
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+cd "$root"
+
+if command -v sha256sum >/dev/null 2>&1; then
+    digest() { sha256sum "$1"; }
+else
+    digest() { shasum -a 256 "$1"; }
+fi
+
+# Each manifest line is "<hex>  <name>"; a leading "*" marks binary mode.
+for manifest in Tests/MojenticTests/Fixtures/Contracts/*.sha256; do
+    if [ ! -f "$manifest" ]; then continue; fi
+    while read -r expected name || [ -n "${expected-}" ]; do
+        path=${name#\*}
+        actual=''
+        if [ -n "$expected" ] && [ -n "$path" ] && [ -f "$path" ]; then
+            actual=$(digest "$path")
+            actual=${actual%% *}
+        fi
+        if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
+            printf 'Contract source mismatch: %s\n' "$name" >&2
+            exit 1
+        fi
+    done <"$manifest"
+done
+printf '%s\n' 'swift-deterministic-contracts-v1: all executable-source and catalog manifests verified'

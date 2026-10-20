@@ -23,6 +23,15 @@ move independently.
 - Verify executable contract manifests in both test gates, remove server-based
   packaged/example probes, and bound every CI job with a timeout.
 
+### Fixed
+
+- The in-process HTTP test fixture reads request bodies from `httpBodyStream`
+  when `httpBody` is nil. Darwin's URLSession moves the body there, so macOS
+  test runs captured empty requests.
+- The deterministic-test guard and the contract manifest verifier are POSIX sh
+  scripts. The Linux CI containers have no python3, so the test gates exited
+  with status 127 before they ran the tests.
+
 ## [3.0.0] - 2026-10-18
 
 ### Added — client streaming timing
