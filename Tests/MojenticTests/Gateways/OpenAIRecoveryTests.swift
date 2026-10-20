@@ -103,7 +103,7 @@ struct OpenAIRecoveryTests {
             baseURL: server.url,
             client: server.client,
             lineTransport: server,
-            recovery: recovery ? recoveryPolicy(recorder) : nil,
+            recovery: recovery ? server.isolated(recoveryPolicy(recorder)) : nil,
         )
         if single {
             var result: [String] = []
@@ -183,7 +183,11 @@ struct OpenAIRecoveryTests {
         let new = try InProcessHTTPFixture(replies: [RecoveryReply(status: 503, body: "busy"), reply])
         let config = CompletionConfig(temperature: 0.3, maxTokens: 17, topP: 0.8, reasoning: .high)
         for (server, policy) in [(old, nil), (new, recoveryPolicy(RecoveryRecorder()))] {
-            let gateway = OpenAIGateway(apiKey: "key", baseURL: server.url, recovery: policy)
+            let gateway = OpenAIGateway(
+                apiKey: "key",
+                baseURL: server.url,
+                client: server.client,
+                recovery: policy.map { server.isolated($0) })
             if structured {
                 _ = try await gateway.completeJSON(
                     model: model, messages: [.user("original")], schema: ["type": "object"], config: config,

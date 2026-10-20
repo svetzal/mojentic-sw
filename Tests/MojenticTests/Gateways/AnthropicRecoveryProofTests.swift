@@ -26,7 +26,7 @@ import Testing
                 }
             }
             let gateway = AnthropicGateway(
-                apiKey: "credential-sentinel", baseURL: server.url, recovery: policy,
+                apiKey: "credential-sentinel", baseURL: server.url, recovery: server.isolated(policy),
             )
             let error = try await recoveryFailure {
                 _ = try await gateway.complete(

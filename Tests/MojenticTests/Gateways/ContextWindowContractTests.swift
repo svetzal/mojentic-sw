@@ -16,7 +16,7 @@ struct ContextWindowContractTests {
             )
         ])
         defer { server.release() }
-        let gateway = OMLXGateway(host: server.url, apiKey: "contract-secret")
+        let gateway = OMLXGateway(host: server.url, apiKey: "contract-secret", session: server.session)
         let window = try await gateway.modelContextWindow(model: "exact-model")
         #expect(window == ModelContextWindow(maxContextTokens: 262144, field: "max_model_len"))
         #expect(server.requestHeaders.withLock { $0.first }?.contains("GET /v1/models HTTP/1.1") == true)

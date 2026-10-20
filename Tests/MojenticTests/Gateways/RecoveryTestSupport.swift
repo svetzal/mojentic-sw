@@ -38,7 +38,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
         idleTimeout: TimeInterval = 5,
     ) -> any LLMGateway {
         server.trace.record("test", "\(Test.current?.name ?? "unknown")/\(description)")
-        let policy = policy.map { reportingDeliveries(to: server, $0) }
+        let policy = policy.map { server.isolated(reportingDeliveries(to: server, $0)) }
         #if anthropic
             if anthropic {
                 if let policy {
@@ -79,6 +79,7 @@ struct RecoveryBoundary: Sendable, CustomStringConvertible {
                     host: server.url,
                     apiKey: "credential-sentinel",
                     timeout: idleTimeout,
+                    session: server.session,
                     recovery: policy,
                 )
             }

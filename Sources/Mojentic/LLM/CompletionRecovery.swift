@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 /// The category of a failed completion attempt under recovery.
 public enum RecoveryCategory: String, Sendable, Codable, Hashable {
     /// HTTP transport failed without confirmed remote termination.
@@ -292,6 +296,8 @@ public struct RecoveryTiming: Sendable {
 public struct CompletionRecoveryPolicy: Sendable {
     // Internal diagnostic seam; absent in consumer-created policies.
     var httpTrace: RecoveryDeliveryScheduling.HTTPTrace?
+    // Internal HTTP boundary seam; production attempts use ephemeral configurations.
+    var httpSessionConfiguration: (@Sendable () -> URLSessionConfiguration)?
     /// Positive limit including the initial wire request; defaults to one.
     public var maximumAttempts = 1
     /// Exponential full-jitter base in seconds.

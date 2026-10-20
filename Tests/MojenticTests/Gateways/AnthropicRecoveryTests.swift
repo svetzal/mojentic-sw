@@ -14,7 +14,9 @@ import Testing
             let recorder = RecoveryRecorder()
             let schema: JSONValue = ["type": "object", "properties": ["answer": ["type": "integer"]]]
             let value = try await AnthropicGateway(
-                apiKey: "credential-sentinel", baseURL: server.url, recovery: recoveryPolicy(recorder),
+                apiKey: "credential-sentinel",
+                baseURL: server.url,
+                recovery: server.isolated(recoveryPolicy(recorder)),
             ).completeJSON(
                 model: "claude-sonnet-4-5",
                 messages: [.system("system-sentinel"), .user("payload-sentinel")],
@@ -230,7 +232,7 @@ import Testing
                 body: #"{"content":[{"type":"text","text":"legacy"}],"stop_reason":"max_tokens"}"#
             )
             let server = try InProcessHTTPFixture(replies: [reply])
-            let gateway = AnthropicGateway(apiKey: "fixture-key", baseURL: server.url)
+            let gateway = AnthropicGateway(apiKey: "fixture-key", baseURL: server.url, client: server.client)
             #expect(
                 try await gateway.complete(model: "fixture", messages: [], tools: nil, config: .init())
                     .finishReason == .length

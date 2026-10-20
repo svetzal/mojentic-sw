@@ -30,7 +30,7 @@ struct BufferedRecoveryTests {
             }
         }
         policy.observer = { event in recorder.events.withLock { $0.append(event) } }
-        let gateway = OllamaGateway(baseURL: server.url, recovery: policy)
+        let gateway = OllamaGateway(baseURL: server.url, recovery: server.isolated(policy))
         let result = try await gateway.complete(
             model: "fixture",
             messages: [.user("original")],

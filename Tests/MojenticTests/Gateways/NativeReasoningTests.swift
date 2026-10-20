@@ -7,7 +7,7 @@ struct NativeReasoningTests {
     @Test func booleanControlAndRetentionPreserveOtherTemplateOptions() async throws {
         let contract = try NativeReasoningContract()
         let server = try InProcessHTTPFixture(replies: [contract.reply(omlx: true, stream: false)])
-        let gateway = OMLXGateway(host: server.url)
+        let gateway = OMLXGateway(host: server.url, session: server.session)
         _ = try await gateway.complete(
             model: "fixture",
             messages: [.user("go")],
@@ -51,7 +51,7 @@ struct NativeReasoningTests {
             RecoveryReply(
                 status: 200, body: try #require(String(data: JSONEncoder().encode(final), encoding: .utf8))),
         ])
-        let broker = LLMBroker(gateway: OMLXGateway(host: server.url))
+        let broker = LLMBroker(gateway: OMLXGateway(host: server.url, session: server.session))
         let response = try await broker.complete(
             model: "fixture",
             messages: [.user("go")],

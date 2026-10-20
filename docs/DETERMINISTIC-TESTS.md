@@ -77,13 +77,20 @@ clocks and deterministic jitter. Zero-delay sleeps yield; positive default waits
 suspend until cancellation because the default clock is frozen. Individual
 policy tests override these to exercise exact deadline, budget and delay rules.
 
-Buffered fixtures share one configured URLSession; isolated production recovery
-attempts still create their normal sessions. HTTP suite cases are serialized,
-while independent suites run in parallel. This bounds concurrent SDK resources
-without changing descriptor limits, skipping cases or weakening assertions.
-Each fixture has a unique custom-scheme URL and weak registry entry. The preserved
-transport probe has a separate `mojentic-probe` scheme so its global registration
-cannot intercept another suite's fixture.
+Each buffered fixture creates its own URLSession with `protocolClasses` set on
+that session's configuration. Recovery policies carry an internal configuration
+factory so every isolated attempt uses the same in-process HTTP boundary;
+production policies still create their normal ephemeral configurations.
+No fixture protocol is registered globally. Each fixture has a unique
+custom-scheme host and weak registry entry, which routes only its own requests.
+The transport probe also installs its protocol per session. CI run 39289528643
+on `2d5b2a5` showed empty fixture captures and `unsupported URL` (-1002) from
+recovery sessions, rather than evidence of another fixture's response. Recovery
+must explicitly receive the protocol configuration instead of relying on global
+registration. A regression also verifies that an unconfigured session cannot
+consume a fixture reply; it fails when global registration is restored.
+The isolation regression overlaps distinct 503/504 scripts and releases them in both orders
+through explicit request rendezvous, preserving exact wire assertions.
 
 When changing executable sources, deliberately update the affected manifest
 entries and include new executed support in the combined manifest. Review the

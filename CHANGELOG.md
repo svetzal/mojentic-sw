@@ -12,6 +12,9 @@ move independently.
 
 ### Changed
 
+- Isolate in-process HTTP fixtures and recovery session configurations so parallel
+  conformance tests cannot share sessions or globally registered protocols.
+
 - Completion conformance tests now use in-process HTTP and line transports,
   injected timing and explicit cancellation handshakes. Retain recovery,
   reasoning, request identity and privacy assertions without sockets or sleeps.
