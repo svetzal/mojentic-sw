@@ -70,6 +70,10 @@ jobs:
             --warnings-as-errors
 
   # swift-tools-version 6.1 is the declared minimum (package traits).
+  # Swift 6.1 resolves some pinned dependencies to older versions in the
+  # declared range (swift-log 1.16 needs tools 6.2), which rewrites
+  # Package.resolved. The gated test step runs first, so the contract
+  # manifests are verified against the committed files before resolution.
   build-linux-minimum:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -82,11 +86,11 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
-      - name: Build (debug)
-        run: swift build
-
       - name: Test (all provider traits)
         run: ./scripts/with-gate-environment swift test --traits full
+
+      - name: Build (debug)
+        run: swift build
 
   # Linux swift-format splits doc-comment sentences more strictly than macOS
   # (no NaturalLanguage framework), so the format gate runs on Linux.
