@@ -21,7 +21,8 @@ struct OpenAIRecoveryProofTests {
                 throw RecoveryCaptureSentinel()
             }
         }
-        let gateway = OpenAIGateway(apiKey: "credential-sentinel", baseURL: server.url, recovery: policy)
+        let gateway = OpenAIGateway(
+            apiKey: "credential-sentinel", baseURL: server.url, recovery: server.isolated(policy))
         let error = try await recoveryFailure {
             _ = try await gateway.complete(
                 model: "gpt-4o", messages: [.user("payload-sentinel")], tools: nil, config: .init(),

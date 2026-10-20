@@ -56,7 +56,7 @@ struct RequestFidelityTests {
                 try requestFidelityReply("openai")
             ])
             defer { server.release() }
-            let gateway = OpenAIGateway(apiKey: "contract-secret", baseURL: server.url)
+            let gateway = OpenAIGateway(apiKey: "contract-secret", baseURL: server.url, client: server.client)
             let response = try await gateway.complete(
                 model: model, messages: [.user("hello")], tools: nil, config: config)
             #expect(response.content == "answer")
@@ -78,7 +78,9 @@ struct RequestFidelityTests {
             let server = try InProcessHTTPFixture(replies: [try requestFidelityReply("anthropic")])
             defer { server.release() }
             let config = CompletionConfig(maxTokens: explicit ? 8192 : nil, reasoning: .high)
-            let result = try await AnthropicGateway(apiKey: "contract-secret", baseURL: server.url).complete(
+            let result = try await AnthropicGateway(
+                apiKey: "contract-secret", baseURL: server.url, client: server.client
+            ).complete(
                 model: model, messages: [.user("hello")], tools: nil, config: config)
             #expect(result.content == "answer")
             let bytes = try #require(server.requests.withLock { $0.first })
@@ -104,7 +106,9 @@ struct RequestFidelityTests {
                 temperature: explicit ? 0 : nil,
                 maxTokens: explicit ? explicitLimit : nil,
                 reasoning: .high)
-            let result = try await AnthropicGateway(apiKey: "contract-secret", baseURL: server.url).complete(
+            let result = try await AnthropicGateway(
+                apiKey: "contract-secret", baseURL: server.url, client: server.client
+            ).complete(
                 model: model, messages: [.user("hello")], tools: nil, config: config)
             #expect(result.content == "answer")
             let bytes = try #require(server.requests.withLock { $0.first })
@@ -134,7 +138,7 @@ struct RequestFidelityTests {
         let reply = try requestFidelityReply("openai")
         let server = try InProcessHTTPFixture(replies: [reply, reply])
         defer { server.release() }
-        let gateway = OpenAIGateway(apiKey: "contract-secret", baseURL: server.url)
+        let gateway = OpenAIGateway(apiKey: "contract-secret", baseURL: server.url, client: server.client)
         let session = ChatSession(
             broker: LLMBroker(gateway: gateway),
             model: "gpt-4o",

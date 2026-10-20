@@ -204,6 +204,7 @@ struct BufferedRecovery {
             mayStart: { [current = previous] in number == 1 || current.withinLimits(delay: 0) },
             stream: stream,
             trace: policy.httpTrace,
+            sessionConfiguration: policy.httpSessionConfiguration,
         )
         let result = await transport.send(request)
         if !result.dispatched {

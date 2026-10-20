@@ -77,13 +77,39 @@ clocks and deterministic jitter. Zero-delay sleeps yield; positive default waits
 suspend until cancellation because the default clock is frozen. Individual
 policy tests override these to exercise exact deadline, budget and delay rules.
 
-Buffered fixtures share one configured URLSession; isolated production recovery
-attempts still create their normal sessions. HTTP suite cases are serialized,
-while independent suites run in parallel. This bounds concurrent SDK resources
-without changing descriptor limits, skipping cases or weakening assertions.
-Each fixture has a unique custom-scheme URL and weak registry entry. The preserved
-transport probe has a separate `mojentic-probe` scheme so its global registration
-cannot intercept another suite's fixture.
+Each buffered fixture creates its own URLSession with `protocolClasses` set on
+that session's configuration. Recovery policies carry an internal configuration
+factory so every isolated attempt uses the same in-process HTTP boundary;
+production policies still create their normal ephemeral configurations.
+No fixture protocol is registered globally. Each fixture has a unique
+custom-scheme host and weak registry entry, which routes only its own requests.
+The transport probe also installs its protocol per session. CI run 39289528643
+on `2d5b2a5` showed empty fixture captures and `unsupported URL` (-1002) from
+recovery sessions, rather than evidence of another fixture's response. Recovery
+must explicitly receive the protocol configuration instead of relying on global
+registration. A regression also verifies that an unconfigured session cannot
+consume a fixture reply; it fails when global registration is restored.
+The isolation regression overlaps distinct 503/504 scripts and releases them in both orders
+through explicit request rendezvous, preserving exact wire assertions.
+The fixture storage audit confirms that sessions, reply scripts, request and
+response captures, delivery counters and release signals belong to each instance.
+The only static fixture storage is the locked weak-owner routing map; it contains
+no scripts or captures. Neither the fixture nor the transport probe registers a
+process-wide URLProtocol.
+
+The isolation correction was verified on x86_64 Linux with Swift 6.4.1 against
+main `2d5b2a5701434429a0a4f3862a858c48a0409b18`, with the preserved changes from
+`d64419f3b333f6ece3e5837fb872a74d1a4162e7` reapplied to the working tree.
+Through `scripts/with-gate-environment`, five consecutive `swift test --parallel`
+runs passed (443 tests in 129 suites each), followed by five consecutive
+`swift test --traits full` runs (463 tests in 136 suites each). Every run passed
+the isolation suite, the prohibited-operation guard and executable contract
+manifest verification. The overlap regression covers 12 provider/shape/order
+combinations by default and 16 with full traits, with two concurrent completions
+per combination. The verified `swift-deterministic-contracts-v1` combined manifest
+SHA-256 is `711dac0d6bea3c321211d3227f524918b7f2d37164bd4d08f7d4a78fc36caabe`.
+This verifies the Swift public API against its in-process HTTP boundary; no
+external provider implementation or other repository was changed or verified.
 
 When changing executable sources, deliberately update the affected manifest
 entries and include new executed support in the combined manifest. Review the

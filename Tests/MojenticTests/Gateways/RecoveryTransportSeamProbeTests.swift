@@ -1,5 +1,5 @@
 import Foundation
-import Mojentic
+@testable import Mojentic
 import Testing
 
 #if canImport(FoundationNetworking)
@@ -32,12 +32,14 @@ struct RecoveryTransportSeamProbeTests {
     func publicCompletionUsesInProcessTransport(_ recovering: Bool) async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RecoverySeamProbeProtocol.self]
-        let registered = URLProtocol.registerClass(RecoverySeamProbeProtocol.self)
-        defer { URLProtocol.unregisterClass(RecoverySeamProbeProtocol.self) }
-        #expect(registered)
         var policy = CompletionRecoveryPolicy()
         policy.timing = deterministicRecoveryTiming()
         policy.maximumAttempts = 1
+        policy.httpSessionConfiguration = {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [RecoverySeamProbeProtocol.self]
+            return configuration
+        }
         let gateway = OllamaGateway(
             baseURL: try #require(URL(string: "mojentic-probe://isolated")),
             client: HTTPClient(session: URLSession(configuration: configuration)),

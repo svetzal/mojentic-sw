@@ -15,8 +15,9 @@ import Testing
             let body = try stopSequenceBody(streaming: streaming, text: text)
             let server = try InProcessHTTPFixture(replies: [RecoveryReply(body: body)])
             let recorder = RecoveryRecorder()
+            let policy = server.isolated(recoveryPolicy(recorder))
             let gateway = AnthropicGateway(
-                apiKey: "credential-sentinel", baseURL: server.url, recovery: recoveryPolicy(recorder),
+                apiKey: "credential-sentinel", baseURL: server.url, recovery: policy,
             )
             let schema: JSONValue = ["type": "object"]
             let messages: [LLMMessage] = [.user("stop-sequence-probe")]

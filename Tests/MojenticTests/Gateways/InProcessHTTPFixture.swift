@@ -9,19 +9,14 @@ import Testing
 /// In-process HTTP boundary shared by buffered and streaming public-API tests.
 ///
 /// The custom scheme cannot fall back to a network connection. Each fixture has
-/// a unique host, and registration stores weak owners so parallel tests stay isolated.
+/// a unique host and session; the registry only routes requests to their weak owner.
 final class InProcessHTTPFixture: @unchecked Sendable {
     private final class Owner: @unchecked Sendable {
         weak var value: InProcessHTTPFixture?
         init(_ value: InProcessHTTPFixture) { self.value = value }
     }
     private static let owners = RecoveryLocked<[String: Owner]>([:])
-    private static let registered = URLProtocol.registerClass(FixtureURLProtocol.self)
-    private static let bufferedSession: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [FixtureURLProtocol.self]
-        return URLSession(configuration: configuration)
-    }()
+    private let bufferedSession = URLSession(configuration: InProcessHTTPFixture.makeSessionConfiguration())
     let authenticationChallenge: Bool
     private let clock = TestStreamClock.current
     let deliveries = RecoveryLocked<Int>(0)
@@ -51,7 +46,6 @@ final class InProcessHTTPFixture: @unchecked Sendable {
         authenticationChallenge: Bool = false,
     ) throws {
         self.authenticationChallenge = authenticationChallenge
-        #expect(Self.registered)
         self.replies = replies
         url = try #require(URL(string: "mojentic-fixture://\(UUID().uuidString.lowercased())"))
         let stream = AsyncStream<Int>.makeStream()
@@ -61,6 +55,9 @@ final class InProcessHTTPFixture: @unchecked Sendable {
     }
 
     deinit {
+        // Teardown can run on Foundation's work queue; invalidation synchronizes
+        // with that queue on Linux, so perform it outside the callback.
+        Task.detached { [bufferedSession] in bufferedSession.invalidateAndCancel() }
         Self.owners.withLock { _ = $0.removeValue(forKey: url.host ?? "") }
         arrival.finish()
     }
@@ -69,14 +66,25 @@ final class InProcessHTTPFixture: @unchecked Sendable {
         owners.withLock { $0[request.url?.host ?? ""]?.value }
     }
 
-    var sessionConfiguration: URLSessionConfiguration {
+    var sessionConfiguration: URLSessionConfiguration { Self.makeSessionConfiguration() }
+
+    private static func makeSessionConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FixtureURLProtocol.self]
         return configuration
     }
 
+    var session: URLSession { bufferedSession }
+
     var client: HTTPClient {
-        HTTPClient(session: Self.bufferedSession)
+        HTTPClient(session: bufferedSession)
+    }
+
+    /// Configure each recovery attempt at the HTTP boundary without global registration.
+    func isolated(_ policy: CompletionRecoveryPolicy) -> CompletionRecoveryPolicy {
+        var policy = policy
+        policy.httpSessionConfiguration = { Self.makeSessionConfiguration() }
+        return policy
     }
 
     func release() {

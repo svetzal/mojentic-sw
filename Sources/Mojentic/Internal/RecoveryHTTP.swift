@@ -30,6 +30,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     private let didStart: @Sendable () -> Void
     private let mayStart: @Sendable () -> Bool
     private let stream: RecoveryStreamDecoder?
+    private let sessionConfiguration: @Sendable () -> URLSessionConfiguration
 
     init(
         identity: RecoveryIdentity,
@@ -39,7 +40,9 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
         mayStart: @escaping @Sendable () -> Bool,
         stream: RecoveryStreamDecoder? = nil,
         trace: RecoveryDeliveryScheduling.HTTPTrace? = nil,
+        sessionConfiguration: (@Sendable () -> URLSessionConfiguration)? = nil,
     ) {
+        self.sessionConfiguration = sessionConfiguration ?? { .ephemeral }
         self.identity = identity
         self.observer = observer
         self.semantics = semantics
@@ -52,7 +55,7 @@ final class RecoveryHTTP: NSObject, URLSessionDataDelegate, BufferedRecoveryTran
     func send(_ request: URLRequest) async -> RecoveryHTTPResult {
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                let configuration = URLSessionConfiguration.ephemeral
+                let configuration = sessionConfiguration()
                 configuration.httpCookieStorage = nil
                 configuration.urlCredentialStorage = nil
                 configuration.httpShouldSetCookies = false
