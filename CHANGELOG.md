@@ -34,6 +34,10 @@ move independently.
 
 ### Fixed
 
+- The Swift 6.1 minimum CI job verifies committed contract inputs, then resolves
+  compatible dependencies from the manifest without the stable-toolchain
+  lockfile before running all provider tests and the debug build. The tracked
+  Swift 6.4 pins and declared Swift 6.1 minimum are unchanged.
 - The in-process HTTP test fixture reads request bodies from `httpBodyStream`
   when `httpBody` is nil. Darwin's URLSession moves the body there, so macOS
   test runs captured empty requests.

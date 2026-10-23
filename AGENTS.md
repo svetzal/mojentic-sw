@@ -142,6 +142,41 @@ guard and `swift-deterministic-contracts-v1` executable-source/catalog manifest
 verification. No application boundary or executable contract changes are
 involved. These are native quality results, not an advisory audit result.
 
+### Minimum-toolchain dependency resolution
+
+The Swift 6.4 lockfile is intentionally retained for stable-toolchain gates.
+Its `swift-log` 1.16.2 pin requires Swift tools 6.2, so Swift 6.1.3 cannot build
+that pinned graph. The minimum CI job checks deterministic operations and all
+committed contract manifests before removing `Package.resolved` in its disposable
+checkout. It then runs native `swift package resolve`, `swift test --traits full`
+and `swift build`. These explicit pre-resolution checks replace the test wrapper
+in that job because two contract manifests hash the stable lockfile. Stable jobs
+continue using the wrapper and tracked pins. No manifest constraint or dependency
+hold is needed; the minimum job tests the tools-compatible graph available to
+library consumers within the declared ranges.
+
+Reproduction uses actual Swift 6.1.3 on Ubuntu 24.04 via the existing mise tooling.
+The original full-trait command fails with the tools-version error above. From a
+clean checkout without a lockfile, SwiftPM selects `swift-log` 1.15.1 at
+`9c6fb14227f55d8f711ce3847dc2f419fb0ecacb`; the DocC plugin and SymbolKit pins
+remain 1.5.0 and 1.0.0. The generated lockfile SHA-256 is
+`6dcc2fcd90f9365d0efe6d712e1ed400cf4efa4dbab36e716679988dab7ed38b`.
+An existing `.build` from the failed pinned attempt must also be discarded when
+reproducing locally: removing only the lockfile leaves incompatible workspace
+state. CI starts with neither a build directory nor a restored dependency cache.
+
+Verified against base `6ba5dca9fa829f7faab7e9a1a5eda3961fd2fa03` with this CI
+correction uncommitted: Swift 6.1.3 fresh resolution, all 463 full-trait tests and
+the debug build passed. Swift 6.4.1 passed all six required gate commands (443
+default tests in 129 suites; 463 full-trait tests in 136 suites), plus native
+resolution without changing the tracked lockfile. Both toolchains verified
+`swift-deterministic-contracts-v1`, executable manifest SHA-256
+`b033c968b7208f067d4f25e61d94a1fab7f4043f7dfeb86d0ecf02e5124bcaad`,
+before tests. No application boundary, public API or executable contract changed.
+These are local Linux runs; hosted CI and macOS were not executed for this fix.
+This is toolchain compatibility verification, not dependency advisory coverage;
+the advisory gap described above remains.
+
 ## Engineering Principles
 
 Inherit from the monorepo `AGENTS.md`. Swift-specific applications:
