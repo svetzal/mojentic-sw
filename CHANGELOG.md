@@ -12,6 +12,10 @@ move independently.
 
 ### Changed
 
+- **Dependencies**: `swift-log` 1.16.1 → 1.16.2 in `Package.resolved`. The
+  `Package.resolved` digest in the context-window and request-fidelity contract
+  manifests moves with the lockfile; no contract source changed.
+
 - Isolate in-process HTTP fixtures and recovery session configurations so parallel
   conformance tests cannot share sessions or globally registered protocols.
 

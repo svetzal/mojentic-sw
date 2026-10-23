@@ -1,0 +1,35 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Constructing 1185 / 2080]
+[6 / 78] Logging
+[12 / 82] Mojentic
+[14 / 79] Mojentic
+[31 / 119] WorkingMemory-product
+[39 / 127] SimpleLLM-product
+[40 / 127] TellUser-product
+[48 / 127] RealtimeBasic-product
+[53 / 127] RealtimeManualVAD-product
+[60 / 129] SimpleLLM-product
+[65 / 131] ImageAnalysis-product
+[74 / 134] EphemeralTaskManagerExample-product
+[83 / 138] BrokerExamples-product
+[85 / 138] BrokerExamples-product
+[92 / 140] AsyncLLM-product
+[101 / 143] AnthropicSimple-product
+[106 / 143] AsyncDispatcherExample-product
+[110 / 143] AsyncLLM-product
+[111 / 143] WorkingMemory-product
+[116 / 143] SimpleStructured-product
+[119 / 143] RealtimeToolCall-product
+[125 / 143] FileTool-product
+[125 / 143] RealtimeBasic-product
+[130 / 143] IterativeSolver-product
+[139 / 143] FileTool-product
+[140 / 143] EphemeralTaskManagerExample-product
+[143 / 143] AsyncLLM-product
+[143 / 143] BrokerAsTool-product
+[143 / 144] OMLXChat-product
+Build complete! (42.47 secs)

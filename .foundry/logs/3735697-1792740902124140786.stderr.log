@@ -1,0 +1,13 @@
+Updating https://github.com/swiftlang/swift-docc-plugin.git
+Updating https://github.com/swiftlang/swift-docc-symbolkit
+Updating https://github.com/apple/swift-log.git
+Updated https://github.com/swiftlang/swift-docc-plugin.git (0.36s)
+Updated https://github.com/swiftlang/swift-docc-symbolkit (0.65s)
+Updated https://github.com/apple/swift-log.git (0.58s)
+Computing version for https://github.com/apple/swift-log.git
+Computed https://github.com/apple/swift-log.git at 1.16.2 (1.24s)
+Computing version for https://github.com/swiftlang/swift-docc-plugin.git
+Computed https://github.com/swiftlang/swift-docc-plugin.git at 1.5.0 (0.32s)
+Computing version for https://github.com/swiftlang/swift-docc-symbolkit
+Computed https://github.com/swiftlang/swift-docc-symbolkit at 1.0.0 (0.49s)
+Working copy of https://github.com/apple/swift-log.git resolved at 1.16.2
