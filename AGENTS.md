@@ -88,7 +88,6 @@ Linux. Keep the two in step when the gate changes.
 | Tests (all)    | Swift Testing, every provider trait | `swift test --traits full`                                           |
 | Docs           | DocC                                | `swift package --disable-sandbox generate-documentation ...` (above) |
 | Coverage       | llvm-cov via SwiftPM                | `swift test --enable-code-coverage`                                  |
-| Security audit | osv-scanner (OSV + GitHub advisories) | `osv-scanner scan source --lockfile=Package.resolved`              |
 | API surface    | `swift package diagnose-api-...`    | Run pre-release against last tagged version                          |
 
 CI (GitHub Actions) runs on the `xcode-27` macOS image and in the
@@ -96,12 +95,52 @@ CI (GitHub Actions) runs on the `xcode-27` macOS image and in the
 plus a `swift:6.1-noble` job for the declared minimum. The format and lint
 gates run on Linux (`ghcr.io/realm/swiftlint:0.65.1` for SwiftLint).
 
-The `Supply Chain` workflow (`.github/workflows/security.yml`) runs
-osv-scanner against `Package.resolved` on every push and every Monday, so
-advisories published after the last push still surface. `Package.resolved` is
-tracked; review its diff whenever a dependency moves. Dependabot is not used:
-its update PRs conflict with trunk-based development, and Foundry's nightly
-maintenance keeps dependencies current.
+### Dependency diligence
+
+Review tracked `Package.resolved` and its diff whenever dependencies move.
+Keep the native resolve/build/test/format/lint/DocC checks; their success checks
+resolution, compatibility and documentation, not whether dependencies are safe.
+Dependabot update PRs are not configured: Foundry's nightly maintenance keeps
+dependencies current.
+
+The tooling review on October 23, 2026 used Linux Swift 6.4.1. Local
+`swift package --help` exposes `resolve`, `show-dependencies` and `generate-sbom`,
+but no automated advisory check. `experimental-audit-binary-artifact --help`
+describes undefined-symbol checking for static libraries, not advisory matching.
+An SBOM is an inventory, not a vulnerability assessment.
+[Swift Package Audit](https://github.com/crleonard/swift-package-audit) documents
+metadata health and optional newer-tag checks, not advisory matching. No suitable
+established, maintained Swift-native automated advisory check was identified in
+this review. No replacement scanner, runtime, account or service is added.
+The Google osv-scanner requirement and its sole-purpose `security.yml` workflow
+are removed; there is no automated dependency advisory gate or green audit claim.
+
+Reviewed inventory at base commit `71a4597e634032e585ba59ee900aa638a27f1622`
+(`HEAD`, local `main` and live `origin/main` matched before edits):
+
+| Package | Resolved version | Pinned revision | Role |
+| --- | --- | --- | --- |
+| `apple/swift-log` | 1.16.2 | `c9c6bb9d275ec0d95c3ad16391f3f045dc623104` | Direct library dependency |
+| `swiftlang/swift-docc-plugin` | 1.5.0 | `647c708be89f834fa6a6d4945442793a77ddf5b6` | Direct documentation tooling |
+| `swiftlang/swift-docc-symbolkit` | 1.0.0 | `b45d1f2ed151d057b54504d653e0da5552844e34` | Transitive documentation dependency |
+
+The manifest keeps `swift-log` from 1.15.1 and `swift-docc-plugin` from 1.5.0;
+lockfile format 3 pins all three source-control dependencies above. This review
+does not change constraints or pins and does not establish an absence of
+vulnerabilities. Existing GitHub advisory/alert visibility, where available, is
+supplementary evidence only; repository alert settings and alert status were not
+verified here. It is neither a native scanner nor a safety guarantee.
+
+Validation of this correction on Linux Swift 6.4.1: `swift package resolve`
+and `swift package show-dependencies --format json` passed through the gate
+environment wrapper, confirming the inventory without changing the lockfile.
+All six exact `.hone-gates.json` commands passed through the same wrapper and
+`foundry capture`: format, strict SwiftLint, release build, parallel tests
+(443 tests in 129 suites), full-trait tests (463 tests in 136 suites) and DocC
+with warnings as errors. Both test gates also passed the deterministic-operation
+guard and `swift-deterministic-contracts-v1` executable-source/catalog manifest
+verification. No application boundary or executable contract changes are
+involved. These are native quality results, not an advisory audit result.
 
 ## Engineering Principles
 

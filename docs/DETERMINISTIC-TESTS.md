@@ -177,8 +177,9 @@ implicit defaults that a textual guard cannot establish:
 
 Bundled fixture reads, temporary file-tool tests and optional local trace writes
 remain local filesystem operations. SwiftPM builds use the pinned dependencies;
-there is no test-driven dependency resolution or live OSV/provider call. The
-existing CI supply-chain scan remains separate from deterministic verification.
+there is no test-driven dependency resolution or live provider call. Dependency
+diligence and the advisory automation gap are documented in `AGENTS.md`; these
+deterministic checks do not establish dependency safety.
 Every GitHub Actions job has a 30-minute timeout. The gate wrapper and CI contain
 no loopback thread/listener or descriptor-floor assumptions.
 

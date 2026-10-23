@@ -12,6 +12,11 @@ move independently.
 
 ### Changed
 
+- Remove the Google osv-scanner requirement and Supply Chain workflow. Record
+  the pinned SwiftPM inventory and native tooling review in `AGENTS.md`; no
+  suitable native automated advisory check was identified. Native quality gates
+  remain required and do not prove dependency safety.
+
 - **Dependencies**: `swift-log` 1.16.1 → 1.16.2 in `Package.resolved`. The
   `Package.resolved` digest in the context-window and request-fidelity contract
   manifests moves with the lockfile; no contract source changed.
