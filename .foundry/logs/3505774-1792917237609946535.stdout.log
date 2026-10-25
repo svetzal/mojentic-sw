@@ -1,0 +1,14 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning 966 / 1053]
+[Planning deferred tasks]
+[Constructing 563 / 2080]
+[Starting]
+[4 / 77] Logging
+[5 / 77] Logging
+[9 / 79] Mojentic
+[10 / 11] ChatSessionExample-product
+[10 / 11] RealtimeBasic-product
+Build complete! (44.37 secs)
