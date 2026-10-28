@@ -1,0 +1,11 @@
+Building for production...
+[Computing dependencies]
+[Provisioning 26 / 38]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Constructing 1663 / 2080]
+[3 / 76] Logging
+[5 / 77] Logging
+[9 / 79] Mojentic
+[10 / 11] AsyncLLM-product
+Build complete! (42.49 secs)
