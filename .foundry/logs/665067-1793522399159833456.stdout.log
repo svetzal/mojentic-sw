@@ -1,0 +1,42 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Constructing 776 / 2080]
+[41 / 146] Logging
+[49 / 151] Mojentic
+[54 / 151] Mojentic
+[67 / 187] WorkingMemory-product
+[83 / 195] CodingFileTool-product
+[87 / 207] SolverChatSession-product
+[87 / 207] RealtimeToolCall-product
+[91 / 207] WorkingMemory-product
+[95 / 207] RecoveryExample-product
+[95 / 207] TracerDemo-product
+[105 / 207] ListModels-product
+[105 / 207] RealtimeBasic-product
+[109 / 207] ReAct-product
+[113 / 207] SimpleStructured-product
+[117 / 207] CodingFileTool-product
+[123 / 209] RealtimeBargeIn-product
+[132 / 212] Embeddings-product
+[141 / 215] AnthropicSimple-product
+[141 / 215] ChatSessionExample-product
+[153 / 215] AsyncDispatcherExample-product
+[167 / 215] ListModels-product
+[183 / 215] WebSearch-product
+[188 / 215] RealtimeBargeIn-product
+[191 / 215] RecursiveAgent-product
+[195 / 215] RealtimeBasic-product
+[196 / 215] SimpleStructured-product
+[202 / 215] FileTool-product
+[204 / 215] RealtimeBasic-product
+[207 / 215] ChatSessionExample-product
+[210 / 215] CodingFileTool-product
+[213 / 215] WorkingMemory-product
+[218 / 218] RecursiveAgent-product
+[221 / 221] AsyncDispatcherExample-product
+[221 / 221] BrokerExamples-product
+[239 / 239] ReAct-product
+Build complete! (47.53 secs)
