@@ -1,0 +1,11 @@
+Building for production...
+[Computing dependencies]
+[Constructing description]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Constructing 1853 / 2080]
+[2 / 76] Logging
+[5 / 77] Logging
+[9 / 79] Mojentic
+[10 / 11] TracerDemo-product
+Build complete! (39.37 secs)
