@@ -12,6 +12,9 @@ move independently.
 
 ### Changed
 
+- Update the `swift-log` lockfile pin from 1.16.2 to 1.17.0 (manifest
+  constraint unchanged). Refresh the `Package.resolved` hash in the
+  context-window and request-fidelity contract manifests.
 - Remove the Google osv-scanner requirement and Supply Chain workflow. Record
   the pinned SwiftPM inventory and native tooling review in `AGENTS.md`; no
   suitable native automated advisory check was identified. Native quality gates
