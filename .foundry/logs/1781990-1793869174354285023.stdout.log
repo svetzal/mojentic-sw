@@ -1,0 +1,39 @@
+Building for production...
+[Computing dependencies]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Writing build description]
+[7 / 79] Logging
+[14 / 84] Mojentic
+[15 / 81] WorkingMemory-product
+[39 / 126] RealtimeBasic-product
+[39 / 128] TellUser-product
+[40 / 128] SolverChatSession-product
+[44 / 130] WorkingMemory-product
+[48 / 132] RealtimeManualVAD-product
+[52 / 134] RealtimeBargeIn-product
+[56 / 136] OMLXChat-product
+[63 / 141] RealtimeManualVAD-product
+[69 / 145] FileTool-product
+[77 / 151] CodingFileTool-product
+[86 / 156] BrokerExamples-product
+[89 / 158] BrokerAsTool-product
+[93 / 161] CodingFileTool-product
+[102 / 167] AskUser-product
+[106 / 169] WebSearch-product
+[117 / 172] SimpleLLM-product
+[128 / 172] AskUser-product
+[132 / 172] SimpleTool-product
+[132 / 172] BrokerExamples-product
+[139 / 172] RealtimeBasic-product
+[139 / 172] Streaming-product
+[143 / 172] RealtimeToolCall-product
+[155 / 176] RecoveryExample-product
+[156 / 176] RealtimeBargeIn-product
+[164 / 176] ChatSessionExample-product
+[168 / 176] Embeddings-product
+[172 / 176] EphemeralTaskManagerExample-product
+[175 / 177] SimpleStructured-product
+[176 / 176] AsyncLLM-product
+[176 / 176] AnthropicSimple-product
+Build complete! (39.72 secs)
