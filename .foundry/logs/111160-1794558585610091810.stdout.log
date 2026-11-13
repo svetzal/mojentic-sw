@@ -1,0 +1,18 @@
+Building for production...
+[Computing dependencies]
+[Pre-planning 1 / 1053]
+[Planning deferred tasks]
+[Starting]
+[5 / 77] Logging
+[10 / 80] Mojentic
+[19 / 44] SimpleStructured-product
+[25 / 44] TellUser-product
+[31 / 44] IterativeSolver-product
+[32 / 44] RealtimeBasic-product
+[36 / 44] RealtimeBargeIn-product
+[39 / 44] ImageAnalysis-product
+[39 / 44] ChatSessionWithTool-product
+[44 / 44] AnthropicSimple-product
+[44 / 45] ChatSessionWithTool-product
+[44 / 44] AsyncDispatcherExample-product
+Build complete! (36.26 secs)
